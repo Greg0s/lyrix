@@ -17,7 +17,10 @@ export function GameScreen() {
   if (game.error && !game.round) {
     return (
       <div className="lyrix-page">
-        <p role="alert">{game.error}</p>
+        <p role="alert">Impossible de charger la partie.</p>
+        <button type="button" className="lyrix-button" onClick={game.replay}>
+          Réessayer
+        </button>
       </div>
     );
   }
@@ -33,7 +36,10 @@ export function GameScreen() {
   const { round } = game;
   const foundCount = game.triedWords.filter((word) => word.found).length;
   const triedCount = game.triedWords.length;
-  const statsText = triedCount === 0 ? "À toi de jouer" : `${foundCount} trouvés sur ${triedCount} essayés`;
+  const statsText =
+    triedCount === 0
+      ? "À toi de jouer"
+      : `${foundCount} trouvé${foundCount === 1 ? "" : "s"} sur ${triedCount} essayé${triedCount === 1 ? "" : "s"}`;
   const feedbackText = game.feedback
     ? game.feedback.found
       ? `« ${game.feedback.word} » trouvé !`
@@ -63,7 +69,11 @@ export function GameScreen() {
             disabled={game.submitting}
           />
 
-          {feedbackText ? (
+          {game.error ? (
+            <p className="lyrix-feedback is-missed" role="alert">
+              Le mot n'a pas pu être envoyé, réessaie.
+            </p>
+          ) : feedbackText ? (
             <p className={`lyrix-feedback ${game.feedback?.found ? "is-found" : "is-missed"}`}>{feedbackText}</p>
           ) : null}
 
