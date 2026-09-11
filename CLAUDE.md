@@ -111,29 +111,51 @@ Keep a `docs/LEARNINGS.md` file (create it if it doesn't exist) as a running log
 
 ```
 /src
-  /api          # fetch wrapper the frontend uses to call the Worker
-  /components   # presentational React components (GameScreen, TitleGuess, LyricsBody, SideCard, ...)
-  /hooks        # useGame (round/guess state), useIsMobile (760px breakpoint)
-  /game         # masking, matching, normalization — framework-agnostic, unit-tested,
-                # imported by BOTH the frontend and the Worker
-  /styles       # tokens.css (design tokens), global.css (reset/fonts), game.css
+  main.tsx          # React entry point (mounts <App />)
+  App.tsx           # renders GameScreen
+  /api
+    client.ts       # fetch wrapper the frontend uses to call the Worker (fetchRound, submitGuess)
+  /components       # presentational React components
+    GameScreen.tsx  # top-level layout; wires useGame()/useIsMobile() into the rest
+    TitleGuess.tsx  # masked title, victory banner, replay button
+    LyricsBody.tsx  # masked lyrics, grouped by section
+    GuessForm.tsx   # word-guess input
+    TriedWords.tsx  # list of past guesses (found vs. missed)
+    SideCard.tsx    # collapsible card shell, used for both side panels
+    HowToPlay.tsx   # static rules text
+  /hooks
+    useGame.ts      # round/guess state machine; calls fetchRound/submitGuess
+    useIsMobile.ts  # 760px breakpoint match, drives SideCard collapse on mobile
+  /game             # masking, matching, normalization — framework-agnostic, unit-tested,
+                    # imported by BOTH the frontend (src) and the Worker (worker/src)
+    types.ts        # Song (server-only) + the RoundView/GuessResult wire contract
+    tokenize.ts     # splits text into word/non-word runs (keeps elisions like "l'amour" guessable)
+    normalize.ts    # case/accent-insensitive key used for matching
+    mask.ts         # builds masked DisplayToken views from a Song + found keys, checks victory
+  /styles           # tokens.css (design tokens), global.css (reset/fonts), game.css
 /worker
   /src
-    index.ts    # Hono app: GET /api/round, POST /api/guess
-    songs.ts    # secret lyrics data — never imported from /src
-    state.ts    # HMAC-signed round state (songId + foundKeys), so the stateless
-                # Worker can't be tricked into trusting client-forged progress
-  wrangler.toml
+    index.ts      # Hono app: GET /api/round, POST /api/guess
+    songs.ts      # secret lyrics data — never imported from /src. Currently 2 hardcoded
+                  # placeholder songs; LRCLIB fetching (see Tech Stack) isn't wired up yet.
+    state.ts      # HMAC-signed round state (songId + foundKeys) via Web Crypto, so the
+                  # stateless Worker can't be tricked into trusting client-forged progress
+  wrangler.toml   # Worker config; STATE_SECRET dev default lives here, prod uses `wrangler secret put`
+  tsconfig.json   # Worker's own compiler options (Workers lib/types), separate from the root tsconfig
 /tests
-  /unit/game    # Vitest: normalize/tokenize/mask
-  /unit/worker  # Vitest: Hono routes via app.request(), state signing
+  /unit/game    # Vitest: tokenize/normalize/mask
+  /unit/worker  # Vitest: Hono routes exercised via app.request(), state signing
   /e2e          # Playwright: real player flow through the browser
 /docs
   LEARNINGS.md
+.github/workflows/ci.yml  # lint + typecheck + unit + e2e on push/PR; deploys on merge to main
+.claude/launch.json       # `npm run dev:all` launch config used by the Claude Code preview tool
 CLAUDE.md
 ```
 
 Anti-cheat shape: the Worker is the only code that ever sees unmasked lyrics (`worker/src/songs.ts`). Every response sends already-masked display tokens plus an opaque signed `state` string encoding the round's found words so far; the client just echoes it back on the next guess. This keeps the Worker stateless (no KV/D1) while making it impossible to forge "already found" words, since only the Worker holds the signing secret.
+
+Dev wiring: `npm run dev:all` runs the Vite dev server and `wrangler dev` concurrently; `vite.config.ts` proxies `/api/*` to the Worker at `http://localhost:8787`, so the frontend always calls a relative `/api/...` URL in both dev and production (`VITE_API_BASE_URL` in `.env.example` only matters if the Worker is ever deployed to a different origin than the Pages site). `src/game` is not a published package — the root `tsconfig.json` and `worker/tsconfig.json` each `include` it directly by relative path, so it's type-checked and bundled independently by Vite and Wrangler straight from the same source files.
 
 ## Deployment
 
