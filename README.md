@@ -23,6 +23,12 @@ Install dependencies:
 npm install
 ```
 
+Copy the Worker's local secret defaults (gitignored, used only by `wrangler dev`):
+
+```bash
+cp worker/.dev.vars.example worker/.dev.vars
+```
+
 Run the frontend and the API together:
 
 ```bash
