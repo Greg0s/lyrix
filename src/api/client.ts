@@ -18,9 +18,8 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function fetchRound(excludeSongId?: string, signal?: AbortSignal): Promise<RoundView> {
+export async function fetchRound(signal?: AbortSignal): Promise<RoundView> {
   const url = new URL("/api/round", API_BASE || window.location.origin);
-  if (excludeSongId) url.searchParams.set("exclude", excludeSongId);
   const response = await fetch(url, { signal });
   return parseJsonResponse<RoundView>(response);
 }

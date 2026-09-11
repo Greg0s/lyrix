@@ -1,79 +1,90 @@
-import type { Song } from "../../src/game/types";
+import type { Section, Song } from "../../src/game/types";
+import { catalog, catalogRotation, type CatalogEntry } from "./catalog";
+import { getCachedSong, putCachedSong } from "./cache";
+import { bestMatch, searchTrack } from "./lrclib";
+import { parseSections, plainLyricsFrom } from "./lyrics";
 
-// Secret game data. Never import this module from frontend (`src/`) code —
-// only the Worker may see unmasked lyrics.
-export const songs: Song[] = [
-  {
-    id: "le-refuge-de-novembre",
-    title: "Le refuge de novembre",
-    artist: "Anaïs Verger",
-    sections: [
-      {
-        label: "Couplet 1",
-        lines: [
-          "Le vent referme la porte du jardin,",
-          "Les feuilles tombent, doucement, sans bruit.",
-          "Je rentre à pas lents dans la maison,",
-          "La lampe s'allume au bout du couloir.",
-        ],
-      },
-      {
-        label: "Refrain",
-        lines: [
-          "On est bien, on est là,",
-          "Le monde attendra demain.",
-          "Le refuge de novembre",
-          "Nous garde jusqu'au matin.",
-        ],
-      },
-      {
-        label: "Couplet 2",
-        lines: [
-          "Le thé fume encore sur la table basse,",
-          "Les mots se posent, tranquilles, sans façon.",
-          "Dehors la ville s'endort sous la pluie,",
-          "Ici dedans, rien ne presse, rien ne casse.",
-        ],
-      },
-    ],
-  },
-  {
-    id: "les-rues-sont-calmes",
-    title: "Les rues sont calmes",
-    artist: "Le Bureau des Saisons",
-    sections: [
-      {
-        label: "Couplet 1",
-        lines: [
-          "La chaleur retombe avec la nuit,",
-          "Un vélo passe, personne ne parle.",
-          "Les fenêtres s'ouvrent sur la cour,",
-          "On entend rire un poste de radio.",
-        ],
-      },
-      {
-        label: "Refrain",
-        lines: ["Les rues sont calmes,", "Le ciel est doux,", "Rien ne nous presse", "Jusqu'au bout d'août."],
-      },
-      {
-        label: "Couplet 2",
-        lines: [
-          "Sur le balcon, deux verres, un silence,",
-          "La ville respire, lente, satisfaite.",
-          "Demain reviendra bien assez tôt,",
-          "Ce soir, on reste, on ne bouge pas.",
-        ],
-      },
-    ],
-  },
-];
+// How many catalog entries after the day's pick to try before giving up on
+// LRCLIB entirely for the day. Bounds the worst-case latency of a full outage
+// (each attempt is a real HTTP round trip) while still tolerating a handful
+// of individually unavailable songs.
+const MAX_FALLBACK_ATTEMPTS = 5;
 
-export function getSongById(id: string): Song | undefined {
-  return songs.find((song) => song.id === id);
+// Last-resort song, used only if LRCLIB can't be resolved for the daily pick
+// or any of its fallbacks, so `/api/round` never fails outright. Also handled
+// directly in getSongById so a round already in progress on this song can
+// still have its guesses verified.
+const EMERGENCY_FALLBACK_SONG: Song = {
+  id: "le-refuge-de-novembre",
+  title: "Le refuge de novembre",
+  artist: "Anaïs Verger",
+  sections: [
+    {
+      label: "Couplet 1",
+      lines: [
+        "Le vent referme la porte du jardin,",
+        "Les feuilles tombent, doucement, sans bruit.",
+        "Je rentre à pas lents dans la maison,",
+        "La lampe s'allume au bout du couloir.",
+      ],
+    },
+    {
+      label: "Refrain",
+      lines: [
+        "On est bien, on est là,",
+        "Le monde attendra demain.",
+        "Le refuge de novembre",
+        "Nous garde jusqu'au matin.",
+      ],
+    },
+    {
+      label: "Couplet 2",
+      lines: [
+        "Le thé fume encore sur la table basse,",
+        "Les mots se posent, tranquilles, sans façon.",
+        "Dehors la ville s'endort sous la pluie,",
+        "Ici dedans, rien ne presse, rien ne casse.",
+      ],
+    },
+  ],
+};
+
+async function resolveFromLrclib(entry: CatalogEntry): Promise<Song | null> {
+  const tracks = await searchTrack(entry);
+  const match = bestMatch(tracks, entry);
+  if (!match) return null;
+
+  const lyrics = plainLyricsFrom(match);
+  if (!lyrics) return null;
+
+  const sections: Section[] = parseSections(lyrics);
+  if (sections.length === 0) return null;
+
+  return { id: entry.id, title: entry.title, artist: entry.artist, sections };
 }
 
-export function pickRandomSong(excludeId?: string): Song {
-  const pool = songs.filter((song) => song.id !== excludeId);
-  const candidates = pool.length > 0 ? pool : songs;
-  return candidates[Math.floor(Math.random() * candidates.length)];
+export async function getSongById(id: string): Promise<Song | null> {
+  if (id === EMERGENCY_FALLBACK_SONG.id) return EMERGENCY_FALLBACK_SONG;
+
+  const entry = catalog.find((candidate) => candidate.id === id);
+  if (!entry) return null;
+
+  const cached = await getCachedSong(id);
+  if (cached) return cached;
+
+  const song = await resolveFromLrclib(entry);
+  if (song) await putCachedSong(id, song);
+  return song;
+}
+
+export async function getTodaysSong(date: Date = new Date()): Promise<Song> {
+  const attempts = catalogRotation(date).slice(0, MAX_FALLBACK_ATTEMPTS + 1);
+  // Sequential on purpose - LRCLIB asks clients to send requests one at a
+  // time rather than in parallel (see https://lrclib.net/docs), and we want
+  // to stop at the first success rather than racing speculative lookups.
+  for (const entry of attempts) {
+    const song = await getSongById(entry.id);
+    if (song) return song;
+  }
+  return EMERGENCY_FALLBACK_SONG;
 }

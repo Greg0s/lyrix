@@ -4,10 +4,9 @@ interface TitleGuessProps {
   titleTokens: DisplayToken[];
   victory: boolean;
   artist?: string;
-  onReplay: () => void;
 }
 
-export function TitleGuess({ titleTokens, victory, artist, onReplay }: TitleGuessProps) {
+export function TitleGuess({ titleTokens, victory, artist }: TitleGuessProps) {
   return (
     <div>
       <p className="lyrix-title-label">Titre à deviner</p>
@@ -27,9 +26,7 @@ export function TitleGuess({ titleTokens, victory, artist, onReplay }: TitleGues
           <p className="lyrix-victory-eyebrow">Bravo, tu l'as trouvée&nbsp;!</p>
           <p className="lyrix-victory-title">{titleTokens.map((token) => token.text).join("")}</p>
           <p className="lyrix-victory-artist">{artist}</p>
-          <button type="button" className="lyrix-button" onClick={onReplay}>
-            Rejouer avec une autre chanson
-          </button>
+          <p className="lyrix-victory-note">Reviens demain pour une nouvelle chanson&nbsp;!</p>
         </div>
       ) : null}
     </div>

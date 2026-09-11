@@ -1,15 +1,44 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalize } from "../../../src/game/normalize";
 import { tokenize } from "../../../src/game/tokenize";
 import type { DisplayToken, GuessResult, RoundView } from "../../../src/game/types";
 import app from "../../../worker/src/index";
-import { songs } from "../../../worker/src/songs";
+import { getSongById } from "../../../worker/src/songs";
 
 const env = { STATE_SECRET: "test-secret" };
 
-async function getRound(exclude?: string): Promise<RoundView> {
-  const url = exclude ? `/api/round?exclude=${exclude}` : "/api/round";
-  const res = await app.request(url, {}, env);
+const FIXTURE_LYRICS = "Premiere ligne du couplet\nDeuxieme ligne du couplet\n\nRefrain une ligne\nRefrain deux lignes";
+
+function requestUrl(input: string | URL | Request): URL {
+  if (typeof input === "string") return new URL(input);
+  if (input instanceof URL) return input;
+  return new URL(input.url);
+}
+
+/** Stubs the LRCLIB search call the Worker makes, so route tests never hit the real network. Echoes the requested artist back so `bestMatch` finds an exact hit for whichever song is active today. */
+function mockLrclibFetch(): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: string | URL | Request) => {
+      const artistName = requestUrl(input).searchParams.get("artist_name") ?? "Unknown";
+      return new Response(
+        JSON.stringify([{ artistName, instrumental: false, plainLyrics: FIXTURE_LYRICS, syncedLyrics: null }]),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    })
+  );
+}
+
+beforeEach(() => {
+  mockLrclibFetch();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+async function getRound(): Promise<RoundView> {
+  const res = await app.request("/api/round", {}, env);
   expect(res.status).toBe(200);
   return (await res.json()) as RoundView;
 }
@@ -40,18 +69,38 @@ describe("GET /api/round", () => {
     expect((await getRound()).artist).toBeUndefined();
   });
 
-  it("excludes the given song id when another song is available", async () => {
+  it("returns the same song for repeated calls the same day", async () => {
     const first = await getRound();
-    const second = await getRound(first.songId);
-    expect(second.songId).not.toBe(first.songId);
+    const second = await getRound();
+    expect(second.songId).toBe(first.songId);
+  });
+
+  it("falls back to the next catalog entry when LRCLIB fails for the daily pick", async () => {
+    let callCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        callCount += 1;
+        if (callCount === 1) return new Response("", { status: 500 });
+        const artistName = requestUrl(input).searchParams.get("artist_name") ?? "Unknown";
+        return new Response(
+          JSON.stringify([{ artistName, instrumental: false, plainLyrics: FIXTURE_LYRICS, syncedLyrics: null }]),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      })
+    );
+
+    const round = await getRound();
+    expect(round.songId).toBeTruthy();
+    expect(callCount).toBeGreaterThan(1);
   });
 });
 
 describe("POST /api/guess", () => {
   it("reveals every occurrence of a correctly guessed word", async () => {
     const round = await getRound();
-    const song = songs.find((s) => s.id === round.songId);
-    if (!song) throw new Error("round song not found in fixture data");
+    const song = await getSongById(round.songId);
+    if (!song) throw new Error("round song not found");
 
     const titleWord = tokenize(song.title).find((t) => t.isWord);
     if (!titleWord) throw new Error("song title has no word tokens");
@@ -65,8 +114,8 @@ describe("POST /api/guess", () => {
 
   it("matches guesses regardless of case or accents", async () => {
     const round = await getRound();
-    const song = songs.find((s) => s.id === round.songId);
-    if (!song) throw new Error("round song not found in fixture data");
+    const song = await getSongById(round.songId);
+    if (!song) throw new Error("round song not found");
 
     const titleWord = tokenize(song.title).find((t) => t.isWord);
     if (!titleWord) throw new Error("song title has no word tokens");
@@ -84,8 +133,8 @@ describe("POST /api/guess", () => {
 
   it("declares victory and reveals the artist once every title word is found", async () => {
     const round = await getRound();
-    const song = songs.find((s) => s.id === round.songId);
-    if (!song) throw new Error("round song not found in fixture data");
+    const song = await getSongById(round.songId);
+    if (!song) throw new Error("round song not found");
 
     const titleWords = tokenize(song.title).filter((t) => t.isWord);
     let state = round.state;
@@ -109,13 +158,10 @@ describe("POST /api/guess", () => {
   });
 
   it("does not let a client forge already-found words via a tampered state", async () => {
-    const round = await getRound();
-    const song = songs.find((s) => s.id === round.songId);
-    if (!song) throw new Error("round song not found in fixture data");
-
     // An attacker can't construct a validly-signed state without the server
     // secret, so a forged/foreign token must be rejected outright rather
     // than accepted with attacker-supplied foundKeys.
+    const round = await getRound();
     const { status } = await guess(`${round.state}tampered`, "le");
     expect(status).toBe(400);
   });

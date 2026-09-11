@@ -18,7 +18,7 @@ export function GameScreen() {
     return (
       <div className="lyrix-page">
         <p role="alert">Impossible de charger la partie.</p>
-        <button type="button" className="lyrix-button" onClick={game.replay}>
+        <button type="button" className="lyrix-button" onClick={() => void game.loadRound()}>
           Réessayer
         </button>
       </div>
@@ -55,12 +55,7 @@ export function GameScreen() {
 
       <div className={`lyrix-grid${isMobile ? " is-mobile" : ""}`}>
         <div className="lyrix-center-col">
-          <TitleGuess
-            titleTokens={round.title.tokens}
-            victory={round.victory}
-            artist={round.artist}
-            onReplay={game.replay}
-          />
+          <TitleGuess titleTokens={round.title.tokens} victory={round.victory} artist={round.artist} />
 
           <GuessForm
             value={game.inputValue}

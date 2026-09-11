@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchRound, submitGuess } from "../api/client";
 import { normalize } from "../game/normalize";
 import type { RoundView } from "../game/types";
+import { loadSavedRound, saveRound } from "../roundStorage";
 
 export interface TriedWord {
   key: string;
@@ -34,21 +35,36 @@ const initialState: GameState = {
   error: null,
 };
 
+function hydratedState(): GameState | null {
+  const saved = loadSavedRound();
+  if (!saved) return null;
+  return {
+    round: saved.round,
+    triedWords: saved.triedWords,
+    inputValue: "",
+    feedback: null,
+    loading: false,
+    submitting: false,
+    error: null,
+  };
+}
+
 export function useGame() {
-  const [state, setState] = useState<GameState>(initialState);
+  const [state, setState] = useState<GameState>(() => hydratedState() ?? initialState);
   // Aborts any load a newer one supersedes (React StrictMode's double-invoked
-  // mount effect, or a replay fired while the initial load is still in
-  // flight), so a slower, superseded response can never overwrite a newer one.
+  // mount effect, or a retry fired while a load is still in flight), so a
+  // slower, superseded response can never overwrite a newer one.
   const abortRef = useRef<AbortController | null>(null);
 
-  const loadRound = useCallback(async (excludeSongId?: string) => {
+  const loadRound = useCallback(async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const round = await fetchRound(excludeSongId, controller.signal);
+      const round = await fetchRound(controller.signal);
+      saveRound(round, []);
       setState({
         round,
         triedWords: [],
@@ -69,6 +85,9 @@ export function useGame() {
   }, []);
 
   useEffect(() => {
+    // The initial state above already hydrated synchronously from storage
+    // when today's round was saved - only hit the network when it wasn't.
+    if (loadSavedRound()) return;
     void loadRound();
     return () => abortRef.current?.abort();
   }, [loadRound]);
@@ -96,13 +115,15 @@ export function useGame() {
     setState((prev) => ({ ...prev, submitting: true, error: null }));
     try {
       const result = await submitGuess(round.state, raw);
+      const newTriedWords = [{ key: result.key, display: raw, found: result.found }, ...triedWords];
+      saveRound(result, newTriedWords);
       setState((prev) => ({
         ...prev,
         round: result,
         inputValue: "",
         submitting: false,
         feedback: { word: raw, found: result.found },
-        triedWords: [{ key: result.key, display: raw, found: result.found }, ...prev.triedWords],
+        triedWords: newTriedWords,
       }));
     } catch (error) {
       setState((prev) => ({
@@ -113,9 +134,5 @@ export function useGame() {
     }
   }, [state]);
 
-  const replay = useCallback(() => {
-    void loadRound(state.round?.songId);
-  }, [loadRound, state.round?.songId]);
-
-  return { ...state, setInputValue, submit, replay };
+  return { ...state, setInputValue, submit, loadRound };
 }

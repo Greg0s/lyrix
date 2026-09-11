@@ -115,8 +115,15 @@
 }
 
 .lyrix-victory-artist {
-  margin: 0 0 14px;
+  margin: 0 0 10px;
   font-size: 0.95rem;
+  color: var(--color-ink-muted);
+}
+
+.lyrix-victory-note {
+  margin: 0;
+  font-size: 0.9rem;
+  font-style: italic;
   color: var(--color-ink-muted);
 }
 
