@@ -2,7 +2,7 @@ name = "lyrix-api"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 
-# Local dev default only. In production, set the real secret with:
-#   wrangler secret put STATE_SECRET --config worker/wrangler.toml
-[vars]
-STATE_SECRET = "dev-secret-change-me"
+# STATE_SECRET is not declared here: Cloudflare rejects a `var` and a
+# `secret` sharing one binding name on the same Worker. Local dev gets it
+# from worker/.dev.vars (gitignored, see worker/.dev.vars.example);
+# production gets it from `wrangler secret put STATE_SECRET`.
