@@ -107,22 +107,33 @@ Keep a `docs/LEARNINGS.md` file (create it if it doesn't exist) as a running log
 - User accounts, authentication, leaderboard, Cloudflare D1 (V3).
 - Monetization of any kind.
 
-## Proposed Project Structure
-
-This is a starting point — adjust as the project actually takes shape, and keep this section in sync with reality.
+## Project Structure
 
 ```
-/src                # React frontend
-  /components
-  /game             # masking, matching, game-state logic (framework-agnostic, unit-testable)
-/worker             # Cloudflare Worker (Hono) — lyrics fetch, secret-keeping, guess validation
+/src
+  /api          # fetch wrapper the frontend uses to call the Worker
+  /components   # presentational React components (GameScreen, TitleGuess, LyricsBody, SideCard, ...)
+  /hooks        # useGame (round/guess state), useIsMobile (760px breakpoint)
+  /game         # masking, matching, normalization — framework-agnostic, unit-tested,
+                # imported by BOTH the frontend and the Worker
+  /styles       # tokens.css (design tokens), global.css (reset/fonts), game.css
+/worker
+  /src
+    index.ts    # Hono app: GET /api/round, POST /api/guess
+    songs.ts    # secret lyrics data — never imported from /src
+    state.ts    # HMAC-signed round state (songId + foundKeys), so the stateless
+                # Worker can't be tricked into trusting client-forged progress
+  wrangler.toml
 /tests
-  /unit
-  /e2e
+  /unit/game    # Vitest: normalize/tokenize/mask
+  /unit/worker  # Vitest: Hono routes via app.request(), state signing
+  /e2e          # Playwright: real player flow through the browser
 /docs
   LEARNINGS.md
 CLAUDE.md
 ```
+
+Anti-cheat shape: the Worker is the only code that ever sees unmasked lyrics (`worker/src/songs.ts`). Every response sends already-masked display tokens plus an opaque signed `state` string encoding the round's found words so far; the client just echoes it back on the next guess. This keeps the Worker stateless (no KV/D1) while making it impossible to forge "already found" words, since only the Worker holds the signing secret.
 
 ## Deployment
 
