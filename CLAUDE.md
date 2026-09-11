@@ -6,6 +6,7 @@ This file gives Claude Code the context and rules needed to work on this project
 
 A free web game inspired by Pedantix, built around song lyrics instead of Wikipedia articles. The player types words to progressively reveal a song's lyrics; the round is won once the title is fully uncovered.
 
+- One song per day: every player gets the same puzzle (Motus/Wordle-style), rotating at UTC midnight from a curated catalog (`worker/src/catalog.ts`). There is no "replay with a different song" — once solved, the player waits for tomorrow's song.
 - Target audience: French-speaking, tech-savvy web users.
 - No user accounts or personal data in the MVP.
 - Project name: TBD — update this section once decided.
@@ -25,7 +26,7 @@ MVP scope only:
 - **Frontend**: Vite + React, TypeScript in strict mode.
 - **Backend**: Cloudflare Workers with the Hono framework. It keeps the target lyrics secret server-side and only returns revealed words/positions to the client. Never expose the full lyrics text to the client in any form, even hidden or obfuscated in the bundle or a network response.
 - **Hosting**: Cloudflare Pages (frontend) + Cloudflare Workers (API).
-- **Lyrics source**: LRCLIB (lrclib.net) — free, keyless API. Optionally the Genius API for song search/autocomplete metadata only (Genius does not provide lyrics text itself).
+- **Lyrics source**: LRCLIB (lrclib.net) — free, keyless API, queried server-side (`worker/src/lrclib.ts`, via `/api/search`, not `/api/get` — see `docs/LEARNINGS.md`) for whichever song `worker/src/catalog.ts` picks for the day. Resolved songs are cached per catalog id with the Workers Cache API (`worker/src/cache.ts`), so a given day triggers only a handful of LRCLIB calls rather than one per player. Optionally the Genius API for song search/autocomplete metadata only (Genius does not provide lyrics text itself) — not currently wired up.
 - **Database**: none needed for the MVP. Cloudflare D1 is reserved for a later phase (accounts, leaderboard) — do not add it now.
 - **Planned, not yet in scope**: `@react-three/fiber` + `@react-three/drei` for in-game 3D (paper sheet, scrollable in-scene computer screen, in-scene settings menu); word-similarity scoring (semantic embeddings) for a Cemantix-style hint system; team mode; word-usage counter.
 
@@ -113,18 +114,21 @@ Keep a `docs/LEARNINGS.md` file (create it if it doesn't exist) as a running log
 /src
   main.tsx          # React entry point (mounts <App />)
   App.tsx           # renders GameScreen
+  roundStorage.ts   # localStorage persistence for today's round (todayKey/loadSavedRound/saveRound),
+                    # so a page reload resumes progress instead of restarting the daily song
   /api
     client.ts       # fetch wrapper the frontend uses to call the Worker (fetchRound, submitGuess)
   /components       # presentational React components
     GameScreen.tsx  # top-level layout; wires useGame()/useIsMobile() into the rest
-    TitleGuess.tsx  # masked title, victory banner, replay button
+    TitleGuess.tsx  # masked title, victory banner ("come back tomorrow" note once solved)
     LyricsBody.tsx  # masked lyrics, grouped by section
     GuessForm.tsx   # word-guess input
     TriedWords.tsx  # list of past guesses (found vs. missed)
     SideCard.tsx    # collapsible card shell, used for both side panels
     HowToPlay.tsx   # static rules text
   /hooks
-    useGame.ts      # round/guess state machine; calls fetchRound/submitGuess
+    useGame.ts      # round/guess state machine; calls fetchRound/submitGuess, hydrates from
+                    # roundStorage.ts before ever hitting the network, and persists after each change
     useIsMobile.ts  # 760px breakpoint match, drives SideCard collapse on mobile
   /game             # masking, matching, normalization — framework-agnostic, unit-tested,
                     # imported by BOTH the frontend (src) and the Worker (worker/src)
@@ -136,16 +140,27 @@ Keep a `docs/LEARNINGS.md` file (create it if it doesn't exist) as a running log
 /worker
   /src
     index.ts      # Hono app: GET /api/round, POST /api/guess
-    songs.ts      # secret lyrics data — never imported from /src. Currently 2 hardcoded
-                  # placeholder songs; LRCLIB fetching (see Tech Stack) isn't wired up yet.
+    catalog.ts    # curated {id, artist, title} list + pickDailyEntry/catalogRotation — a
+                   # deterministic day-of-epoch pick, so "today's song" needs no stored state
+    lrclib.ts     # LRCLIB /api/search client: response parsing/validation + artist-match ranking
+    lyrics.ts     # pure text parsing: plainLyricsFrom (prefers plainLyrics, falls back to
+                  # syncedLyrics with timestamps stripped) and parseSections (paragraphs -> Section[])
+    cache.ts      # Workers Cache API wrapper (getCachedSong/putCachedSong); no-ops outside the
+                  # real Workers runtime so callers stay testable under plain-Node Vitest
+    songs.ts      # secret lyrics data — never imported from /src. getSongById resolves one
+                  # catalog id (cache -> LRCLIB -> parse); getTodaysSong adds the daily pick,
+                  # a fallback chain across the catalog, and a hardcoded emergency song for a
+                  # total LRCLIB outage
     state.ts      # HMAC-signed round state (songId + foundKeys) via Web Crypto, so the
                   # stateless Worker can't be tricked into trusting client-forged progress
   wrangler.toml   # Worker config; STATE_SECRET dev default lives here, prod uses `wrangler secret put`
   tsconfig.json   # Worker's own compiler options (Workers lib/types), separate from the root tsconfig
 /tests
   /unit/game    # Vitest: tokenize/normalize/mask
-  /unit/worker  # Vitest: Hono routes exercised via app.request(), state signing
-  /e2e          # Playwright: real player flow through the browser
+  /unit/worker  # Vitest: catalog rotation, LRCLIB parsing, lyrics parsing, Hono routes
+                # (exercised via app.request() against a mocked fetch), state signing
+  /unit/storage # Vitest: roundStorage save/load against a fake Storage
+  /e2e          # Playwright: real player flow through the browser, including a real LRCLIB call
 /docs
   LEARNINGS.md
 .github/workflows/ci.yml  # lint + typecheck + unit + e2e on push/PR; deploys on merge to main
@@ -153,7 +168,7 @@ Keep a `docs/LEARNINGS.md` file (create it if it doesn't exist) as a running log
 CLAUDE.md
 ```
 
-Anti-cheat shape: the Worker is the only code that ever sees unmasked lyrics (`worker/src/songs.ts`). Every response sends already-masked display tokens plus an opaque signed `state` string encoding the round's found words so far; the client just echoes it back on the next guess. This keeps the Worker stateless (no KV/D1) while making it impossible to forge "already found" words, since only the Worker holds the signing secret.
+Anti-cheat shape: the Worker is the only code that ever sees unmasked lyrics. `worker/src/songs.ts` resolves each song from the curated catalog (`catalog.ts`) via a live LRCLIB lookup (`lrclib.ts`, `lyrics.ts`), cached per song id with the Workers Cache API (`cache.ts`) rather than a database. Every response sends already-masked display tokens plus an opaque signed `state` string encoding the round's found words so far; the client just echoes it back on the next guess. This keeps the Worker stateless (no KV/D1 — the Cache API is a best-effort edge cache, not a source of truth) while making it impossible to forge "already found" words, since only the Worker holds the signing secret.
 
 Dev wiring: `npm run dev:all` runs the Vite dev server and `wrangler dev` concurrently; `vite.config.ts` proxies `/api/*` to the Worker at `http://localhost:8787`, so the frontend always calls a relative `/api/...` URL in both dev and production (`VITE_API_BASE_URL` in `.env.example` only matters if the Worker is ever deployed to a different origin than the Pages site). `src/game` is not a published package — the root `tsconfig.json` and `worker/tsconfig.json` each `include` it directly by relative path, so it's type-checked and bundled independently by Vite and Wrangler straight from the same source files.
 

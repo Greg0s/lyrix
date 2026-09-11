@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { buildSectionsView, buildTitleView, isVictory, songWordKeys } from "../../src/game/mask";
 import { normalize } from "../../src/game/normalize";
 import type { GuessResult, RoundView } from "../../src/game/types";
-import { getSongById, pickRandomSong } from "./songs";
+import { getSongById, getTodaysSong } from "./songs";
 import { signState, verifyState } from "./state";
 
 interface Env {
@@ -17,7 +17,7 @@ const app = new Hono<{ Bindings: Env }>();
 app.use("/api/*", cors());
 
 async function buildRoundView(songId: string, foundKeys: string[], secret: string): Promise<RoundView | null> {
-  const song = getSongById(songId);
+  const song = await getSongById(songId);
   if (!song) return null;
 
   const foundSet = new Set(foundKeys);
@@ -35,7 +35,7 @@ async function buildRoundView(songId: string, foundKeys: string[], secret: strin
 }
 
 app.get("/api/round", async (c) => {
-  const song = pickRandomSong(c.req.query("exclude"));
+  const song = await getTodaysSong();
   const view = await buildRoundView(song.id, [], c.env.STATE_SECRET);
   if (!view) return c.json({ error: "no songs available" }, 500);
   return c.json(view);
@@ -67,7 +67,7 @@ app.post("/api/guess", async (c) => {
     return c.json({ error: "invalid or expired round state" }, 400);
   }
 
-  const song = getSongById(payload.songId);
+  const song = await getSongById(payload.songId);
   if (!song) {
     return c.json({ error: "invalid or expired round state" }, 400);
   }
