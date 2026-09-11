@@ -50,3 +50,12 @@ Adding the two secrets got past "Not logged in" but uncovered two more one-time,
 Both are account-level, not repo-level — one-time, and unrelated to code or secrets.
 
 **Takeaway**: when a failing step logs a deprecation warning right next to the actual error, don't assume they're the same problem — pull the full step log (`gh run view --log-failed`, not just the annotations summary) and read past the warning. Also, getting `wrangler-action` green from a brand-new Cloudflare account takes more than secrets: the API token/account ID, the Pages project, and the `workers.dev` subdomain are three independent one-time setup steps, and CI will fail on each in turn until all three exist — `gh run rerun --failed` after fixing one is the fast way to find the next.
+
+## 2026-09-12 — Setting up the graphify skill: two Windows PowerShell shell gotchas back-to-back
+
+Installing the third-party [Graphify](https://github.com/Graphify-Labs/graphify) Claude Code skill (`graphifyy` on PyPI — turns the repo into a local, offline knowledge graph) required the developer to run a few setup commands by hand, since Claude Code's own auto-mode permission classifier blocks Claude from installing packages or running a freshly-installed executable itself. That surfaced two unrelated Windows-shell issues:
+
+- **PowerShell doesn't auto-execute a quoted path.** `"C:\path\to\graphify.exe" install --project` works in `bash`/`cmd`, but PowerShell parses a leading quoted string as a string *expression*, not a command, and errors on the next token (`Unexpected token 'install'`). Fix: either drop the quotes (safe when the path has no spaces) or prefix with the call operator: `& "C:\path\to\graphify.exe" install --project`.
+- **`echo ... > file` in Windows PowerShell 5.1 writes UTF-16LE with a BOM, not UTF-8.** Redirecting `{}` into `.claude/settings.json` this way produced a file that read back as garbled bytes — invalid JSON. Graphify's own `SKILL.md` documents this exact trap for its generated files and works around it with `[System.IO.File]::WriteAllText(path, content, (New-Object System.Text.UTF8Encoding $false))`, which writes plain UTF-8 with no BOM and no extra newline.
+
+**Takeaway**: never hand a Windows/PowerShell user a bare `echo >` or `Out-File` command to produce a file another tool will parse (JSON, YAML, etc.) — Windows PowerShell 5.1 defaults both to UTF-16LE-with-BOM. Use `[System.IO.File]::WriteAllText(...)` with an explicit BOM-less `UTF8Encoding`, or just have them paste the content directly in an editor.
