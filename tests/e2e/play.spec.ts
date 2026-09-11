@@ -43,6 +43,50 @@ test("shows feedback for a guess that is not in the lyrics", async ({ page }) =>
   await expect(page.getByText("n’y est pas")).toBeVisible();
 });
 
+test("agrees in number between found and tried counts in the stats text", async ({ page }) => {
+  await page.goto("/");
+  const input = page.getByPlaceholder("Propose un mot…");
+
+  await input.fill("xylophoneinexistant");
+  await input.press("Enter");
+
+  // Regression test: the stats text used to always say "trouvés"/"essayés"
+  // (plural), even when the count was 1.
+  await expect(page.getByText("0 trouvés sur 1 essayé", { exact: true })).toBeVisible();
+});
+
+test("shows an error message when a guess fails to submit, and recovers on the next one", async ({ page }) => {
+  await page.route("**/api/guess", (route) => route.abort("failed"));
+
+  await page.goto("/");
+  const input = page.getByPlaceholder("Propose un mot…");
+  await input.fill("test");
+  await input.press("Enter");
+
+  // Regression test: a failed guess submission used to be silently
+  // swallowed, leaving the player with no feedback that anything went wrong.
+  await expect(page.getByText("n'a pas pu être envoyé", { exact: false })).toBeVisible();
+  await expect(input).toHaveValue("test");
+
+  await page.unroute("**/api/guess");
+  await input.press("Enter");
+  await expect(page.getByText("n’y est pas", { exact: false })).toBeVisible();
+});
+
+test("offers a retry when the initial round fails to load, and recovers", async ({ page }) => {
+  await page.route("**/api/round", (route) => route.abort("failed"));
+  await page.goto("/");
+
+  // Regression test: a failed initial load used to strand the player on a
+  // dead-end error screen with no way to recover except reloading the page.
+  await expect(page.getByRole("alert")).toHaveText("Impossible de charger la partie.");
+
+  await page.unroute("**/api/round");
+  await page.getByRole("button", { name: "Réessayer" }).click();
+
+  await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
+});
+
 test("disables the form while a guess is in flight, so a fast double submit can't race", async ({ page }) => {
   let guessRequests = 0;
   await page.route("**/api/guess", async (route) => {

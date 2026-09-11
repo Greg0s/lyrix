@@ -93,7 +93,7 @@ export function useGame() {
       return;
     }
 
-    setState((prev) => ({ ...prev, submitting: true }));
+    setState((prev) => ({ ...prev, submitting: true, error: null }));
     try {
       const result = await submitGuess(round.state, raw);
       setState((prev) => ({
