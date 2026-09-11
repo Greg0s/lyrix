@@ -16,6 +16,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Set up Worker local secrets for e2e
+        run: cp worker/.dev.vars.example worker/.dev.vars
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
