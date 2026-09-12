@@ -4,6 +4,14 @@ A running log of gotchas, root causes, and anything that cost real time to figur
 
 Each entry: date, short title, what happened, how it was resolved.
 
+## 2026-09-12 — Deployed game showed "Impossible de charger la partie": Pages and the Worker are on different origins
+
+The production site (`https://lyrix-eyg.pages.dev` — the Cloudflare Pages project is actually named `lyrix-eyg`, not `lyrix`, presumably because `lyrix` was already taken when the project was first created) loaded fine but immediately failed to fetch the round. Root cause: `src/api/client.ts` falls back to relative `/api/*` requests against `window.location.origin` whenever `VITE_API_BASE_URL` is unset, and the CI `deploy` job's `npm run build` step never set it. That's fine when Pages and the Worker share an origin, but here the Worker deploys to its own `workers.dev` subdomain (`https://lyrix-api.lyrix.workers.dev`), a different origin from the Pages site — so the relative call hit the Pages domain, which has no Worker behind it, and every request failed before the game could render.
+
+Fixed by setting `VITE_API_BASE_URL: https://lyrix-api.lyrix.workers.dev` as an `env:` on the `npm run build` step in `.github/workflows/ci.yml`'s `deploy` job (CORS was already open on the Worker side via Hono's `cors()` middleware, so no change was needed there). Added `tests/unit/ci/deploy-workflow.test.ts` as a regression test asserting that step always sets `VITE_API_BASE_URL` to an absolute URL.
+
+**Takeaway**: whenever Pages and the Worker are *not* on a shared custom domain, `VITE_API_BASE_URL` isn't optional — the frontend build silently produces a game that can never load its round, with no build-time error to catch it. If a custom domain ever unifies both under one origin, this env var (and its regression test) can be dropped, but until then, treat it as required in the deploy job, not optional per `.env.example`'s wording.
+
 ## 2026-09-11 — Playwright `webServer` raced Wrangler's cold start, failing every e2e test
 
 All 3 e2e tests failed with either a 502 from the `/api/round` proxy or a timeout waiting for the guess input. Root cause: `playwright.config.ts` ran `npm run dev:all` (Vite + `wrangler dev` via `concurrently`) as a single `webServer` entry and only polled `http://localhost:5173` for readiness. Vite is ready in ~200ms, but `wrangler dev` needs a few seconds to boot its local `workerd` runtime — Playwright started firing requests the moment Vite answered, well before the Worker was listening, and Vite's dev proxy turned the resulting `ECONNREFUSED` into a 502.
