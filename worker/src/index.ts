@@ -18,6 +18,23 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.use("/api/*", cors());
 
+// Without this, a missing STATE_SECRET surfaces as an opaque Web Crypto
+// "Imported HMAC key length (0)" DataError from signState, several frames
+// deep and saying nothing about the actual problem - a config file that was
+// never created. That has cost real time twice (see docs/LEARNINGS.md), so
+// the misconfiguration now names itself in the Worker's own log.
+app.use("/api/*", async (c, next) => {
+  if (typeof c.env.STATE_SECRET !== "string" || c.env.STATE_SECRET.length === 0) {
+    console.error(
+      "STATE_SECRET is not set, so round state can't be signed. " +
+        "Local dev: copy worker/.dev.vars.example to worker/.dev.vars (npm run dev:worker does it for you). " +
+        "Production: npx wrangler secret put STATE_SECRET --config worker/wrangler.toml."
+    );
+    return c.json({ error: "server is misconfigured" }, 500);
+  }
+  return next();
+});
+
 async function buildRoundView(songId: string, foundKeys: string[], secret: string): Promise<RoundView | null> {
   const song = await getSongById(songId);
   if (!song) return null;

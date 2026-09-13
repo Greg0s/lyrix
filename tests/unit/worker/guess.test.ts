@@ -260,6 +260,46 @@ describe("POST /api/guess — proximity score", () => {
   });
 });
 
+describe("a missing STATE_SECRET", () => {
+  // Regression test: with no worker/.dev.vars on disk, env.STATE_SECRET is
+  // undefined and every request used to blow up inside Web Crypto with
+  // "Imported HMAC key length (0) must be a non-zero value...", five frames
+  // deep, naming neither the variable nor the file that was never created.
+  it("names itself in the log instead of failing inside Web Crypto", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await app.request("/api/round", {}, {});
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "server is misconfigured" });
+    expect(logged).toHaveBeenCalledTimes(1);
+    const message = String(logged.mock.calls[0][0]);
+    expect(message).toContain("STATE_SECRET");
+    expect(message).toContain("worker/.dev.vars");
+    logged.mockRestore();
+  });
+
+  it("rejects a guess the same way rather than half-processing it", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await app.request(
+      "/api/guess",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: "x", word: "le" }) },
+      {}
+    );
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "server is misconfigured" });
+    logged.mockRestore();
+  });
+
+  it("treats an empty secret as missing, not as a usable key", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await app.request("/api/round", {}, { STATE_SECRET: "" })).status).toBe(500);
+    logged.mockRestore();
+  });
+});
+
 describe("malformed input", () => {
   it("rejects a missing word field", async () => {
     const round = await getRound();
