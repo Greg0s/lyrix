@@ -8,6 +8,8 @@ export interface TriedWord {
   key: string;
   display: string;
   found: boolean;
+  /** Semantic proximity, 0-100; null when the word is unknown to the model or the song has no similarity table. */
+  score: number | null;
 }
 
 interface Feedback {
@@ -115,7 +117,10 @@ export function useGame() {
     setState((prev) => ({ ...prev, submitting: true, error: null }));
     try {
       const result = await submitGuess(round.state, raw);
-      const newTriedWords = [{ key: result.key, display: raw, found: result.found }, ...triedWords];
+      const newTriedWords = [
+        { key: result.key, display: raw, found: result.found, score: result.score ?? null },
+        ...triedWords,
+      ];
       saveRound(result, newTriedWords);
       setState((prev) => ({
         ...prev,

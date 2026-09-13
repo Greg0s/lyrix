@@ -334,6 +334,56 @@
   text-decoration: line-through;
 }
 
+/*
+ * Proximity tiers. A scored word is never struck through: it wasn't in the
+ * lyrics, but it still says something about how close the player is - only
+ * `tier-unknown` (a word the model doesn't know) keeps the plain "missed" look.
+ */
+.lyrix-chip.tier-hot,
+.lyrix-chip.tier-warm,
+.lyrix-chip.tier-cold {
+  text-decoration: none;
+  align-items: baseline;
+  gap: 7px;
+  font-weight: 500;
+}
+
+.lyrix-chip.tier-hot {
+  background: var(--proximity-hot-bg);
+  border: 1px solid var(--proximity-hot-border);
+  color: var(--proximity-hot-ink);
+}
+
+.lyrix-chip.tier-warm {
+  background: var(--proximity-warm-bg);
+  border: 1px solid var(--proximity-warm-border);
+  color: var(--proximity-warm-ink);
+}
+
+.lyrix-chip.tier-cold {
+  background: var(--proximity-cold-bg);
+  border: 1px solid var(--proximity-cold-border);
+  color: var(--proximity-cold-ink);
+}
+
+.lyrix-chip-score {
+  font-size: 0.76rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.lyrix-legend {
+  margin: 14px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--color-ink-faint);
+}
+
+.lyrix-legend + .lyrix-tried-list {
+  margin-top: 8px;
+}
+
 .lyrix-empty {
   margin: 0;
   font-size: 0.85rem;

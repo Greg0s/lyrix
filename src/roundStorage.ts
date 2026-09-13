@@ -14,12 +14,16 @@ export function todayKey(date: Date = new Date()): string {
   return date.toISOString().slice(0, 10);
 }
 
-function isTriedWord(value: unknown): value is TriedWord {
-  if (typeof value !== "object" || value === null) return false;
+// Parses rather than type-guards, so a round saved before proximity scoring
+// existed (no `score` field) still loads instead of being thrown away, which
+// would silently restart the player's one puzzle of the day.
+function parseTriedWord(value: unknown): TriedWord | null {
+  if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.key === "string" && typeof candidate.display === "string" && typeof candidate.found === "boolean"
-  );
+  if (typeof candidate.key !== "string" || typeof candidate.display !== "string") return null;
+  if (typeof candidate.found !== "boolean") return null;
+  const score = typeof candidate.score === "number" && Number.isFinite(candidate.score) ? candidate.score : null;
+  return { key: candidate.key, display: candidate.display, found: candidate.found, score };
 }
 
 function isRoundView(value: unknown): value is RoundView {
@@ -35,15 +39,19 @@ function isRoundView(value: unknown): value is RoundView {
   );
 }
 
-function isSavedRound(value: unknown): value is SavedRound {
-  if (typeof value !== "object" || value === null) return false;
+function parseSavedRound(value: unknown): SavedRound | null {
+  if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.date === "string" &&
-    isRoundView(candidate.round) &&
-    Array.isArray(candidate.triedWords) &&
-    candidate.triedWords.every(isTriedWord)
-  );
+  if (typeof candidate.date !== "string" || !isRoundView(candidate.round)) return null;
+  if (!Array.isArray(candidate.triedWords)) return null;
+
+  const triedWords: TriedWord[] = [];
+  for (const entry of candidate.triedWords) {
+    const word = parseTriedWord(entry);
+    if (!word) return null;
+    triedWords.push(word);
+  }
+  return { date: candidate.date, round: candidate.round, triedWords };
 }
 
 /** Only returns a result when it was saved for today - a leftover round from a previous day is treated as absent. */
@@ -54,8 +62,8 @@ export function loadSavedRound(
   try {
     const raw = storage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (!isSavedRound(parsed) || parsed.date !== todayKey()) return null;
+    const parsed = parseSavedRound(JSON.parse(raw) as unknown);
+    if (!parsed || parsed.date !== todayKey()) return null;
     return { round: parsed.round, triedWords: parsed.triedWords };
   } catch {
     return null;

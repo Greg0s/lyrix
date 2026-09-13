@@ -16,6 +16,17 @@
   --accent-tint: #f8d4a8;
   --accent-deep: #653500;
 
+  /* Semantic-proximity tiers, see src/game/similarity.ts */
+  --proximity-hot-bg: oklch(90% 0.09 145);
+  --proximity-hot-border: oklch(66% 0.14 145);
+  --proximity-hot-ink: oklch(34% 0.09 145);
+  --proximity-warm-bg: oklch(92% 0.09 75);
+  --proximity-warm-border: oklch(72% 0.14 70);
+  --proximity-warm-ink: oklch(40% 0.1 60);
+  --proximity-cold-bg: oklch(93% 0.05 25);
+  --proximity-cold-border: oklch(72% 0.12 25);
+  --proximity-cold-ink: oklch(43% 0.13 25);
+
   --font-ui: "Figtree", -apple-system, "Segoe UI", sans-serif;
   --font-display: "Source Serif 4", Georgia, serif;
 }

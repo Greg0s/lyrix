@@ -33,7 +33,11 @@ const round: RoundView = {
   victory: false,
 };
 
-const triedWords: TriedWord[] = [{ key: "le", display: "Le", found: true }];
+const triedWords: TriedWord[] = [
+  { key: "le", display: "Le", found: true, score: 100 },
+  { key: "orage", display: "orage", found: false, score: 41 },
+  { key: "zzzz", display: "zzzz", found: false, score: null },
+];
 
 describe("roundStorage", () => {
   it("round-trips a saved round for today", () => {
@@ -81,5 +85,30 @@ describe("roundStorage", () => {
 
   it("returns null when no storage is available at all", () => {
     expect(loadSavedRound(undefined)).toBeNull();
+  });
+
+  // Regression test: proximity scores were added after the first release, so
+  // rounds saved by the previous version have no `score` field. Rejecting
+  // those would silently wipe the player's progress on the one song of the day.
+  it("loads a round saved before proximity scores existed", () => {
+    const legacy = JSON.stringify({
+      date: todayKey(),
+      round,
+      triedWords: [{ key: "le", display: "Le", found: true }],
+    });
+    const storage = fakeStorage({ [STORAGE_KEY]: legacy });
+    expect(loadSavedRound(storage)).toEqual({
+      round,
+      triedWords: [{ key: "le", display: "Le", found: true, score: null }],
+    });
+  });
+
+  it("ignores a saved round holding a malformed tried word", () => {
+    const malformed = JSON.stringify({
+      date: todayKey(),
+      round,
+      triedWords: [{ key: "le", display: "Le" }],
+    });
+    expect(loadSavedRound(fakeStorage({ [STORAGE_KEY]: malformed }))).toBeNull();
   });
 });
