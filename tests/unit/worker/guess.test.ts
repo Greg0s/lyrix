@@ -3,9 +3,20 @@ import { normalize } from "../../../src/game/normalize";
 import { tokenize } from "../../../src/game/tokenize";
 import type { DisplayToken, GuessResult, RoundView } from "../../../src/game/types";
 import app from "../../../worker/src/index";
+import { SIMILARITY_TABLE_VERSION, type SimilarityKv } from "../../../worker/src/similarity";
 import { getSongById } from "../../../worker/src/songs";
 
 const env = { STATE_SECRET: "test-secret" };
+
+/** Stands in for the Workers KV namespace holding the precomputed tables. */
+function similarityKv(scores: Record<string, number>, songId?: string): SimilarityKv {
+  return {
+    get: async (key: string) =>
+      songId && key !== songId
+        ? null
+        : JSON.stringify({ version: SIMILARITY_TABLE_VERSION, songId: key, model: "test-model", scores }),
+  };
+}
 
 const FIXTURE_LYRICS = "Premiere ligne du couplet\nDeuxieme ligne du couplet\n\nRefrain une ligne\nRefrain deux lignes";
 
@@ -43,11 +54,15 @@ async function getRound(): Promise<RoundView> {
   return (await res.json()) as RoundView;
 }
 
-async function guess(state: string, word: string): Promise<{ status: number; body: GuessResult }> {
+async function guess(
+  state: string,
+  word: string,
+  bindings: Record<string, unknown> = env
+): Promise<{ status: number; body: GuessResult }> {
   const res = await app.request(
     "/api/guess",
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state, word }) },
-    env
+    bindings
   );
   const body = (await res.json()) as GuessResult;
   return { status: res.status, body };
@@ -164,6 +179,84 @@ describe("POST /api/guess", () => {
     const round = await getRound();
     const { status } = await guess(`${round.state}tampered`, "le");
     expect(status).toBe(400);
+  });
+});
+
+describe("POST /api/guess — proximity score", () => {
+  it("scores a missed word from the song's precomputed table", async () => {
+    const round = await getRound();
+    const scoring = { ...env, SIMILARITY: similarityKv({ xylophoneinexistant: 37 }) };
+    const { body } = await guess(round.state, "xylophoneinexistant", scoring);
+    expect(body.found).toBe(false);
+    expect(body.score).toBe(37);
+  });
+
+  it("gives a found word the top score without touching the table", async () => {
+    const round = await getRound();
+    const song = await getSongById(round.songId);
+    if (!song) throw new Error("round song not found");
+    const titleWord = tokenize(song.title).find((t) => t.isWord);
+    if (!titleWord) throw new Error("song title has no word tokens");
+
+    const get = vi.fn(async () => null);
+    const { body } = await guess(round.state, titleWord.text, { ...env, SIMILARITY: { get } });
+    expect(body.found).toBe(true);
+    expect(body.score).toBe(100);
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("reads the table of the song actually being played", async () => {
+    const round = await getRound();
+    const scoring = { ...env, SIMILARITY: similarityKv({ xylophoneinexistant: 12 }, round.songId) };
+    expect((await guess(round.state, "xylophoneinexistant", scoring)).body.score).toBe(12);
+  });
+
+  it("returns a null score for a word outside the reference vocabulary", async () => {
+    const round = await getRound();
+    const scoring = { ...env, SIMILARITY: similarityKv({ autrechose: 80 }) };
+    expect((await guess(round.state, "xylophoneinexistant", scoring)).body.score).toBeNull();
+  });
+
+  it("keeps working with no similarity namespace bound at all", async () => {
+    const round = await getRound();
+    const { status, body } = await guess(round.state, "xylophoneinexistant");
+    expect(status).toBe(200);
+    expect(body.found).toBe(false);
+    expect(body.score).toBeNull();
+  });
+
+  it("never leaks the closest target word or a vector alongside the score", async () => {
+    const round = await getRound();
+    const song = await getSongById(round.songId);
+    if (!song) throw new Error("round song not found");
+
+    const scoring = { ...env, SIMILARITY: similarityKv({ xylophoneinexistant: 64 }) };
+    const { body } = await guess(round.state, "xylophoneinexistant", scoring);
+
+    // The response may only ever grow by a number: no neighbour word, no
+    // vector, no table excerpt.
+    expect(Object.keys(body).sort()).toEqual([
+      "found",
+      "key",
+      "score",
+      "sections",
+      "songId",
+      "state",
+      "title",
+      "victory",
+    ]);
+
+    // Still-masked lyrics must stay masked: scoring reads the table server
+    // side and answers with a bare number.
+    const serialized = JSON.stringify(body);
+    const hiddenWords = song.sections
+      .flatMap((section) => section.lines)
+      .flatMap((line) => tokenize(line))
+      .filter((token) => token.isWord)
+      .map((token) => normalize(token.text))
+      .filter((key) => key.length > 3);
+    expect(hiddenWords.length).toBeGreaterThan(0);
+    expect(hiddenWords.some((key) => serialized.includes(key))).toBe(false);
   });
 });
 

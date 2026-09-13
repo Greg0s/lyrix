@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:worker": "wrangler dev --config worker/wrangler.toml",
+    "dev:worker": "wrangler dev --config worker/wrangler.toml --var SIMILARITY_SAMPLE:1",
     "dev:all": "concurrently -k -s first -n web,api \"npm:dev\" \"npm:dev:worker\"",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json --noEmit",

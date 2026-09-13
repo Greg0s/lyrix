@@ -2,11 +2,13 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { buildSectionsView, buildTitleView, isVictory, songWordKeys } from "../../src/game/mask";
 import { normalize } from "../../src/game/normalize";
+import { MAX_PROXIMITY_SCORE } from "../../src/game/similarity";
 import type { GuessResult, RoundView } from "../../src/game/types";
+import { proximityScore, type SimilarityEnv } from "./similarity";
 import { getSongById, getTodaysSong } from "./songs";
 import { signState, verifyState } from "./state";
 
-interface Env {
+interface Env extends SimilarityEnv {
   STATE_SECRET: string;
 }
 
@@ -79,7 +81,12 @@ app.post("/api/guess", async (c) => {
   const view = await buildRoundView(song.id, newFoundKeys, c.env.STATE_SECRET);
   if (!view) return c.json({ error: "invalid or expired round state" }, 400);
 
-  const result: GuessResult = { ...view, found, key };
+  // A found word is its own closest match, so it needs no table lookup. Only
+  // the guessed word's own score ever leaves the Worker - never the target
+  // word it is closest to, and never a vector.
+  const score = found ? MAX_PROXIMITY_SCORE : await proximityScore(c.env, song.id, key);
+
+  const result: GuessResult = { ...view, found, key, score };
   return c.json(result);
 });
 

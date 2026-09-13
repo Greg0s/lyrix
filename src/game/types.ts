@@ -45,4 +45,11 @@ export interface RoundView {
 export interface GuessResult extends RoundView {
   found: boolean;
   key: string;
+  /**
+   * Semantic proximity of the guess to the song, 0-100 (see src/game/similarity.ts).
+   * `null` when the word is outside the reference vocabulary or no similarity
+   * table is available for this song. Deliberately just a number: the closest
+   * target word and its vector never leave the Worker.
+   */
+  score: number | null;
 }
