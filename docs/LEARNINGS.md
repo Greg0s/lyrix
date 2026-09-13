@@ -4,6 +4,14 @@ A running log of gotchas, root causes, and anything that cost real time to figur
 
 Each entry: date, short title, what happened, how it was resolved.
 
+## 2026-09-13 — A new e2e test failed in CI only: Playwright's `hasText` is a substring match
+
+CI on the close-words PR failed on `hands a hidden word back to the real one once it is found`, which had passed locally. The spec's `guess()` helper waited for `page.locator(".lyrix-chip", { hasText: word })`, and a string `hasText` is a case-insensitive *substring* match. CI's round had a title starting with "La", and "la" sits inside the earlier `clavecin` chip's text ("clavecin71"), so the locator resolved to two chips and strict mode failed the test. Locally the title started with another word and nothing collided: the outcome depended on the day's song.
+
+Fixed by matching a chip's text exactly — the word, then its score if it has one — with an anchored RegExp. Regression test: `keeps a guess apart from an earlier one that contains it` guesses "clavecin" then "clave", which collide whatever the song.
+
+**Takeaway**: in this suite, anything taken from the day's song (title words, lyrics) is effectively random input. A locator built from such a word must match exactly: a string `hasText`, or `getByText` without `exact: true`, will sooner or later match something else too.
+
 ## 2026-09-13 — An e2e run from a worktree silently tested the main checkout's code
 
 While adding close-word placements on a git worktree (`.claude/worktrees/…`), the existing e2e suite passed but all three new tests failed with no `.token-word-near` element on the page. That included the one that rewrites the `/api/guess` response to force a placement, which pointed at the frontend rather than the Worker. The page snapshot in `test-results/*/error-context.md` settled it: the "Comment on joue ?" card still showed the old rules text.

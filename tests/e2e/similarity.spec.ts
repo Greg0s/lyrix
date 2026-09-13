@@ -19,12 +19,22 @@ const CLOSE_WORD = "clavecin"; // sample score 71 -> "hot"
 const DISTANT_WORD = "chlorophylle"; // sample score 4 -> "cold"
 const UNKNOWN_WORD = "zzzinconnu"; // absent from the table -> no score at all
 
+/**
+ * The tried-word chip of exactly this word: its text, then its score if it has
+ * one. Not a plain `hasText`, which is a case-insensitive substring match — a
+ * title word like "La" would also match an earlier "clavecin 71" chip.
+ */
+function chipOf(page: Page, word: string) {
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return page.locator(".lyrix-tried-list .lyrix-chip", { hasText: new RegExp(`^${escaped}\\s*\\d*$`) });
+}
+
 /** Submits a word and waits for it to join the tried-word list. */
 async function guess(page: Page, word: string): Promise<void> {
   const input = page.getByPlaceholder("Propose un mot…");
   await input.fill(word);
   await input.press("Enter");
-  await expect(page.locator(".lyrix-chip", { hasText: word })).toBeVisible();
+  await expect(chipOf(page, word)).toBeVisible();
 }
 
 test("colours and ranks tried words by how close they are to the song", async ({ page }) => {
@@ -141,4 +151,15 @@ test("hands a hidden word back to the real one once it is found", async ({ page 
   await guess(page, firstWord);
   await expect(title.locator(".token-word-found").first()).toHaveText(firstWord);
   await expect(title.locator(".token-word-near", { hasText: CLOSE_WORD })).toHaveCount(0);
+});
+
+// Regression test: guess() used to find a word's chip with a plain `hasText`,
+// a case-insensitive substring match. On a day whose title starts with "La",
+// that also matched the earlier "clavecin 71" chip and strict mode failed the
+// test above - but only on such days, since the song changes every day.
+test("keeps a guess apart from an earlier one that contains it", async ({ page }) => {
+  await page.goto("/");
+  await guess(page, CLOSE_WORD);
+  await guess(page, "clave");
+  await expect(page.locator(".lyrix-tried-list .lyrix-chip")).toHaveCount(2);
 });
