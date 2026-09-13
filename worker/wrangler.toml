@@ -18,9 +18,10 @@ compatibility_date = "2024-09-23"
 #   3. npm run similarity:build -- --model <model.vecbin> --all --bulk
 #   4. npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote --config worker/wrangler.toml
 #
-# Until then the Worker simply answers guesses without a score, exactly as it
-# did before the feature existed. Local dev gets placeholder scores instead,
-# via the SIMILARITY_SAMPLE var that `npm run dev:worker` passes.
+# Until then the Worker simply answers guesses without a score or close words,
+# exactly as it did before the feature existed. Local dev gets placeholder
+# scores and placements instead, via the SIMILARITY_SAMPLE var that
+# `npm run dev:worker` passes.
 #
 # [[kv_namespaces]]
 # binding = "SIMILARITY"

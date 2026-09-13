@@ -1,17 +1,19 @@
-import { clampScore } from "../../src/game/similarity";
-import { SAMPLE_SIMILARITY_SCORES } from "./sampleSimilarity";
+import { clampScore, NEAR_SCORE } from "../../src/game/similarity";
+import { wordPositions } from "../../src/game/slots";
+import type { NearSlot, Song } from "../../src/game/types";
+import { SAMPLE_SIMILARITY_SCORES, sampleNearTable } from "./sampleSimilarity";
 
 /**
  * Precomputed per-song similarity tables, read from Workers KV.
  *
  * Nothing is computed here: the whole point of the design is that the
  * embedding maths happens offline (scripts/build-similarity-table.ts) and the
- * request path is a single KV read plus one property lookup. See CLAUDE.md
- * ("Semantic proximity scoring") for the pipeline.
+ * request path is a single KV read plus a couple of property lookups. See
+ * CLAUDE.md ("Semantic proximity scoring") for the pipeline.
  */
 
 /** Bump whenever the stored shape changes, so stale tables are ignored rather than misread. */
-export const SIMILARITY_TABLE_VERSION = 1;
+export const SIMILARITY_TABLE_VERSION = 2;
 
 /** The slice of a Workers `KVNamespace` we use — narrow on purpose, so tests can pass a plain fake. */
 export interface SimilarityKv {
@@ -32,23 +34,40 @@ export interface SimilarityTable {
   model: string;
   /** Normalized word -> 0-100 score. Hundreds of thousands of entries in production. */
   scores: Record<string, number>;
+  /**
+   * Normalized word -> the song words it is close to, each with its own 0-100
+   * score (at least NEAR_SCORE, closest first, a few at most). A word close to
+   * no song word has no entry, and neither do the song's own words: guessing
+   * one reveals it instead.
+   */
+  near: Record<string, Record<string, number>>;
+}
+
+/** What a missed guess is told: how close it is overall, and which hidden words it is close to. */
+export interface ProximityHint {
+  score: number | null;
+  near: NearSlot[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function parseSimilarityTable(value: unknown): SimilarityTable | null {
-  if (typeof value !== "object" || value === null) return null;
-  const candidate = value as Record<string, unknown>;
-  if (candidate.version !== SIMILARITY_TABLE_VERSION) return null;
-  if (typeof candidate.songId !== "string") return null;
-  if (typeof candidate.scores !== "object" || candidate.scores === null || Array.isArray(candidate.scores)) return null;
+  if (!isRecord(value)) return null;
+  if (value.version !== SIMILARITY_TABLE_VERSION) return null;
+  if (typeof value.songId !== "string") return null;
+  if (!isRecord(value.scores) || !isRecord(value.near)) return null;
 
   return {
     version: SIMILARITY_TABLE_VERSION,
-    songId: candidate.songId,
-    model: typeof candidate.model === "string" ? candidate.model : "unknown",
+    songId: value.songId,
+    model: typeof value.model === "string" ? value.model : "unknown",
     // Entries are validated lazily on lookup instead of up front: a production
     // table holds ~50k words and walking it on every guess would defeat the
     // "no work in the hot path" design.
-    scores: candidate.scores as Record<string, number>,
+    scores: value.scores as Record<string, number>,
+    near: value.near as Record<string, Record<string, number>>,
   };
 }
 
@@ -63,16 +82,17 @@ function announceSampleMode(): void {
   console.log(
     "similarity: SIMILARITY_SAMPLE is on — placeholder scores, not real embeddings. " +
       `Words that carry a score: ${Object.keys(SAMPLE_SIMILARITY_SCORES).join(", ")}. ` +
+      `Those scoring ${NEAR_SCORE} or more also show up in place of one or two hidden words, picked arbitrarily. ` +
       "Anything else scores null, and a word that is in the lyrics is revealed instead."
   );
 }
 
 /** Never throws: a KV hiccup or a malformed table degrades to "no score", never to a failed guess. */
-export async function loadSimilarityTable(env: SimilarityEnv, songId: string): Promise<SimilarityTable | null> {
+export async function loadSimilarityTable(env: SimilarityEnv, song: Song): Promise<SimilarityTable | null> {
   if (env.SIMILARITY) {
     let raw: string | null;
     try {
-      raw = await env.SIMILARITY.get(songId);
+      raw = await env.SIMILARITY.get(song.id);
     } catch {
       return null;
     }
@@ -87,7 +107,13 @@ export async function loadSimilarityTable(env: SimilarityEnv, songId: string): P
 
   if (env.SIMILARITY_SAMPLE === "1") {
     announceSampleMode();
-    return { version: SIMILARITY_TABLE_VERSION, songId, model: "sample", scores: SAMPLE_SIMILARITY_SCORES };
+    return {
+      version: SIMILARITY_TABLE_VERSION,
+      songId: song.id,
+      model: "sample",
+      scores: SAMPLE_SIMILARITY_SCORES,
+      near: sampleNearTable(song),
+    };
   }
   return null;
 }
@@ -100,6 +126,44 @@ export function scoreFromTable(table: SimilarityTable | null, key: string): numb
   return typeof raw === "number" && Number.isFinite(raw) ? clampScore(raw) : null;
 }
 
-export async function proximityScore(env: SimilarityEnv, songId: string, key: string): Promise<number | null> {
-  return scoreFromTable(await loadSimilarityTable(env, songId), key);
+/**
+ * Where a missed guess shows up: every position of every still-hidden song
+ * word the table says it is close to, in reading order. Only positions and
+ * numbers come out — which word sits at a position is exactly what the player
+ * is trying to find.
+ */
+export function nearSlotsFromTable(
+  table: SimilarityTable | null,
+  key: string,
+  song: Song,
+  foundKeys: ReadonlySet<string>
+): NearSlot[] {
+  if (!table || !Object.prototype.hasOwnProperty.call(table.near, key)) return [];
+  const targets: unknown = table.near[key];
+  if (!isRecord(targets)) return [];
+
+  // Only built for a guess that has somewhere to go, which most don't.
+  const positions = wordPositions(song);
+  const slots: NearSlot[] = [];
+  for (const [target, raw] of Object.entries(targets)) {
+    if (typeof raw !== "number" || !Number.isFinite(raw)) continue;
+    const score = clampScore(raw);
+    // Checked again here, not only at build time, so raising NEAR_SCORE needs no rebuild.
+    if (score < NEAR_SCORE || foundKeys.has(target)) continue;
+    // A target the song doesn't hold (its lyrics changed on LRCLIB since the
+    // table was built) simply has no position to point at.
+    for (const position of positions.get(target) ?? []) slots.push({ position, score });
+  }
+  return slots.sort((a, b) => a.position - b.position);
+}
+
+/** One KV read per guess, for both halves of the hint. */
+export async function proximityHint(
+  env: SimilarityEnv,
+  song: Song,
+  key: string,
+  foundKeys: ReadonlySet<string>
+): Promise<ProximityHint> {
+  const table = await loadSimilarityTable(env, song);
+  return { score: scoreFromTable(table, key), near: nearSlotsFromTable(table, key, song, foundKeys) };
 }

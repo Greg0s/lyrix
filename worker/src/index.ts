@@ -4,7 +4,7 @@ import { buildSectionsView, buildTitleView, isVictory, songWordKeys } from "../.
 import { normalize } from "../../src/game/normalize";
 import { MAX_PROXIMITY_SCORE } from "../../src/game/similarity";
 import type { GuessResult, RoundView } from "../../src/game/types";
-import { proximityScore, type SimilarityEnv } from "./similarity";
+import { proximityHint, type ProximityHint, type SimilarityEnv } from "./similarity";
 import { getSongById, getTodaysSong } from "./songs";
 import { signState, verifyState } from "./state";
 
@@ -98,12 +98,14 @@ app.post("/api/guess", async (c) => {
   const view = await buildRoundView(song.id, newFoundKeys, c.env.STATE_SECRET);
   if (!view) return c.json({ error: "invalid or expired round state" }, 400);
 
-  // A found word is its own closest match, so it needs no table lookup. Only
-  // the guessed word's own score ever leaves the Worker - never the target
-  // word it is closest to, and never a vector.
-  const score = found ? MAX_PROXIMITY_SCORE : await proximityScore(c.env, song.id, key);
+  // A found word is its own closest match and reveals itself, so it needs no
+  // table lookup. A missed one gets its score plus the positions of the hidden
+  // words it is close to - never those words themselves, and never a vector.
+  const hint: ProximityHint = found
+    ? { score: MAX_PROXIMITY_SCORE, near: [] }
+    : await proximityHint(c.env, song, key, new Set(newFoundKeys));
 
-  const result: GuessResult = { ...view, found, key, score };
+  const result: GuessResult = { ...view, found, key, score: hint.score, near: hint.near };
   return c.json(result);
 });
 

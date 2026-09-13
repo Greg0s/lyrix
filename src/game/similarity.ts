@@ -1,8 +1,9 @@
 // Semantic proximity scoring, shared by the Worker (which produces a score
 // for every guess) and the frontend (which colours and sorts the tried-word
-// list from it). Framework-agnostic and free of any embedding maths: the
-// vectors only ever exist in the offline build script (see
-// scripts/build-similarity-table.ts), never here and never in the hot path.
+// list, and the close words shown in the lyrics, from it). Framework-agnostic
+// and free of any embedding maths: the vectors only ever exist in the offline
+// build script (see scripts/build-similarity-table.ts), never here and never
+// in the hot path.
 
 /** Scores are integers on a 0-100 scale: 100 means "this word is in the song". */
 export const MAX_PROXIMITY_SCORE = 100;
@@ -13,6 +14,14 @@ export const MAX_PROXIMITY_SCORE = 100;
 // "cold" reaches higher than it would for a plain pairwise comparison.
 export const HOT_SCORE = 60;
 export const WARM_SCORE = 30;
+
+// A missed guess is shown in place of a hidden word once it is at least this
+// close to it (see NearSlot in types.ts). Pegged to the warm tier, so a guess
+// whose chip is warm or hot always lands somewhere in the lyrics, unless every
+// word it is close to is already revealed. The offline build drops pairs below
+// it, so lowering it means rebuilding the tables; raising it doesn't, since
+// the Worker checks it again on every read.
+export const NEAR_SCORE = WARM_SCORE;
 
 export type ProximityTier = "found" | "hot" | "warm" | "cold" | "unknown";
 

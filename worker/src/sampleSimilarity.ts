@@ -1,11 +1,16 @@
+import { NEAR_SCORE } from "../../src/game/similarity";
+import { wordPositions } from "../../src/game/slots";
+import type { Song } from "../../src/game/types";
+
 /**
  * Placeholder similarity scores for local development and the e2e suite.
  *
  * These numbers are hand-written, NOT produced by the embedding model: they
- * exist so the proximity UI (colours, score chips, sorting) can be exercised
- * end to end without a 200-dimension French embedding model on disk and
- * without a populated KV namespace. The same fixed table is served for every
- * song, which is fine for a UI fixture and meaningless as a real hint.
+ * exist so the proximity UI (colours, score chips, sorting, close words shown
+ * in the lyrics) can be exercised end to end without a 200-dimension French
+ * embedding model on disk and without a populated KV namespace. The same fixed
+ * table is served for every song, which is fine for a UI fixture and
+ * meaningless as a real hint.
  *
  * Gated on the `SIMILARITY_SAMPLE` var, which `npm run dev:worker` passes via
  * `wrangler dev --var` and which is never set in production — so a deployment
@@ -76,3 +81,50 @@ export const SAMPLE_SIMILARITY_SCORES: Record<string, number> = {
   astrophysique: 2,
   tableur: 2,
 };
+
+/** How far below its first placement a sample word's second one sits. */
+const SECOND_PLACEMENT_GAP = 20;
+
+// FNV-1a: tiny, and stable from one run to the next, which is all the
+// placement below needs from a hash.
+function hash(text: string): number {
+  let value = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    value ^= text.charCodeAt(i);
+    value = Math.imul(value, 0x01000193);
+  }
+  return value >>> 0;
+}
+
+/**
+ * Placeholder placements to go with the placeholder scores: which words of the
+ * song each sample word is "close to". A fixed word list served for every song
+ * has no real neighbours to offer, so they are picked by hashing the word —
+ * arbitrary, but the same on every guess and every reload of a given song.
+ *
+ * A word lands at its own score on one song word and, when that is still close
+ * enough, 20 points lower on a second one, so a single guess can spread over
+ * several words and tiers the way a real table's would.
+ */
+export function sampleNearTable(song: Song): Record<string, Record<string, number>> {
+  const words = [...wordPositions(song).keys()];
+  // A real neighbour is rarely an elided "l" or "j": skip those whenever the song has anything longer.
+  const longer = words.filter((word) => word.length >= 3);
+  const candidates = longer.length > 0 ? longer : words;
+
+  const near: Record<string, Record<string, number>> = {};
+  if (candidates.length === 0) return near;
+
+  for (const [word, score] of Object.entries(SAMPLE_SIMILARITY_SCORES)) {
+    if (score < NEAR_SCORE) continue;
+    const first = candidates[hash(word) % candidates.length];
+    const targets: Record<string, number> = { [first]: score };
+
+    const second = candidates[hash(`${word}:second`) % candidates.length];
+    const secondScore = score - SECOND_PLACEMENT_GAP;
+    if (second !== first && secondScore >= NEAR_SCORE) targets[second] = secondScore;
+
+    near[word] = targets;
+  }
+  return near;
+}

@@ -101,12 +101,13 @@ async function build(songs: Song[], options: BuildOptions): Promise<void> {
     });
 
     const started = Date.now();
-    const { scores, missingTargets } = buildSimilarityScores({ model, index, targetKeys, referenceKeys });
+    const { scores, near, missingTargets } = buildSimilarityScores({ model, index, targetKeys, referenceKeys });
     const table: SimilarityTable = {
       version: SIMILARITY_TABLE_VERSION,
       songId: song.id,
       model: options.modelId,
       scores,
+      near,
     };
 
     const serialized = JSON.stringify(table);
@@ -115,8 +116,9 @@ async function build(songs: Song[], options: BuildOptions): Promise<void> {
 
     const seconds = ((Date.now() - started) / 1000).toFixed(1);
     console.log(
-      `${song.id}: ${Object.keys(scores).length} words, ${targetKeys.length} targets ` +
-        `(${missingTargets.length} unknown to the model), ${(serialized.length / 1000).toFixed(0)} kB, ${seconds}s`
+      `${song.id}: ${Object.keys(scores).length} words (${Object.keys(near).length} close to a song word), ` +
+        `${targetKeys.length} targets (${missingTargets.length} unknown to the model), ` +
+        `${(serialized.length / 1000).toFixed(0)} kB, ${seconds}s`
     );
   }
 

@@ -3,7 +3,7 @@ import { MAX_PROXIMITY_SCORE } from "../../../src/game/similarity";
 import type { Song } from "../../../src/game/types";
 import { songWordKeys } from "../../../src/game/mask";
 import { l2NormalizeRows, type EmbeddingModel } from "../../../scripts/lib/embeddings";
-import { buildSimilarityScores } from "../../../scripts/lib/similarityTable";
+import { buildSimilarityScores, MAX_NEAR_TARGETS } from "../../../scripts/lib/similarityTable";
 import { indexByKey, isReferenceCandidate, selectReferenceKeys } from "../../../scripts/lib/vocabulary";
 
 /**
@@ -154,6 +154,86 @@ describe("buildSimilarityScores", () => {
   });
 });
 
+describe("buildSimilarityScores — close words", () => {
+  it("lists the song words a word is close to, with a score for each", () => {
+    const { near } = scoresFor(["orage", "tracteur", "chanson"]);
+    expect(near.pluie).toEqual({ orage: 100 });
+    expect(near.boulon).toEqual({ tracteur: 100 });
+    // 97 against "orage", but only 24 against "tracteur": below the threshold.
+    expect(near.parapluie).toEqual({ orage: 97 });
+  });
+
+  it("measures each song word against the form of a word closest to it", () => {
+    // One form of "ete" sits on the weather axis, the other on machinery: each
+    // song word gets the form nearest to it, not a single overall winner.
+    const { near } = scoresFor(["orage", "tracteur", "chanson"], ["ete"]);
+    expect(near.ete).toEqual({ orage: 100, tracteur: 100 });
+  });
+
+  it("lists the closest song words first, and only as many as asked", () => {
+    const spread = fixtureModel({ centre: [3, 2, 1], musique: [1, 0, 0], meteo: [0, 1, 0], machine: [0, 0, 1] });
+    const build = (maxNearTargets?: number) =>
+      buildSimilarityScores({
+        model: spread,
+        index: indexByKey(spread.words),
+        targetKeys: ["machine", "meteo", "musique"],
+        referenceKeys: ["centre"],
+        maxNearTargets,
+      }).near;
+
+    // "centre" scores 80 against musique, 53 against meteo and 27 against machine.
+    expect(Object.entries(build().centre)).toEqual([
+      ["musique", 80],
+      ["meteo", 53],
+    ]);
+    expect(build(1).centre).toEqual({ musique: 80 });
+  });
+
+  it("caps how many song words one word is placed on", () => {
+    const hub = fixtureModel({
+      hub: [1, 1, 1, 1, 1],
+      a: [1, 0, 0, 0, 0],
+      b: [0, 1, 0, 0, 0],
+      c: [0, 0, 1, 0, 0],
+      d: [0, 0, 0, 1, 0],
+      e: [0, 0, 0, 0, 1],
+    });
+    const { near } = buildSimilarityScores({
+      model: hub,
+      index: indexByKey(hub.words),
+      targetKeys: ["a", "b", "c", "d", "e"],
+      referenceKeys: ["hub"],
+    });
+    expect(Object.keys(near.hub)).toHaveLength(MAX_NEAR_TARGETS);
+  });
+
+  it("gives a word's best placement the word's own score", () => {
+    const { scores, near } = scoresFor(["orage", "tracteur", "chanson"]);
+    expect(Object.keys(near).length).toBeGreaterThan(0);
+    for (const [key, targets] of Object.entries(near)) {
+      expect(Math.max(...Object.values(targets))).toBe(scores[key]);
+    }
+  });
+
+  it("places nothing for a word close to no song word", () => {
+    const { near } = scoresFor(["orage"]);
+    expect(near.tracteur).toBeUndefined();
+    expect(near.chanson).toBeUndefined();
+  });
+
+  it("never places a song word, since guessing one reveals it", () => {
+    const { near } = scoresFor(["orage", "pluie"]);
+    expect(near.orage).toBeUndefined();
+    expect(near.pluie).toBeUndefined();
+    expect(near.parapluie).toEqual({ orage: 97, pluie: 97 });
+  });
+
+  it("never points at a song word the model doesn't know", () => {
+    const { near } = scoresFor(["orage", "zzzzinconnu"]);
+    for (const targets of Object.values(near)) expect(targets).not.toHaveProperty("zzzzinconnu");
+  });
+});
+
 describe("building a table for a whole song", () => {
   const song: Song = {
     id: "orage-fixture",
@@ -164,7 +244,7 @@ describe("building a table for a whole song", () => {
 
   it("covers every word of the title and the lyrics", () => {
     const targetKeys = [...songWordKeys(song)];
-    const { scores } = buildSimilarityScores({
+    const { scores, near } = buildSimilarityScores({
       model,
       index,
       targetKeys,
@@ -174,5 +254,9 @@ describe("building a table for a whole song", () => {
     // Including the short function words a tokenizer keeps ("la", "et", "l", "un").
     for (const key of targetKeys) expect(scores[key]).toBe(MAX_PROXIMITY_SCORE);
     expect(scores.parapluie).toBeGreaterThan(scores.chanson);
+    // And every placement points back at a word of that song.
+    for (const targets of Object.values(near)) {
+      for (const target of Object.keys(targets)) expect(targetKeys).toContain(target);
+    }
   });
 });

@@ -1,20 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalize } from "../../../src/game/normalize";
+import { NEAR_SCORE } from "../../../src/game/similarity";
 import { tokenize } from "../../../src/game/tokenize";
-import type { DisplayToken, GuessResult, RoundView } from "../../../src/game/types";
+import type { DisplayToken, GuessResult, RoundView, Song } from "../../../src/game/types";
 import app from "../../../worker/src/index";
 import { SIMILARITY_TABLE_VERSION, type SimilarityKv } from "../../../worker/src/similarity";
 import { getSongById } from "../../../worker/src/songs";
 
 const env = { STATE_SECRET: "test-secret" };
 
+interface KvTable {
+  scores?: Record<string, number>;
+  near?: Record<string, Record<string, number>>;
+  /** When set, only this song has a table, which proves the right one is read. */
+  songId?: string;
+}
+
 /** Stands in for the Workers KV namespace holding the precomputed tables. */
-function similarityKv(scores: Record<string, number>, songId?: string): SimilarityKv {
+function similarityKv({ scores = {}, near = {}, songId }: KvTable): SimilarityKv {
   return {
     get: async (key: string) =>
       songId && key !== songId
         ? null
-        : JSON.stringify({ version: SIMILARITY_TABLE_VERSION, songId: key, model: "test-model", scores }),
+        : JSON.stringify({ version: SIMILARITY_TABLE_VERSION, songId: key, model: "test-model", scores, near }),
   };
 }
 
@@ -54,6 +62,12 @@ async function getRound(): Promise<RoundView> {
   return (await res.json()) as RoundView;
 }
 
+async function playedSong(round: RoundView): Promise<Song> {
+  const song = await getSongById(round.songId);
+  if (!song) throw new Error("round song not found");
+  return song;
+}
+
 async function guess(
   state: string,
   word: string,
@@ -70,6 +84,18 @@ async function guess(
 
 function allTokens(round: RoundView): DisplayToken[] {
   return [...round.title.tokens, ...round.sections.flatMap((s) => s.lines.flatMap((l) => l.tokens))];
+}
+
+/**
+ * Every word of the song in the order positions count them: the title's, then
+ * the lyrics'. Written out here rather than taken from src/game/slots.ts, so
+ * the route is checked against the contract instead of against itself.
+ */
+function wordsInOrder(song: Song): string[] {
+  return [song.title, ...song.sections.flatMap((section) => section.lines)]
+    .flatMap((text) => tokenize(text))
+    .filter((token) => token.isWord)
+    .map((token) => normalize(token.text));
 }
 
 describe("GET /api/round", () => {
@@ -114,8 +140,7 @@ describe("GET /api/round", () => {
 describe("POST /api/guess", () => {
   it("reveals every occurrence of a correctly guessed word", async () => {
     const round = await getRound();
-    const song = await getSongById(round.songId);
-    if (!song) throw new Error("round song not found");
+    const song = await playedSong(round);
 
     const titleWord = tokenize(song.title).find((t) => t.isWord);
     if (!titleWord) throw new Error("song title has no word tokens");
@@ -129,8 +154,7 @@ describe("POST /api/guess", () => {
 
   it("matches guesses regardless of case or accents", async () => {
     const round = await getRound();
-    const song = await getSongById(round.songId);
-    if (!song) throw new Error("round song not found");
+    const song = await playedSong(round);
 
     const titleWord = tokenize(song.title).find((t) => t.isWord);
     if (!titleWord) throw new Error("song title has no word tokens");
@@ -148,8 +172,7 @@ describe("POST /api/guess", () => {
 
   it("declares victory and reveals the artist once every title word is found", async () => {
     const round = await getRound();
-    const song = await getSongById(round.songId);
-    if (!song) throw new Error("round song not found");
+    const song = await playedSong(round);
 
     const titleWords = tokenize(song.title).filter((t) => t.isWord);
     let state = round.state;
@@ -185,7 +208,7 @@ describe("POST /api/guess", () => {
 describe("POST /api/guess — proximity score", () => {
   it("scores a missed word from the song's precomputed table", async () => {
     const round = await getRound();
-    const scoring = { ...env, SIMILARITY: similarityKv({ xylophoneinexistant: 37 }) };
+    const scoring = { ...env, SIMILARITY: similarityKv({ scores: { xylophoneinexistant: 37 } }) };
     const { body } = await guess(round.state, "xylophoneinexistant", scoring);
     expect(body.found).toBe(false);
     expect(body.score).toBe(37);
@@ -193,8 +216,7 @@ describe("POST /api/guess — proximity score", () => {
 
   it("gives a found word the top score without touching the table", async () => {
     const round = await getRound();
-    const song = await getSongById(round.songId);
-    if (!song) throw new Error("round song not found");
+    const song = await playedSong(round);
     const titleWord = tokenize(song.title).find((t) => t.isWord);
     if (!titleWord) throw new Error("song title has no word tokens");
 
@@ -202,18 +224,22 @@ describe("POST /api/guess — proximity score", () => {
     const { body } = await guess(round.state, titleWord.text, { ...env, SIMILARITY: { get } });
     expect(body.found).toBe(true);
     expect(body.score).toBe(100);
+    expect(body.near).toEqual([]);
     expect(get).not.toHaveBeenCalled();
   });
 
   it("reads the table of the song actually being played", async () => {
     const round = await getRound();
-    const scoring = { ...env, SIMILARITY: similarityKv({ xylophoneinexistant: 12 }, round.songId) };
+    const scoring = {
+      ...env,
+      SIMILARITY: similarityKv({ scores: { xylophoneinexistant: 12 }, songId: round.songId }),
+    };
     expect((await guess(round.state, "xylophoneinexistant", scoring)).body.score).toBe(12);
   });
 
   it("returns a null score for a word outside the reference vocabulary", async () => {
     const round = await getRound();
-    const scoring = { ...env, SIMILARITY: similarityKv({ autrechose: 80 }) };
+    const scoring = { ...env, SIMILARITY: similarityKv({ scores: { autrechose: 80 } }) };
     expect((await guess(round.state, "xylophoneinexistant", scoring)).body.score).toBeNull();
   });
 
@@ -223,21 +249,28 @@ describe("POST /api/guess — proximity score", () => {
     expect(status).toBe(200);
     expect(body.found).toBe(false);
     expect(body.score).toBeNull();
+    expect(body.near).toEqual([]);
   });
 
-  it("never leaks the closest target word or a vector alongside the score", async () => {
+  it("never leaks a hidden word or a vector alongside the hint", async () => {
     const round = await getRound();
-    const song = await getSongById(round.songId);
-    if (!song) throw new Error("round song not found");
+    const song = await playedSong(round);
 
-    const scoring = { ...env, SIMILARITY: similarityKv({ xylophoneinexistant: 64 }) };
+    const scoring = {
+      ...env,
+      SIMILARITY: similarityKv({
+        scores: { xylophoneinexistant: 64 },
+        near: { xylophoneinexistant: { couplet: 64, ligne: 52 } },
+      }),
+    };
     const { body } = await guess(round.state, "xylophoneinexistant", scoring);
 
-    // The response may only ever grow by a number: no neighbour word, no
-    // vector, no table excerpt.
+    // The response may only ever grow by numbers: a score, and positions with
+    // a score each. No neighbour word, no vector, no table excerpt.
     expect(Object.keys(body).sort()).toEqual([
       "found",
       "key",
+      "near",
       "score",
       "sections",
       "songId",
@@ -245,9 +278,14 @@ describe("POST /api/guess — proximity score", () => {
       "title",
       "victory",
     ]);
+    expect(body.near.length).toBeGreaterThan(0);
+    for (const slot of body.near) {
+      expect(Object.keys(slot).sort()).toEqual(["position", "score"]);
+      expect(Number.isInteger(slot.position)).toBe(true);
+    }
 
-    // Still-masked lyrics must stay masked: scoring reads the table server
-    // side and answers with a bare number.
+    // Still-masked lyrics must stay masked, the very words the guess is close
+    // to included: the table is read server side and answered with numbers.
     const serialized = JSON.stringify(body);
     const hiddenWords = song.sections
       .flatMap((section) => section.lines)
@@ -255,8 +293,68 @@ describe("POST /api/guess — proximity score", () => {
       .filter((token) => token.isWord)
       .map((token) => normalize(token.text))
       .filter((key) => key.length > 3);
-    expect(hiddenWords.length).toBeGreaterThan(0);
+    expect(hiddenWords).toContain("couplet");
     expect(hiddenWords.some((key) => serialized.includes(key))).toBe(false);
+  });
+});
+
+describe("POST /api/guess — close words", () => {
+  it("points a missed guess at every hidden occurrence of the words it is close to", async () => {
+    const round = await getRound();
+    const words = wordsInOrder(await playedSong(round));
+    const scoring = {
+      ...env,
+      SIMILARITY: similarityKv({
+        scores: { xylophoneinexistant: 64 },
+        near: { xylophoneinexistant: { couplet: 64, refrain: 41 } },
+      }),
+    };
+
+    const { body } = await guess(round.state, "xylophoneinexistant", scoring);
+
+    const expected = words.flatMap((word, position) =>
+      word === "couplet" ? [{ position, score: 64 }] : word === "refrain" ? [{ position, score: 41 }] : []
+    );
+    expect(expected.length).toBeGreaterThanOrEqual(2);
+    expect(body.found).toBe(false);
+    expect(body.near).toEqual(expected);
+  });
+
+  it("leaves out a word the player has already found", async () => {
+    const round = await getRound();
+    const scoring = {
+      ...env,
+      SIMILARITY: similarityKv({ scores: { xylophoneinexistant: 64 }, near: { xylophoneinexistant: { couplet: 64 } } }),
+    };
+
+    const first = await guess(round.state, "couplet", scoring);
+    expect(first.body.found).toBe(true);
+
+    const { body } = await guess(first.body.state, "xylophoneinexistant", scoring);
+    expect(body.score).toBe(64);
+    expect(body.near).toEqual([]);
+  });
+
+  it("never places a word that is itself in the lyrics", async () => {
+    const round = await getRound();
+    const scoring = { ...env, SIMILARITY: similarityKv({ near: { couplet: { refrain: 90 } } }) };
+    const { body } = await guess(round.state, "couplet", scoring);
+    expect(body.found).toBe(true);
+    expect(body.near).toEqual([]);
+  });
+
+  it("places nothing for a word that isn't close enough to any hidden word", async () => {
+    const round = await getRound();
+    const scoring = {
+      ...env,
+      SIMILARITY: similarityKv({
+        scores: { xylophoneinexistant: 20 },
+        near: { xylophoneinexistant: { couplet: NEAR_SCORE - 1 } },
+      }),
+    };
+    const { body } = await guess(round.state, "xylophoneinexistant", scoring);
+    expect(body.score).toBe(20);
+    expect(body.near).toEqual([]);
   });
 });
 
