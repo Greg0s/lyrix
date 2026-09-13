@@ -9,6 +9,7 @@ Currently in **MVP** phase: plain, functional UI, no 3D or animations yet.
 - **Frontend**: Vite + React (TypeScript, strict mode)
 - **Backend**: Cloudflare Workers (Hono) — keeps the target lyrics secret and only ever sends masked words to the client
 - **Lyrics source**: [LRCLIB](https://lrclib.net)
+- **Proximity hints**: French word embeddings, precomputed offline into a per-song word → score table stored in Cloudflare Workers KV
 
 ## Requirements
 
@@ -50,6 +51,25 @@ npm run dev:worker  # API only (wrangler dev)
 npm test        # lint + typecheck + unit tests (Vitest)
 npm run test:e2e  # end-to-end tests (Playwright)
 ```
+
+## Semantic Proximity Scoring
+
+A guess that isn't in the lyrics still comes back with a 0-100 score saying how semantically close it is, Cemantix-style. The scoring is precomputed offline — the Worker only ever does a key lookup — so it needs a one-time setup before it does anything in production:
+
+```bash
+# 1. download a French word2vec model by hand into data/models/ (see the licence note below)
+# 2. compact it
+npm run similarity:convert -- --input data/models/<model>.bin --output data/models/frwac.vecbin --max-words 200000
+# 3. build the per-song tables
+npm run similarity:build -- --model data/models/frwac.vecbin --all --bulk
+# 4. create the KV namespace, uncomment the binding in worker/wrangler.toml, and upload
+npx wrangler kv namespace create SIMILARITY
+npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote --config worker/wrangler.toml
+```
+
+Without that namespace the game runs exactly as before, with no scores. Local development doesn't need any of it: `npm run dev:worker` serves hand-written placeholder scores so the coloured chips are visible right away.
+
+> **Licence note — unresolved.** The default model, [frWac2Vec](https://fauconnier.github.io/#data), has reuse terms that nobody has verified yet. Nothing is downloaded or committed automatically, and `data/` is gitignored, but **check the licence before uploading derived tables to production**. Any word2vec-format model works — see the "Semantic Proximity Scoring" section of [CLAUDE.md](CLAUDE.md).
 
 ## Project Structure
 
