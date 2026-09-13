@@ -1,4 +1,5 @@
 import type { TriedWord } from "./hooks/useGame";
+import { parseNearSlots } from "./game/slots";
 import type { RoundView } from "./game/types";
 
 const STORAGE_KEY = "lyrix:round";
@@ -15,15 +16,22 @@ export function todayKey(date: Date = new Date()): string {
 }
 
 // Parses rather than type-guards, so a round saved before proximity scoring
-// existed (no `score` field) still loads instead of being thrown away, which
-// would silently restart the player's one puzzle of the day.
+// existed (no `score` field), or before close words were shown in the lyrics
+// (no `near` field), still loads instead of being thrown away, which would
+// silently restart the player's one puzzle of the day.
 function parseTriedWord(value: unknown): TriedWord | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
   if (typeof candidate.key !== "string" || typeof candidate.display !== "string") return null;
   if (typeof candidate.found !== "boolean") return null;
   const score = typeof candidate.score === "number" && Number.isFinite(candidate.score) ? candidate.score : null;
-  return { key: candidate.key, display: candidate.display, found: candidate.found, score };
+  return {
+    key: candidate.key,
+    display: candidate.display,
+    found: candidate.found,
+    score,
+    near: parseNearSlots(candidate.near),
+  };
 }
 
 function isRoundView(value: unknown): value is RoundView {

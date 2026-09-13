@@ -89,6 +89,52 @@
   transition: background 0.35s ease;
 }
 
+/*
+ * A hidden word holding the closest guess so far. The guess and the word's own
+ * blank share one grid cell, with the blank kept invisible rather than removed,
+ * so the slot is never narrower than the word it hides and the length hint
+ * survives. Dashed, unlike a found word, because it is only a guess.
+ */
+.token-word-near {
+  display: inline-grid;
+  line-height: 1.2;
+  padding: 0 3px;
+  border: 1px dashed;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.token-word-near > * {
+  grid-area: 1 / 1;
+}
+
+.token-near-blank {
+  visibility: hidden;
+  letter-spacing: 0.03em;
+}
+
+.token-near-guess {
+  justify-self: center;
+}
+
+.token-word-near.tier-hot {
+  background: var(--proximity-hot-bg);
+  border-color: var(--proximity-hot-border);
+  color: var(--proximity-hot-ink);
+}
+
+.token-word-near.tier-warm {
+  background: var(--proximity-warm-bg);
+  border-color: var(--proximity-warm-border);
+  color: var(--proximity-warm-ink);
+}
+
+.token-word-near.tier-cold {
+  background: var(--proximity-cold-bg);
+  border-color: var(--proximity-cold-border);
+  color: var(--proximity-cold-ink);
+}
+
 .lyrix-victory {
   margin-top: 16px;
   padding: 18px 20px;

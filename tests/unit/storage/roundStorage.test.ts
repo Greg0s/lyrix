@@ -34,10 +34,14 @@ const round: RoundView = {
 };
 
 const triedWords: TriedWord[] = [
-  { key: "le", display: "Le", found: true, score: 100 },
-  { key: "orage", display: "orage", found: false, score: 41 },
-  { key: "zzzz", display: "zzzz", found: false, score: null },
+  { key: "le", display: "Le", found: true, score: 100, near: [] },
+  { key: "orage", display: "orage", found: false, score: 41, near: [{ position: 3, score: 41 }] },
+  { key: "zzzz", display: "zzzz", found: false, score: null, near: [] },
 ];
+
+function savedToday(words: unknown[]): Storage {
+  return fakeStorage({ [STORAGE_KEY]: JSON.stringify({ date: todayKey(), round, triedWords: words }) });
+}
 
 describe("roundStorage", () => {
   it("round-trips a saved round for today", () => {
@@ -91,24 +95,35 @@ describe("roundStorage", () => {
   // rounds saved by the previous version have no `score` field. Rejecting
   // those would silently wipe the player's progress on the one song of the day.
   it("loads a round saved before proximity scores existed", () => {
-    const legacy = JSON.stringify({
-      date: todayKey(),
+    expect(loadSavedRound(savedToday([{ key: "le", display: "Le", found: true }]))).toEqual({
       round,
-      triedWords: [{ key: "le", display: "Le", found: true }],
-    });
-    const storage = fakeStorage({ [STORAGE_KEY]: legacy });
-    expect(loadSavedRound(storage)).toEqual({
-      round,
-      triedWords: [{ key: "le", display: "Le", found: true, score: null }],
+      triedWords: [{ key: "le", display: "Le", found: true, score: null, near: [] }],
     });
   });
 
+  // Close words shown in the lyrics came later still: a round saved in
+  // between has scores but no placements, and must keep its progress too.
+  it("loads a round saved before close words were shown in the lyrics", () => {
+    const saved = savedToday([{ key: "orage", display: "orage", found: false, score: 41 }]);
+    expect(loadSavedRound(saved)?.triedWords).toEqual([
+      { key: "orage", display: "orage", found: false, score: 41, near: [] },
+    ]);
+  });
+
+  it("drops a malformed placement rather than the whole round", () => {
+    const saved = savedToday([
+      {
+        key: "orage",
+        display: "orage",
+        found: false,
+        score: 41,
+        near: [{ position: -1, score: 41 }, { position: 2, score: 41 }, "junk"],
+      },
+    ]);
+    expect(loadSavedRound(saved)?.triedWords[0].near).toEqual([{ position: 2, score: 41 }]);
+  });
+
   it("ignores a saved round holding a malformed tried word", () => {
-    const malformed = JSON.stringify({
-      date: todayKey(),
-      round,
-      triedWords: [{ key: "le", display: "Le" }],
-    });
-    expect(loadSavedRound(fakeStorage({ [STORAGE_KEY]: malformed }))).toBeNull();
+    expect(loadSavedRound(savedToday([{ key: "le", display: "Le" }]))).toBeNull();
   });
 });

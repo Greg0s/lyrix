@@ -1,7 +1,8 @@
-import type { DisplaySection } from "../game/types";
+import type { SlotSection } from "../game/slots";
+import { WordToken } from "./WordToken";
 
 interface LyricsBodyProps {
-  sections: DisplaySection[];
+  sections: SlotSection[];
 }
 
 export function LyricsBody({ sections }: LyricsBodyProps) {
@@ -13,12 +14,7 @@ export function LyricsBody({ sections }: LyricsBodyProps) {
           {section.lines.map((line, lineIndex) => (
             <p className="lyrix-lyric-line" key={lineIndex}>
               {line.tokens.map((token, tokenIndex) => (
-                <span
-                  key={tokenIndex}
-                  className={token.isWord ? (token.revealed ? "token-word-found" : "token-word-hidden") : undefined}
-                >
-                  {token.text}
-                </span>
+                <WordToken key={tokenIndex} token={token} />
               ))}
             </p>
           ))}

@@ -1,7 +1,8 @@
-import type { DisplayToken } from "../game/types";
+import type { SlotToken } from "../game/slots";
+import { WordToken } from "./WordToken";
 
 interface TitleGuessProps {
-  titleTokens: DisplayToken[];
+  titleTokens: SlotToken[];
   victory: boolean;
   artist?: string;
 }
@@ -12,12 +13,7 @@ export function TitleGuess({ titleTokens, victory, artist }: TitleGuessProps) {
       <p className="lyrix-title-label">Titre à deviner</p>
       <p className="lyrix-title-line">
         {titleTokens.map((token, index) => (
-          <span
-            key={index}
-            className={token.isWord ? (token.revealed ? "token-word-found" : "token-word-hidden") : undefined}
-          >
-            {token.text}
-          </span>
+          <WordToken key={index} token={token} />
         ))}
       </p>
 
