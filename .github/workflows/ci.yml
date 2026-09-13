@@ -16,8 +16,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - name: Set up Worker local secrets for e2e
-        run: cp worker/.dev.vars.example worker/.dev.vars
+      # worker/.dev.vars is created by the predev:worker hook that runs when
+      # Playwright starts the Worker, the same path a contributor goes through.
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
