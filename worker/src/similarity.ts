@@ -52,6 +52,21 @@ export function parseSimilarityTable(value: unknown): SimilarityTable | null {
   };
 }
 
+// Dev-only, once per isolate: without this, the placeholder table's handful of
+// scored words is only discoverable by reading sampleSimilarity.ts, and every
+// other guess looks like the feature is broken rather than out of vocabulary.
+let sampleModeAnnounced = false;
+
+function announceSampleMode(): void {
+  if (sampleModeAnnounced) return;
+  sampleModeAnnounced = true;
+  console.log(
+    "similarity: SIMILARITY_SAMPLE is on — placeholder scores, not real embeddings. " +
+      `Words that carry a score: ${Object.keys(SAMPLE_SIMILARITY_SCORES).join(", ")}. ` +
+      "Anything else scores null, and a word that is in the lyrics is revealed instead."
+  );
+}
+
 /** Never throws: a KV hiccup or a malformed table degrades to "no score", never to a failed guess. */
 export async function loadSimilarityTable(env: SimilarityEnv, songId: string): Promise<SimilarityTable | null> {
   if (env.SIMILARITY) {
@@ -71,6 +86,7 @@ export async function loadSimilarityTable(env: SimilarityEnv, songId: string): P
   }
 
   if (env.SIMILARITY_SAMPLE === "1") {
+    announceSampleMode();
     return { version: SIMILARITY_TABLE_VERSION, songId, model: "sample", scores: SAMPLE_SIMILARITY_SCORES };
   }
   return null;

@@ -138,7 +138,7 @@ npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote
 - **The feature is optional at runtime.** With no `SIMILARITY` namespace bound, every score is `null` and the game behaves exactly as it did before scoring existed. Keep it that way: a missing table is never an error.
 - **Reference vocabulary**: the model's vocabulary intersected with a common-word list (default: the model's own frequency order, capped at 50 000), proper nouns excluded, plus the song's own words forced in however rare they are.
 - **Normalization must stay in step.** Table keys go through the same `normalize()` as a player's guess (lowercase, accents stripped), so one key can cover several model forms — the best-scoring one wins. Changing `normalize.ts` invalidates every stored table; rebuild them.
-- **Local development uses placeholder scores.** `npm run dev:worker` passes `--var SIMILARITY_SAMPLE:1`, which serves the hand-written table in `worker/src/sampleSimilarity.ts` so the UI and the e2e suite work without the model or a KV namespace. That flag is never set in production, and a real KV table always wins over it.
+- **Local development uses placeholder scores.** `npm run dev:worker` passes `--var SIMILARITY_SAMPLE:1`, which serves the hand-written table in `worker/src/sampleSimilarity.ts` so the UI and the e2e suite work without the model or a KV namespace. That flag is never set in production, and a real KV table always wins over it. The table only covers a few dozen words, so the Worker prints the whole list to its log the first time it serves one — keep it that way, or the only way to test the feature is to read the source.
 
 ### Model licensing — unresolved, read before shipping
 

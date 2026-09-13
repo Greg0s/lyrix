@@ -63,7 +63,7 @@ npx wrangler kv namespace create SIMILARITY
 npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote --config worker/wrangler.toml
 ```
 
-Without that namespace the game runs exactly as before, with no scores. Local development doesn't need any of it: `npm run dev:worker` serves hand-written placeholder scores so the coloured chips are visible right away.
+Without that namespace the game runs exactly as before, with no scores. Local development doesn't need any of it: `npm run dev:worker` serves hand-written placeholder scores so the coloured chips are visible right away. Only a few dozen words carry one — the API log lists them all on the first guess (any other word scores nothing, and a word that is in the lyrics is revealed instead of scored).
 
 > **Licence note — unresolved.** The default model, [frWac2Vec](https://fauconnier.github.io/#data), has reuse terms that nobody has verified yet. Nothing is downloaded or committed automatically, and `data/` is gitignored, but **check the licence before uploading derived tables to production**. Any word2vec-format model works — see the "Semantic Proximity Scoring" section of [CLAUDE.md](CLAUDE.md).
 

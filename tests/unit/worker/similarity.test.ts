@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HOT_SCORE, WARM_SCORE } from "../../../src/game/similarity";
 import { SAMPLE_SIMILARITY_SCORES } from "../../../worker/src/sampleSimilarity";
 import {
   loadSimilarityTable,
@@ -17,6 +18,18 @@ function table(scores: Record<string, number>, songId = "papaoutai"): string {
 function fakeKv(entries: Record<string, string>): SimilarityKv {
   return { get: async (key: string) => entries[key] ?? null };
 }
+
+// Sample mode announces its vocabulary on stdout; silence it here so the
+// suite's output stays readable.
+let logged: ReturnType<typeof vi.spyOn>;
+
+beforeEach(() => {
+  logged = vi.spyOn(console, "log").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  logged.mockRestore();
+});
 
 describe("parseSimilarityTable", () => {
   it("accepts a well-formed table", () => {
@@ -141,5 +154,48 @@ describe("the dev placeholder table", () => {
     for (const key of Object.keys(SAMPLE_SIMILARITY_SCORES)) {
       expect(key).toMatch(/^[a-z]+$/);
     }
+  });
+
+  // It is the only way to see the colours without the real model, so every
+  // tier has to be reachable — a table that scored nothing above 60 would
+  // leave the "hot" chip untested and unseen.
+  it("covers every colour tier with several words each", () => {
+    const scores = Object.values(SAMPLE_SIMILARITY_SCORES);
+    expect(scores.filter((score) => score >= HOT_SCORE).length).toBeGreaterThanOrEqual(3);
+    expect(scores.filter((score) => score >= WARM_SCORE && score < HOT_SCORE).length).toBeGreaterThanOrEqual(3);
+    expect(scores.filter((score) => score < WARM_SCORE).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("stays inside the 0-100 scale", () => {
+    for (const score of Object.values(SAMPLE_SIMILARITY_SCORES)) {
+      expect(Number.isInteger(score)).toBe(true);
+      expect(score).toBeGreaterThanOrEqual(0);
+      expect(score).toBeLessThanOrEqual(100);
+    }
+  });
+
+  // Regression test: the placeholder words used to be discoverable only by
+  // reading the source, so every guess outside the list looked like a broken
+  // feature rather than an out-of-vocabulary word.
+  it("names its words once, so they don't have to be looked up in the source", async () => {
+    vi.resetModules();
+    const fresh = await import("../../../worker/src/similarity");
+
+    await fresh.loadSimilarityTable({ SIMILARITY_SAMPLE: "1" }, "papaoutai");
+    await fresh.loadSimilarityTable({ SIMILARITY_SAMPLE: "1" }, "papaoutai");
+
+    expect(logged).toHaveBeenCalledTimes(1);
+    const message = String(logged.mock.calls[0][0]);
+    expect(message).toContain("SIMILARITY_SAMPLE");
+    expect(message).toContain("clavecin");
+  });
+
+  it("stays quiet when sample mode is off", async () => {
+    vi.resetModules();
+    const fresh = await import("../../../worker/src/similarity");
+
+    await fresh.loadSimilarityTable({}, "papaoutai");
+
+    expect(logged).not.toHaveBeenCalled();
   });
 });
