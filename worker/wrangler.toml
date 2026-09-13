@@ -6,3 +6,23 @@ compatibility_date = "2024-09-23"
 # `secret` sharing one binding name on the same Worker. Local dev gets it
 # from worker/.dev.vars (gitignored, see worker/.dev.vars.example);
 # production gets it from `wrangler secret put STATE_SECRET`.
+
+# Precomputed semantic-similarity tables, one entry per song id (see
+# scripts/build-similarity-table.ts and CLAUDE.md). Left commented out because
+# the namespace has to exist before `wrangler deploy` will accept the binding —
+# deploying with a made-up id fails the whole deploy. To turn proximity scoring
+# on in production:
+#
+#   1. npx wrangler kv namespace create SIMILARITY
+#   2. paste the id it prints below and uncomment the block
+#   3. npm run similarity:build -- --model <model.vecbin> --all --bulk
+#   4. npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote --config worker/wrangler.toml
+#
+# Until then the Worker simply answers guesses without a score or close words,
+# exactly as it did before the feature existed. Local dev gets placeholder
+# scores and placements instead, via the SIMILARITY_SAMPLE var that
+# `npm run dev:worker` passes.
+#
+# [[kv_namespaces]]
+# binding = "SIMILARITY"
+# id = "<id printed by `wrangler kv namespace create`>"

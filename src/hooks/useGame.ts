@@ -1,18 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchRound, submitGuess } from "../api/client";
 import { normalize } from "../game/normalize";
-import type { RoundView } from "../game/types";
+import { parseNearSlots } from "../game/slots";
+import type { NearSlot, RoundView } from "../game/types";
 import { loadSavedRound, saveRound } from "../roundStorage";
 
 export interface TriedWord {
   key: string;
   display: string;
   found: boolean;
+  /** Semantic proximity, 0-100; null when the word is unknown to the model or the song has no similarity table. */
+  score: number | null;
+  /** The hidden words this guess is close to, by position (see src/game/slots.ts); empty when it is close to none. */
+  near: NearSlot[];
 }
 
 interface Feedback {
   word: string;
   found: boolean;
+  /** How many hidden words the guess is close to, so a hint shown far down the lyrics doesn't go unnoticed. */
+  nearCount: number;
 }
 
 interface GameState {
@@ -115,14 +122,20 @@ export function useGame() {
     setState((prev) => ({ ...prev, submitting: true, error: null }));
     try {
       const result = await submitGuess(round.state, raw);
-      const newTriedWords = [{ key: result.key, display: raw, found: result.found }, ...triedWords];
+      // Parsed rather than trusted: a Worker deployed before close words were
+      // placed in the lyrics sends no `near` at all.
+      const near = parseNearSlots(result.near);
+      const newTriedWords = [
+        { key: result.key, display: raw, found: result.found, score: result.score ?? null, near },
+        ...triedWords,
+      ];
       saveRound(result, newTriedWords);
       setState((prev) => ({
         ...prev,
         round: result,
         inputValue: "",
         submitting: false,
-        feedback: { word: raw, found: result.found },
+        feedback: { word: raw, found: result.found, nearCount: near.length },
         triedWords: newTriedWords,
       }));
     } catch (error) {

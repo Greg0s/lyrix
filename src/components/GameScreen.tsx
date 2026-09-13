@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { closestGuessBySlot, placeNearGuesses } from "../game/slots";
 import { useGame } from "../hooks/useGame";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { GuessForm } from "./GuessForm";
@@ -7,6 +8,14 @@ import { LyricsBody } from "./LyricsBody";
 import { SideCard } from "./SideCard";
 import { TitleGuess } from "./TitleGuess";
 import { TriedWords } from "./TriedWords";
+
+function feedbackMessage(word: string, found: boolean, nearCount: number): string {
+  if (found) return `« ${word} » trouvé !`;
+  if (nearCount === 0) return `« ${word} » n’y est pas.`;
+  // A close word can land far down the lyrics, out of sight: say so, or the hint goes unnoticed.
+  const where = nearCount === 1 ? "d’un mot caché" : `de ${nearCount} mots cachés`;
+  return `« ${word} » n’y est pas, mais il est proche ${where}.`;
+}
 
 export function GameScreen() {
   const game = useGame();
@@ -34,6 +43,8 @@ export function GameScreen() {
   }
 
   const { round } = game;
+  // Every hidden word shows the closest miss so far; a revealed word always shows itself.
+  const slots = placeNearGuesses(round, closestGuessBySlot(game.triedWords));
   const foundCount = game.triedWords.filter((word) => word.found).length;
   const triedCount = game.triedWords.length;
   const statsText =
@@ -41,9 +52,7 @@ export function GameScreen() {
       ? "À toi de jouer"
       : `${foundCount} trouvé${foundCount === 1 ? "" : "s"} sur ${triedCount} essayé${triedCount === 1 ? "" : "s"}`;
   const feedbackText = game.feedback
-    ? game.feedback.found
-      ? `« ${game.feedback.word} » trouvé !`
-      : `« ${game.feedback.word} » n’y est pas.`
+    ? feedbackMessage(game.feedback.word, game.feedback.found, game.feedback.nearCount)
     : null;
 
   return (
@@ -55,7 +64,7 @@ export function GameScreen() {
 
       <div className={`lyrix-grid${isMobile ? " is-mobile" : ""}`}>
         <div className="lyrix-center-col">
-          <TitleGuess titleTokens={round.title.tokens} victory={round.victory} artist={round.artist} />
+          <TitleGuess titleTokens={slots.title} victory={round.victory} artist={round.artist} />
 
           <GuessForm
             value={game.inputValue}
@@ -72,7 +81,7 @@ export function GameScreen() {
             <p className={`lyrix-feedback ${game.feedback?.found ? "is-found" : "is-missed"}`}>{feedbackText}</p>
           ) : null}
 
-          <LyricsBody sections={round.sections} />
+          <LyricsBody sections={slots.sections} />
         </div>
 
         <SideCard

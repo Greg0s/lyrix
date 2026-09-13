@@ -4,6 +4,54 @@ A running log of gotchas, root causes, and anything that cost real time to figur
 
 Each entry: date, short title, what happened, how it was resolved.
 
+## 2026-09-13 — A new e2e test failed in CI only: Playwright's `hasText` is a substring match
+
+CI on the close-words PR failed on `hands a hidden word back to the real one once it is found`, which had passed locally. The spec's `guess()` helper waited for `page.locator(".lyrix-chip", { hasText: word })`, and a string `hasText` is a case-insensitive *substring* match. CI's round had a title starting with "La", and "la" sits inside the earlier `clavecin` chip's text ("clavecin71"), so the locator resolved to two chips and strict mode failed the test. Locally the title started with another word and nothing collided: the outcome depended on the day's song.
+
+Fixed by matching a chip's text exactly — the word, then its score if it has one — with an anchored RegExp. Regression test: `keeps a guess apart from an earlier one that contains it` guesses "clavecin" then "clave", which collide whatever the song.
+
+**Takeaway**: in this suite, anything taken from the day's song (title words, lyrics) is effectively random input. A locator built from such a word must match exactly: a string `hasText`, or `getByText` without `exact: true`, will sooner or later match something else too.
+
+## 2026-09-13 — An e2e run from a worktree silently tested the main checkout's code
+
+While adding close-word placements on a git worktree (`.claude/worktrees/…`), the existing e2e suite passed but all three new tests failed with no `.token-word-near` element on the page. That included the one that rewrites the `/api/guess` response to force a placement, which pointed at the frontend rather than the Worker. The page snapshot in `test-results/*/error-context.md` settled it: the "Comment on joue ?" card still showed the old rules text.
+
+Root cause: `playwright.config.ts` has `reuseExistingServer: !process.env.CI`, and an `npm run dev:all` started from the main checkout, on another branch, was holding ports 5173 and 8787. Playwright saw both URLs answer, reused them, and ran every test against that checkout's frontend and Worker. That is also why the "baseline" run before the change had looked green. `Get-NetTCPConnection -LocalPort 5173,8787` and the owning processes' command lines showed the other checkout's paths.
+
+Worked around without stopping the other session's servers: the same spec files ran through a throwaway config on ports 5273/8887 (`vite --port 5273 --strictPort` with `VITE_API_BASE_URL=http://localhost:8887`, and `npm run dev:worker -- --port 8887 --inspector-port 9339`, since the other `workerd` also holds the default inspector port 9229). All 13 tests passed there.
+
+**Takeaway**: a local e2e pass only tells you about the servers Playwright talked to. With several checkouts of the repo on one machine, `reuseExistingServer` silently hands the suite whichever checkout started its servers first. Before trusting a local run, check what owns 5173/8787. The config itself isn't fixed yet — that is a tooling change of its own, suggested as a separate task.
+
+## 2026-09-13 — The missing `.dev.vars` bit a second time, on a fresh Windows clone
+
+`npm run dev:all` on a fresh clone: `GET /api/round 500`, then `DataError: Imported HMAC key length (0) must be a non-zero value...` from `hmacKey` in `worker/src/state.ts`. Same root cause as the CI failure logged below — `worker/.dev.vars` is gitignored, so a fresh clone doesn't have it, `env.STATE_SECRET` is `undefined`, and `crypto.subtle.importKey` refuses a zero-length key.
+
+The suspect was the wrong one at first glance: the failure appeared right after pulling a branch that changed `dev:worker` to `wrangler dev … --var SIMILARITY_SAMPLE:1`, which looks exactly like the kind of flag that would replace the vars loaded from `.dev.vars`. It doesn't. Ruled out by running the four combinations (with/without `--var`, on wrangler 4.86.0 and 4.131.1): all four answer `200` as long as `.dev.vars` exists, and deleting it reproduces the exact stack trace on every one. `--var` merges into `vars`; it does not shadow `.dev.vars`.
+
+**Fixed for good, in two places** rather than by documenting the copy better a third time:
+
+- `scripts/ensure-dev-vars.ts` creates `worker/.dev.vars` from the committed example, wired to npm's `predev:worker` hook so it runs before `wrangler dev` — for `npm run dev:all`, for Playwright's `webServer`, and for anyone running `npm run dev:worker` directly. It never overwrites an existing file, and uses Node's `fs` rather than `cp` because contributors are on Windows. The explicit `cp` step in the CI `test` job is gone: CI now goes through the same path a contributor does, so if the hook ever stops working, e2e says so.
+- `worker/src/index.ts` checks `STATE_SECRET` in an `/api/*` middleware and logs which variable is missing and how to set it in dev and in production, instead of letting Web Crypto fail five frames deep with a message about bit lengths. Regression tests in `tests/unit/worker/guess.test.ts` cover both routes and an empty-string secret; `tests/unit/scripts/devVars.test.ts` covers the copy helper.
+
+Promoted to standing rules in [CLAUDE.md](../CLAUDE.md) ("Configuration"), since this is the second occurrence: a gitignored config file is never a manual setup step, and missing configuration must name itself where it is read.
+
+**Unrelated, noticed while testing**: running a newer Wrangler (4.131.1) against the repo's local state, then going back to the pinned 4.86.0, made `workerd` die at startup with `table _cf_ALARM has 3 columns but 2 values were supplied`. `.wrangler/` is a version-specific SQLite cache — `rm -rf .wrangler` fixes it. Also worth knowing: the repo ships `package-lock.json` and CI runs `npm ci`, so installing with pnpm resolves different transitive versions (that's where 4.131.1 came from) than the ones CI tests.
+
+## 2026-09-13 — Wiring Workers KV into the repo without breaking the deploy, and three smaller traps
+
+Building the semantic proximity scoring (precomputed per-song word → score tables in Workers KV) hit four things worth remembering:
+
+- **A `[[kv_namespaces]]` binding can't be declared speculatively.** Local dev needs the binding in `worker/wrangler.toml` — `wrangler dev` has no CLI flag to add a KV binding — but `wrangler deploy` validates the namespace id against the account and fails the whole deploy on a made-up one. Since the namespace can't be created from here (and, with the model licence unresolved, shouldn't be yet), the block ships **commented out** with the two commands to enable it. What made that workable: `wrangler dev` *does* have `--var`, so `npm run dev:worker` passes `--var SIMILARITY_SAMPLE:1` and the Worker serves a hand-written placeholder table (`worker/src/sampleSimilarity.ts`) in dev and e2e. The flag never exists in production, so a deploy without KV returns no score rather than fake ones — and a real KV table always takes precedence over the placeholder.
+  **Takeaway**: prefer `wrangler dev --var` in an npm script over a new entry in `.dev.vars.example` for dev-only switches. `.dev.vars` is gitignored, so contributors who already have one would never pick the new value up (the same trap as the `STATE_SECRET` entry below, from the other side) — a flag in `package.json` reaches everyone who runs `npm run dev:worker`, CI included.
+
+- **Node tooling can't import the Worker's modules blindly.** `scripts/` runs under plain Node (via `tsx`) with the root `tsconfig.json`, which has the DOM lib but not `@cloudflare/workers-types`. Importing `worker/src/songs.ts` to resolve lyrics therefore failed to type-check on `caches.default` in `cache.ts` — `caches` is `CacheStorage` in the DOM lib and has no `default`. Fixed by splitting the LRCLIB half of song resolution into `worker/src/resolveSong.ts`, which touches no Workers-only global, and having both `songs.ts` and the build script import that. Worth preferring over a cast: the seam is real (resolution vs. caching), and it keeps the script honestly type-checked.
+
+- **`tsx`, not Node's built-in type stripping, for the scripts.** Node 22.18+ strips types natively, but only with ESM resolution — every relative import needs an explicit `.ts` extension, which the whole codebase (rightly) doesn't use. Rather than sprinkle extensions through `src/game` and `worker/src`, the scripts run through `tsx`.
+
+- **Float32 round-trips don't compare with `toEqual`.** `0.6` stored in a `Float32Array` reads back as `0.6000000238418579`, so vector assertions in `tests/unit/scripts/embeddings.test.ts` use an element-wise `toBeCloseTo` helper. Comparing two `Float32Array`s to each other is still exact — only float64 literals need the tolerance.
+
+**Also noticed, not fixed** (pre-existing, unrelated to this change): `/api/round` returns `songId`, and catalog ids are slugified titles — `non-je-ne-regrette-rien` hands the player the answer straight out of the network tab. The lyrics stay masked, so the anti-cheat rule about the *text* holds, but the title is the win condition. Fixing it means an opaque per-day round id, which touches the wire contract, `roundStorage.ts` and the e2e helpers — a change of its own, not a rider on this one.
+
 ## 2026-09-12 — Deployed game showed "Impossible de charger la partie": Pages and the Worker are on different origins
 
 The production site (`https://lyrix-eyg.pages.dev` — the Cloudflare Pages project is actually named `lyrix-eyg`, not `lyrix`, presumably because `lyrix` was already taken when the project was first created) loaded fine but immediately failed to fetch the round. Root cause: `src/api/client.ts` falls back to relative `/api/*` requests against `window.location.origin` whenever `VITE_API_BASE_URL` is unset, and the CI `deploy` job's `npm run build` step never set it. That's fine when Pages and the Worker share an origin, but here the Worker deploys to its own `workers.dev` subdomain (`https://lyrix-api.lyrix.workers.dev`), a different origin from the Pages site — so the relative call hit the Pages domain, which has no Worker behind it, and every request failed before the game could render.
