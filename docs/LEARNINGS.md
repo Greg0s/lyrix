@@ -4,6 +4,21 @@ A running log of gotchas, root causes, and anything that cost real time to figur
 
 Each entry: date, short title, what happened, how it was resolved.
 
+## 2026-09-13 — The missing `.dev.vars` bit a second time, on a fresh Windows clone
+
+`npm run dev:all` on a fresh clone: `GET /api/round 500`, then `DataError: Imported HMAC key length (0) must be a non-zero value...` from `hmacKey` in `worker/src/state.ts`. Same root cause as the CI failure logged below — `worker/.dev.vars` is gitignored, so a fresh clone doesn't have it, `env.STATE_SECRET` is `undefined`, and `crypto.subtle.importKey` refuses a zero-length key.
+
+The suspect was the wrong one at first glance: the failure appeared right after pulling a branch that changed `dev:worker` to `wrangler dev … --var SIMILARITY_SAMPLE:1`, which looks exactly like the kind of flag that would replace the vars loaded from `.dev.vars`. It doesn't. Ruled out by running the four combinations (with/without `--var`, on wrangler 4.86.0 and 4.131.1): all four answer `200` as long as `.dev.vars` exists, and deleting it reproduces the exact stack trace on every one. `--var` merges into `vars`; it does not shadow `.dev.vars`.
+
+**Fixed for good, in two places** rather than by documenting the copy better a third time:
+
+- `scripts/ensure-dev-vars.ts` creates `worker/.dev.vars` from the committed example, wired to npm's `predev:worker` hook so it runs before `wrangler dev` — for `npm run dev:all`, for Playwright's `webServer`, and for anyone running `npm run dev:worker` directly. It never overwrites an existing file, and uses Node's `fs` rather than `cp` because contributors are on Windows. The explicit `cp` step in the CI `test` job is gone: CI now goes through the same path a contributor does, so if the hook ever stops working, e2e says so.
+- `worker/src/index.ts` checks `STATE_SECRET` in an `/api/*` middleware and logs which variable is missing and how to set it in dev and in production, instead of letting Web Crypto fail five frames deep with a message about bit lengths. Regression tests in `tests/unit/worker/guess.test.ts` cover both routes and an empty-string secret; `tests/unit/scripts/devVars.test.ts` covers the copy helper.
+
+Promoted to standing rules in [CLAUDE.md](../CLAUDE.md) ("Configuration"), since this is the second occurrence: a gitignored config file is never a manual setup step, and missing configuration must name itself where it is read.
+
+**Unrelated, noticed while testing**: running a newer Wrangler (4.131.1) against the repo's local state, then going back to the pinned 4.86.0, made `workerd` die at startup with `table _cf_ALARM has 3 columns but 2 values were supplied`. `.wrangler/` is a version-specific SQLite cache — `rm -rf .wrangler` fixes it. Also worth knowing: the repo ships `package-lock.json` and CI runs `npm ci`, so installing with pnpm resolves different transitive versions (that's where 4.131.1 came from) than the ones CI tests.
+
 ## 2026-09-13 — Wiring Workers KV into the repo without breaking the deploy, and three smaller traps
 
 Building the semantic proximity scoring (precomputed per-song word → score tables in Workers KV) hit four things worth remembering:

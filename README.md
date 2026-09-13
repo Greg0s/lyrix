@@ -24,12 +24,6 @@ Install dependencies:
 npm install
 ```
 
-Copy the Worker's local secret defaults (gitignored, used only by `wrangler dev`):
-
-```bash
-cp worker/.dev.vars.example worker/.dev.vars
-```
-
 Run the frontend and the API together:
 
 ```bash
@@ -37,6 +31,8 @@ npm run dev:all
 ```
 
 This starts the Vite dev server (frontend) and `wrangler dev` (API) side by side. The frontend proxies `/api/*` requests to the local Worker, so just open the Vite URL printed in the terminal (usually [http://localhost:5173](http://localhost:5173)).
+
+The first run creates `worker/.dev.vars` from `worker/.dev.vars.example` — the Worker's local secrets, gitignored and used only by `wrangler dev`. Nothing to copy by hand; edit that file if you want your own `STATE_SECRET`, and it will never be overwritten.
 
 You can also run each side on its own:
 

@@ -212,10 +212,12 @@ That keeps the repository clean either way, but **uploading a derived table to p
   wrangler.toml   # Worker config; STATE_SECRET dev default lives here, prod uses `wrangler secret put`;
                   # also holds the commented-out SIMILARITY KV binding and how to enable it
   tsconfig.json   # Worker's own compiler options (Workers lib/types), separate from the root tsconfig
-/scripts          # offline tooling, run by hand with tsx — never bundled into the Worker
+/scripts          # Node tooling run through tsx — never bundled into the Worker
+  ensure-dev-vars.ts         # creates worker/.dev.vars from its example; npm's predev:worker hook
   convert-embeddings.ts      # word2vec (text or binary) -> the compact .vecbin format
   build-similarity-table.ts  # song(s) + model -> data/similarity/<songId>.json, ready for KV
   /lib
+    devVars.ts         # copy-if-absent helper behind ensure-dev-vars.ts
     embeddings.ts      # word2vec/compact readers + writers, L2 normalization, dot product
     vocabulary.ts      # normalized key index, proper-noun filtering, reference-word selection
     similarityTable.ts # pure scoring: reference word -> max cosine against the song's words
@@ -237,6 +239,15 @@ CLAUDE.md
 Anti-cheat shape: the Worker is the only code that ever sees unmasked lyrics. Proximity scoring doesn't change that: the table lives server-side and a guess comes back with one number, never the word it was close to. `worker/src/songs.ts` resolves each song from the curated catalog (`catalog.ts`) via a live LRCLIB lookup (`lrclib.ts`, `lyrics.ts`), cached per song id with the Workers Cache API (`cache.ts`) rather than a database. Every response sends already-masked display tokens plus an opaque signed `state` string encoding the round's found words so far; the client just echoes it back on the next guess. This keeps the Worker stateless (no KV/D1 — the Cache API is a best-effort edge cache, not a source of truth) while making it impossible to forge "already found" words, since only the Worker holds the signing secret.
 
 Dev wiring: `npm run dev:all` runs the Vite dev server and `wrangler dev` concurrently; `vite.config.ts` proxies `/api/*` to the Worker at `http://localhost:8787`, so the frontend always calls a relative `/api/...` URL in both dev and production (`VITE_API_BASE_URL` in `.env.example` only matters if the Worker is ever deployed to a different origin than the Pages site). `/scripts` runs through `tsx` (a devDependency) rather than Vite or Wrangler: it is plain Node tooling that imports both `src/game` and a few `worker/src` modules directly. `src/game` is not a published package — the root `tsconfig.json` and `worker/tsconfig.json` each `include` it directly by relative path, so it's type-checked and bundled independently by Vite and Wrangler straight from the same source files.
+
+## Configuration
+
+`STATE_SECRET` (the key the Worker signs round state with) is the only secret the app needs. Local dev reads it from `worker/.dev.vars`, production from `wrangler secret put STATE_SECRET`. It is deliberately **not** in `wrangler.toml`: Cloudflare rejects a `var` and a `secret` sharing one binding name (see `docs/LEARNINGS.md`).
+
+Two standing rules, both learned the hard way — a missing `worker/.dev.vars` has broken CI once and a developer's machine once, and each time the only symptom was an opaque Web Crypto `DataError` about HMAC bit lengths:
+
+- **A gitignored config file is never a manual setup step.** Script its creation and hang the script off the command that needs it (`predev:worker` runs `scripts/ensure-dev-vars.ts`). A step documented in the README is a step someone will skip, and CI — which only ever sees what is committed — skips it every time.
+- **Missing configuration must name itself.** Anything read from `env` gets checked where it is read, with an error that says which variable is missing and how to set it in both dev and production. Never let it surface as a failure from whatever library happens to touch it three frames later.
 
 ## Deployment
 
