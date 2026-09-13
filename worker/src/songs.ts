@@ -1,8 +1,7 @@
-import type { Section, Song } from "../../src/game/types";
-import { catalog, catalogRotation, type CatalogEntry } from "./catalog";
+import type { Song } from "../../src/game/types";
+import { catalog, catalogRotation } from "./catalog";
 import { getCachedSong, putCachedSong } from "./cache";
-import { bestMatch, searchTrack } from "./lrclib";
-import { parseSections, plainLyricsFrom } from "./lyrics";
+import { resolveFromLrclib } from "./resolveSong";
 
 // How many catalog entries after the day's pick to try before giving up on
 // LRCLIB entirely for the day. Bounds the worst-case latency of a full outage
@@ -48,20 +47,6 @@ const EMERGENCY_FALLBACK_SONG: Song = {
     },
   ],
 };
-
-async function resolveFromLrclib(entry: CatalogEntry): Promise<Song | null> {
-  const tracks = await searchTrack(entry);
-  const match = bestMatch(tracks, entry);
-  if (!match) return null;
-
-  const lyrics = plainLyricsFrom(match);
-  if (!lyrics) return null;
-
-  const sections: Section[] = parseSections(lyrics);
-  if (sections.length === 0) return null;
-
-  return { id: entry.id, title: entry.title, artist: entry.artist, sections };
-}
 
 export async function getSongById(id: string): Promise<Song | null> {
   if (id === EMERGENCY_FALLBACK_SONG.id) return EMERGENCY_FALLBACK_SONG;

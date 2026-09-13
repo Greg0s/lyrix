@@ -16,3 +16,8 @@ playwright-report
 test-results
 
 graphify-out
+
+# Embedding models and the similarity tables generated from them: hundreds of
+# MB, and licensed separately from this repository (see CLAUDE.md).
+data/models
+data/similarity
