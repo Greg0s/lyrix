@@ -4,6 +4,16 @@ A running log of gotchas, root causes, and anything that cost real time to figur
 
 Each entry: date, short title, what happened, how it was resolved.
 
+## 2026-09-13 — An e2e run from a worktree silently tested the main checkout's code
+
+While adding close-word placements on a git worktree (`.claude/worktrees/…`), the existing e2e suite passed but all three new tests failed with no `.token-word-near` element on the page. That included the one that rewrites the `/api/guess` response to force a placement, which pointed at the frontend rather than the Worker. The page snapshot in `test-results/*/error-context.md` settled it: the "Comment on joue ?" card still showed the old rules text.
+
+Root cause: `playwright.config.ts` has `reuseExistingServer: !process.env.CI`, and an `npm run dev:all` started from the main checkout, on another branch, was holding ports 5173 and 8787. Playwright saw both URLs answer, reused them, and ran every test against that checkout's frontend and Worker. That is also why the "baseline" run before the change had looked green. `Get-NetTCPConnection -LocalPort 5173,8787` and the owning processes' command lines showed the other checkout's paths.
+
+Worked around without stopping the other session's servers: the same spec files ran through a throwaway config on ports 5273/8887 (`vite --port 5273 --strictPort` with `VITE_API_BASE_URL=http://localhost:8887`, and `npm run dev:worker -- --port 8887 --inspector-port 9339`, since the other `workerd` also holds the default inspector port 9229). All 13 tests passed there.
+
+**Takeaway**: a local e2e pass only tells you about the servers Playwright talked to. With several checkouts of the repo on one machine, `reuseExistingServer` silently hands the suite whichever checkout started its servers first. Before trusting a local run, check what owns 5173/8787. The config itself isn't fixed yet — that is a tooling change of its own, suggested as a separate task.
+
 ## 2026-09-13 — The missing `.dev.vars` bit a second time, on a fresh Windows clone
 
 `npm run dev:all` on a fresh clone: `GET /api/round 500`, then `DataError: Imported HMAC key length (0) must be a non-zero value...` from `hmacKey` in `worker/src/state.ts`. Same root cause as the CI failure logged below — `worker/.dev.vars` is gitignored, so a fresh clone doesn't have it, `env.STATE_SECRET` is `undefined`, and `crypto.subtle.importKey` refuses a zero-length key.

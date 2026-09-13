@@ -50,7 +50,7 @@ npm run test:e2e  # end-to-end tests (Playwright)
 
 ## Semantic Proximity Scoring
 
-A guess that isn't in the lyrics still comes back with a 0-100 score saying how semantically close it is, Cemantix-style. The scoring is precomputed offline — the Worker only ever does a key lookup — so it needs a one-time setup before it does anything in production:
+A guess that isn't in the lyrics still comes back with a 0-100 score saying how semantically close it is, Cemantix-style — and when it is close to hidden words, it shows up in their place in the lyrics, Pedantix-style (the Worker only ever says *where*, never which word is there). The scoring is precomputed offline — the Worker only ever does a key lookup — so it needs a one-time setup before it does anything in production:
 
 ```bash
 # 1. download a French word2vec model by hand into data/models/ (see the licence note below)
@@ -63,7 +63,7 @@ npx wrangler kv namespace create SIMILARITY
 npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote --config worker/wrangler.toml
 ```
 
-Without that namespace the game runs exactly as before, with no scores. Local development doesn't need any of it: `npm run dev:worker` serves hand-written placeholder scores so the coloured chips are visible right away. Only a few dozen words carry one — the API log lists them all on the first guess (any other word scores nothing, and a word that is in the lyrics is revealed instead of scored).
+Without that namespace the game runs exactly as before, with no scores and no close words in the lyrics. Local development doesn't need any of it: `npm run dev:worker` serves hand-written placeholder scores so the coloured chips, and the close words shown in the lyrics, are visible right away. Only a few dozen words carry one — the API log lists them all on the first guess (any other word scores nothing, and a word that is in the lyrics is revealed instead of scored). Where a placeholder word lands in the lyrics is arbitrary: real neighbours only come from the embedding model.
 
 > **Licence note — unresolved.** The default model, [frWac2Vec](https://fauconnier.github.io/#data), has reuse terms that nobody has verified yet. Nothing is downloaded or committed automatically, and `data/` is gitignored, but **check the licence before uploading derived tables to production**. Any word2vec-format model works — see the "Semantic Proximity Scoring" section of [CLAUDE.md](CLAUDE.md).
 
