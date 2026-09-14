@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LrclibTrack } from "../../../worker/src/lrclib";
-import { parseSections, plainLyricsFrom } from "../../../worker/src/lyrics";
+import { cleanLyrics, parseSections, plainLyricsFrom } from "../../../worker/src/lyrics";
 
 function track(overrides: Partial<LrclibTrack>): LrclibTrack {
   return { artistName: "Test Artist", instrumental: false, plainLyrics: null, syncedLyrics: null, ...overrides };
@@ -23,6 +23,46 @@ describe("parseSections", () => {
 
   it("returns no sections for lyrics that are empty once trimmed", () => {
     expect(parseSections("   \n\n  ")).toEqual([]);
+  });
+});
+
+describe("cleanLyrics", () => {
+  it("drops LRC id tags, which would otherwise hand the player the artist and title", () => {
+    const lrc = "[ti:Papaoutai]\n[ar:Stromae]\n[length:03:52]\nDites-moi d'ou il vient";
+    expect(cleanLyrics(lrc)).toBe("Dites-moi d'ou il vient");
+  });
+
+  it("drops bracketed section headers rather than turning them into guessable words", () => {
+    expect(cleanLyrics("[Couplet 1]\nUne ligne\n[Refrain]\nUne autre")).toBe("Une ligne\nUne autre");
+  });
+
+  it("strips leading timestamps, however many and whatever their shape", () => {
+    expect(cleanLyrics("[00:12.34]Une ligne")).toBe("Une ligne");
+    expect(cleanLyrics("[00:12][01:40.5] Une ligne")).toBe("Une ligne");
+    expect(cleanLyrics("[0:12.34] Une ligne")).toBe("Une ligne");
+    expect(cleanLyrics("[01:02:03.45] Une ligne")).toBe("Une ligne");
+  });
+
+  it("strips the word-level timestamps of enhanced LRC", () => {
+    expect(cleanLyrics("[00:12.00] <00:12.00> Dites <00:12.50> moi")).toBe("Dites moi");
+  });
+
+  it("drops the filler that stands in for an instrumental break", () => {
+    expect(cleanLyrics("Une ligne\n\n♪\n♪ ♪\n***\n\n[Instrumental]\n(Instrumental break)\n\nAutre ligne")).toBe(
+      "Une ligne\n\n\n\nAutre ligne"
+    );
+  });
+
+  it("keeps parenthesised backing vocals, which are sung", () => {
+    expect(cleanLyrics("Papaoutai (ah ah ah)\n(Oh oh oh)")).toBe("Papaoutai (ah ah ah)\n(Oh oh oh)");
+  });
+
+  it("keeps blank lines exactly where they are, so sections survive the cleanup", () => {
+    expect(cleanLyrics("Une ligne\n\nAutre ligne")).toBe("Une ligne\n\nAutre ligne");
+  });
+
+  it("evens out ragged spacing", () => {
+    expect(cleanLyrics("  Une    ligne\t\tespacee  ")).toBe("Une ligne espacee");
   });
 });
 
@@ -49,5 +89,18 @@ describe("plainLyricsFrom", () => {
   it("strips stray control characters, as observed live in an LRCLIB response", () => {
     const dirty = "Premiere ligne" + String.fromCharCode(31) + "propre";
     expect(plainLyricsFrom(track({ plainLyrics: dirty }))).toBe("Premiere lignepropre");
+  });
+
+  it("returns null when nothing sung survives the cleanup", () => {
+    expect(plainLyricsFrom(track({ plainLyrics: "[ar:Stromae]\n♪\n[Instrumental]" }))).toBeNull();
+  });
+
+  it("makes an instrumental break vanish instead of masking it as a section", () => {
+    const lyrics = plainLyricsFrom(track({ plainLyrics: "Une ligne\n\n♪\n♪\n\nAutre ligne" }));
+    expect(lyrics).not.toBeNull();
+    expect(parseSections(lyrics ?? "")).toEqual([
+      { label: "Couplet 1", lines: ["Une ligne"] },
+      { label: "Couplet 2", lines: ["Autre ligne"] },
+    ]);
   });
 });
