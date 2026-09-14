@@ -82,6 +82,7 @@ Never test manually when it can be scripted instead — this applies to the deve
 
 - **Unit tests**: Vitest, for game logic (word masking, matching, French text normalization — accents, elisions like "j'", "qu'") and Worker request handlers. Keep this logic decoupled from any rendering concern (including future 3D) so it stays testable in isolation.
 - **End-to-end tests**: Playwright, for the actual player flow (load game, type a guess, see it revealed, win the round). Assert against the DOM/game state, not visual/pixel output.
+- **E2E runs against its own servers**: `npm run test:e2e` starts a fresh Vite dev server on port 15173 and Worker on 18787 (inspector 19229) — Vite's `/api` proxy follows it there through `API_PROXY_TARGET` — and never reuses a server that is already running, so it always tests this checkout's code while `npm run dev:all` (5173/8787) stays up here or in any other clone or worktree. Keep it that way: Playwright's readiness check only proves that *something* answers on a port, not which checkout started it. If a run stops with "… is already used", stop whatever holds the port instead of turning `reuseExistingServer` back on. Guarded by `tests/unit/ci/e2e-servers.test.ts`.
 - **Before marking a task done**: run the relevant test script(s) yourself (`npm test`, `npm run test:e2e`) and report the result. If verifying the task requires a check that isn't yet scripted, write that script first, then run it — don't verify by hand and move on.
 - **Every bug fix** must add a regression test that would have caught it, in the same commit as the fix.
 - **CI**: GitHub Actions runs the full test suite on every push/PR, before deployment.
@@ -239,6 +240,7 @@ That keeps the repository clean either way, but **uploading a derived table to p
                 # similarity-table lookup against a fake KV namespace
   /unit/scripts # Vitest: the offline pipeline, against a 3-dimension fixture model (no real model in CI)
   /unit/storage # Vitest: roundStorage save/load against a fake Storage
+  /unit/ci      # Vitest: tooling config — deploy-job env, e2e server ports/reuse/proxy wiring
   /e2e          # Playwright: real player flow through the browser, including a real LRCLIB call
 /docs
   LEARNINGS.md
