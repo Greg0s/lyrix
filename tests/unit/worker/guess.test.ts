@@ -26,7 +26,17 @@ function similarityKv({ scores = {}, near = {}, songId }: KvTable): SimilarityKv
   };
 }
 
-const FIXTURE_LYRICS = "Premiere ligne du couplet\nDeuxieme ligne du couplet\n\nRefrain une ligne\nRefrain deux lignes";
+// Long enough to clear resolveSong.ts's MIN_LYRIC_WORDS floor, which a real
+// song always does and an LRCLIB stub never does.
+const FIXTURE_LYRICS = [
+  "Premiere ligne du couplet",
+  "Deuxieme ligne du couplet",
+  "Troisieme ligne pour finir le couplet",
+  "",
+  "Refrain une ligne",
+  "Refrain deux lignes",
+  "Encore un refrain avant la fin",
+].join("\n");
 
 function requestUrl(input: string | URL | Request): URL {
   if (typeof input === "string") return new URL(input);
