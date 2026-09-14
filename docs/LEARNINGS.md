@@ -4,6 +4,30 @@ A running log of gotchas, root causes, and anything that cost real time to figur
 
 Each entry: date, short title, what happened, how it was resolved.
 
+## 2026-09-14 — Finishing the LRCLIB wiring: the cleanup was letting LRC markup through as guessable words
+
+Issue #4's core had already shipped (PR #12: live `/api/search` lookups, a daily catalog rotation, the Cache API in front). What was left was its third bullet — "handle missing lyrics, instrumental sections, and inconsistent formatting" — and going through what the LRC format actually allows turned up a real hole. `plainLyricsFrom` stripped `[mm:ss.xx]` timestamps off the front of a synced line and nothing else, so everything else the format permits reached `parseSections` and became blanks for the player to guess:
+
+- **id tags** — `[ar:Stromae]`, `[ti:Papaoutai]`, `[length:03:52]`, `[by:…]`. The first is the worst: the artist is the one thing a round withholds until victory, and an `[ar:…]` tag drops it into the lyrics as a guessable word.
+- **enhanced-LRC word timestamps** — `<00:12.34>` mid-line, which time individual words.
+- **section headers** — `[Couplet 1]`, `[Refrain]`, `[Instrumental]`, asking the player to guess a word nobody sang.
+- **instrumental filler** — `♪`, `♫`, `***` lines standing in for a break, which is the "instrumental sections" half of the rule: the track-level `instrumental` flag was handled, a break *inside* a song wasn't.
+
+Fixed with `cleanLyrics` in `worker/src/lyrics.ts`, applied to plain and synced lyrics alike (an LRC file pasted into `plainLyrics` is not hypothetical). Two choices worth keeping:
+
+- **A dropped line is removed outright, not blanked.** Blank lines separate sections, so replacing `[Refrain]` with an empty line would split the verse around it in two; removing it leaves the verse intact, and a paragraph that was nothing but filler disappears on its own once `parseSections` drops the empty paragraph.
+- **Brackets are markup, parentheses are not.** `[…]` on its own line is annotation by convention; `(…)` marks backing vocals, which are sung — `Papaoutai (ah ah ah)` has to survive. Only the narrow `(Instrumental)` form is dropped.
+
+Alongside it, `resolveFromLrclib` now refuses a result under `MIN_LYRIC_WORDS` (20) so the day's pick falls through to the next catalog entry instead of serving a round that is over in three guesses — LRCLIB is crowd-sourced and an entry that isn't flagged instrumental can still be a stub. The count runs *after* the cleanup, so a file that is mostly headers can't pass on their words. It also pushed the route tests' 14-word fixture up to a realistic length, which was the point: the fixture was smaller than any real song.
+
+**The part that cost the time**: none of this can be checked against the real thing from CI — the unit suite mocks the network on purpose, and hammering a free API from every push would be rude. It could not be checked from a Claude Code web sandbox either: its egress proxy denies `lrclib.net` outright (`curl: (56) CONNECT tunnel failed, response 403`), so every lookup came back as "no results" and the Worker served `EMERGENCY_FALLBACK_SONG` for the whole session. That is also why 4 of the 14 e2e tests fail there — they look the round's `songId` up in `catalog.ts` and the emergency song isn't in it — confirmed identical on an unmodified checkout before blaming the change.
+
+So the check became a script rather than a habit: `npm run catalog:check` (`scripts/check-catalog.ts`) asks LRCLIB for every catalog entry through the Worker's own path and reports sections, word count, and any formatting that survived the cleanup. Writing it surfaced one more thing: `searchTrack` swallows every failure into "no results" so the Worker can move on, which means a blocked network looks exactly like 30 wrong artist/title pairs. The report now says which it probably is when *every* entry fails at once (`failureAdvice`). Its pure half lives in `scripts/lib/catalogAudit.ts` and is unit-tested, including a network-free guard that the shipped catalog has no duplicate ids — those key the daily pick, the song cache and the KV similarity tables at once.
+
+Issue #4's last bullet, Genius for search/autocomplete metadata, stays unimplemented on purpose: it was written "optionally", it needs an API token, and the MVP has one song a day and no song search, so there is nothing for it to autocomplete.
+
+**Takeaway**: LRCLIB's `plainLyrics` and `syncedLyrics` are LRC-format text, not prose. Treat a bracketed run as markup until proven otherwise, and never assume the only thing in brackets is a timestamp.
+
 ## 2026-09-13 — A new e2e test failed in CI only: Playwright's `hasText` is a substring match
 
 CI on the close-words PR failed on `hands a hidden word back to the real one once it is found`, which had passed locally. The spec's `guess()` helper waited for `page.locator(".lyrix-chip", { hasText: word })`, and a string `hasText` is a case-insensitive *substring* match. CI's round had a title starting with "La", and "la" sits inside the earlier `clavecin` chip's text ("clavecin71"), so the locator resolved to two chips and strict mode failed the test. Locally the title started with another word and nothing collided: the outcome depended on the day's song.
