@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "test": "npm run lint && npm run typecheck && vitest run",
     "test:e2e": "playwright test",
+    "catalog:check": "tsx scripts/check-catalog.ts",
     "deploy": "vite build && wrangler pages deploy dist",
     "deploy:worker": "wrangler deploy --config worker/wrangler.toml",
     "similarity:convert": "tsx scripts/convert-embeddings.ts",
