@@ -101,12 +101,18 @@ async function build(songs: Song[], options: BuildOptions): Promise<void> {
     });
 
     const started = Date.now();
-    const { scores, near, missingTargets } = buildSimilarityScores({ model, index, targetKeys, referenceKeys });
+    const { scores, targets, near, missingTargets, skippedTargets } = buildSimilarityScores({
+      model,
+      index,
+      targetKeys,
+      referenceKeys,
+    });
     const table: SimilarityTable = {
       version: SIMILARITY_TABLE_VERSION,
       songId: song.id,
       model: options.modelId,
       scores,
+      targets,
       near,
     };
 
@@ -114,12 +120,14 @@ async function build(songs: Song[], options: BuildOptions): Promise<void> {
     await writeFile(join(options.outDir, `${song.id}.json`), serialized);
     bulk.push({ key: song.id, value: serialized });
 
+    // The size is worth watching: the Worker parses a whole table per isolate.
     const seconds = ((Date.now() - started) / 1000).toFixed(1);
     console.log(
       `${song.id}: ${Object.keys(scores).length} words (${Object.keys(near).length} close to a song word), ` +
-        `${targetKeys.length} targets (${missingTargets.length} unknown to the model), ` +
-        `${(serialized.length / 1000).toFixed(0)} kB, ${seconds}s`
+        `${targets.length} song words to point at (${skippedTargets.length} function words or numbers skipped, ` +
+        `${missingTargets.length} unknown to the model), ${(serialized.length / 1000).toFixed(0)} kB, ${seconds}s`
     );
+    if (missingTargets.length > 0) console.log(`  unknown to the model: ${missingTargets.join(" ")}`);
   }
 
   if (options.bulk) {
@@ -153,7 +161,7 @@ async function main(): Promise<void> {
         "  --song <id>            build one catalog song (default: today's pick)",
         "  --all                  build every song in the catalog",
         "  --lyrics <file>        use a local lyrics file instead of LRCLIB (needs --song)",
-        "  --vocabulary <file>    reference word list, one word per line (default: the model's own frequency order)",
+        "  --vocabulary <file>    reference word list, one word per line, most frequent first (default: the model's own order)",
         `  --max-vocabulary <n>   reference words to keep (default: ${DEFAULT_MAX_VOCABULARY})`,
         `  --out <dir>            output directory (default: ${DEFAULT_OUT_DIR})`,
         "  --model-id <name>      model name recorded in the table (default: the model file name)",

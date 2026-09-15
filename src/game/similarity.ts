@@ -1,19 +1,35 @@
-// Semantic proximity scoring, shared by the Worker (which produces a score
-// for every guess) and the frontend (which colours and sorts the tried-word
-// list, and the close words shown in the lyrics, from it). Framework-agnostic
-// and free of any embedding maths: the vectors only ever exist in the offline
-// build script (see scripts/build-similarity-table.ts), never here and never
-// in the hot path.
+// Semantic proximity scoring, shared by the offline build (which turns an
+// embedding model into scores), the Worker (which answers every guess with
+// one) and the frontend (which colours and sorts the tried-word list, and the
+// close words shown in the lyrics, from it). Framework-agnostic and free of
+// any embedding maths: the vectors only ever exist in the offline build script
+// (see scripts/build-similarity-table.ts), never here and never in the hot path.
 
 /** Scores are integers on a 0-100 scale: 100 means "this word is in the song". */
 export const MAX_PROXIMITY_SCORE = 100;
 
-// Tier cut-offs. Tuned by hand against the "max cosine over every word of the
-// song" scale, which sits well above raw word-to-word cosine similarity (a
-// random word is close to *something* in a few hundred lyric words), so
-// "cold" reaches higher than it would for a plain pairwise comparison.
+/** The best a word that is *not* in the song can score, so a close guess never reads as a found one. */
+export const MAX_MISSED_SCORE = MAX_PROXIMITY_SCORE - 1;
+
+/**
+ * Closeness becomes a score by rank, not by raw cosine. For each hidden word,
+ * the build ranks the reference vocabulary from closest to farthest, and a
+ * guess scores 100 minus this many points per tenfold step down that list: the
+ * hidden word's nearest neighbour scores 99, its 10th 80, its 100th 60 and its
+ * 1000th 40.
+ *
+ * A rank means the same thing for every hidden word, which a cosine doesn't:
+ * measured on frWac2Vec, a word's 1000th neighbour sat anywhere between 0.29
+ * and 0.46 depending on the word, so any single cosine cut-off was too strict
+ * for some hidden words and too loose for others (docs/LEARNINGS.md,
+ * 2026-09-15). It also keeps the scale steady if the model is ever swapped.
+ */
+export const RANK_DECADE_POINTS = 20;
+
+// Tier cut-offs, on the rank scale above: hot means among a hidden word's 100
+// nearest neighbours, warm among its 1000.
 export const HOT_SCORE = 60;
-export const WARM_SCORE = 30;
+export const WARM_SCORE = 40;
 
 // A missed guess is shown in place of a hidden word once it is at least this
 // close to it (see NearSlot in types.ts). Pegged to the warm tier, so a guess
@@ -31,10 +47,30 @@ export interface ProximityScored {
   score: number | null;
 }
 
-/** Maps a cosine similarity in [-1, 1] onto the 0-100 score scale (negative similarities all collapse to 0). */
-export function scoreFromCosine(cosine: number): number {
-  if (!Number.isFinite(cosine)) return 0;
-  return Math.round(Math.min(1, Math.max(0, cosine)) * MAX_PROXIMITY_SCORE);
+/** The score of a guess that is the `rank`-th closest word to a hidden word (1 being its nearest neighbour). */
+export function scoreFromRank(rank: number): number {
+  if (Number.isNaN(rank)) return 0;
+  const score = MAX_PROXIMITY_SCORE - RANK_DECADE_POINTS * Math.log10(Math.max(1, rank));
+  return Math.min(MAX_MISSED_SCORE, Math.max(0, Math.round(score)));
+}
+
+// How many ranks a gap between two numbers is worth, as a fraction of the
+// larger one: a 10% gap counts as the 1000th neighbour, right on NEAR_SCORE.
+const NUMBER_GAP_RANKS = 10_000;
+
+/**
+ * Closeness of two numbers, on the same scale as words. The embedding model
+ * has no vector for "2015", so numbers are compared by value: the gap relative
+ * to the larger of the two, so years a few apart are close while 5 and 20 are
+ * not, and the +10 keeps small numbers from being all-or-nothing. For example
+ * 1789 and 1790 score 84, 2000 and 2015 62, 3 and 4 43, 20 and 30 32.
+ */
+export function numberProximityScore(guess: string, target: string): number {
+  const a = Number(guess);
+  const b = Number(target);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+  const gap = Math.abs(a - b) / (Math.max(a, b) + 10);
+  return scoreFromRank(1 + NUMBER_GAP_RANKS * gap);
 }
 
 export function clampScore(score: number): number {

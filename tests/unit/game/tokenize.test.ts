@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tokenize } from "../../../src/game/tokenize";
+import { isNumberWord, tokenize } from "../../../src/game/tokenize";
 
 describe("tokenize", () => {
   it("splits words from surrounding punctuation", () => {
@@ -36,5 +36,23 @@ describe("tokenize", () => {
         .filter((t) => t.isWord)
         .map((t) => t.text)
     ).toEqual(["Œil", "pour", "œil"]);
+  });
+
+  it("makes a word of a number, kept apart from any letters next to it", () => {
+    expect(
+      tokenize("En 2015, les 90s")
+        .filter((t) => t.isWord)
+        .map((t) => t.text)
+    ).toEqual(["En", "2015", "les", "90", "s"]);
+  });
+});
+
+describe("isNumberWord", () => {
+  it("recognises a run of digits and nothing else", () => {
+    expect(isNumberWord("2015")).toBe(true);
+    expect(isNumberWord("007")).toBe(true);
+    expect(isNumberWord("90s")).toBe(false);
+    expect(isNumberWord("deux")).toBe(false);
+    expect(isNumberWord("")).toBe(false);
   });
 });

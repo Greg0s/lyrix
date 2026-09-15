@@ -62,6 +62,16 @@ describe("analyzeSong", () => {
     expect(analysis.titleKeys).toEqual(["l", "ete", "bleu"]);
   });
 
+  it("lists the song's numbers once each, in reading order", () => {
+    const counted: Song = {
+      ...song(),
+      title: "Les 90 ans",
+      sections: [{ label: "Couplet 1", lines: ["En 2015 puis en 90", "Et 007"] }],
+    };
+    expect(analyzeSong(counted).numberKeys).toEqual(["90", "2015", "007"]);
+    expect(analyzeSong(song()).numberKeys).toEqual([]);
+  });
+
   it("precomputes each hidden word's blank at its own length", () => {
     const analysis = analyzeSong(song());
     const word = analysis.title.find((token) => token.text === "été");

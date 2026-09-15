@@ -1,5 +1,7 @@
+import { isFunctionWord } from "../../src/game/functionWords";
 import { NEAR_SCORE } from "../../src/game/similarity";
 import { wordPositions } from "../../src/game/slots";
+import { isNumberWord } from "../../src/game/tokenize";
 import type { Song } from "../../src/game/types";
 
 /**
@@ -45,25 +47,25 @@ export const SAMPLE_SIMILARITY_SCORES: Record<string, number> = {
   orchestre: 61,
   symphonie: 60,
 
-  // "warm" tier (>= 30): neighbouring arts and lyrical imagery
+  // "warm" tier (>= 40): neighbouring arts and lyrical imagery
   tambourin: 59,
   opera: 58,
   poeme: 56,
   poesie: 55,
   rime: 54,
   danse: 52,
-  ballet: 47,
   theatre: 48,
+  ballet: 47,
   roman: 45,
   silence: 44,
-  peinture: 42,
-  aquarelle: 40,
-  cinema: 38,
+  peinture: 43,
+  aquarelle: 42,
+  cinema: 41,
+
+  // "cold" tier (< 40): too far to be shown anywhere
   sculpture: 36,
   calligraphie: 34,
-  sourire: 33,
-
-  // "cold" tier (< 30): mundane, technical, administrative
+  sourire: 31,
   algorithme: 12,
   engrenage: 11,
   carburateur: 10,
@@ -82,8 +84,11 @@ export const SAMPLE_SIMILARITY_SCORES: Record<string, number> = {
   tableur: 2,
 };
 
-/** How far below its first placement a sample word's second one sits. */
-const SECOND_PLACEMENT_GAP = 20;
+/** How many song words a sample word is shown on at most: enough to see one guess spread over the lyrics in several shades. */
+const SAMPLE_PLACEMENTS = 4;
+
+/** How much lower each further placement of a sample word scores than the one before. */
+const PLACEMENT_STEP = 8;
 
 // FNV-1a: tiny, and stable from one run to the next, which is all the
 // placement below needs from a hash.
@@ -96,35 +101,45 @@ function hash(text: string): number {
   return value >>> 0;
 }
 
+/** The placement half of a table, in the same shape as SimilarityTable's `targets` and `near`. */
+export interface SampleNearTable {
+  targets: string[];
+  near: Record<string, number[]>;
+}
+
 /**
  * Placeholder placements to go with the placeholder scores: which words of the
  * song each sample word is "close to". A fixed word list served for every song
  * has no real neighbours to offer, so they are picked by hashing the word —
  * arbitrary, but the same on every guess and every reload of a given song.
  *
- * A word lands at its own score on one song word and, when that is still close
- * enough, 20 points lower on a second one, so a single guess can spread over
- * several words and tiers the way a real table's would.
+ * A word lands at its own score on one song word, then PLACEMENT_STEP lower on
+ * each further one while that is still close enough, so a single guess spreads
+ * over several words and shades the way a real table's does. Like a real
+ * table, it points at neither function words nor numbers whenever the song has
+ * anything else.
  */
-export function sampleNearTable(song: Song): Record<string, Record<string, number>> {
+export function sampleNearTable(song: Song): SampleNearTable {
   const words = [...wordPositions(song).keys()];
-  // A real neighbour is rarely an elided "l" or "j": skip those whenever the song has anything longer.
-  const longer = words.filter((word) => word.length >= 3);
-  const candidates = longer.length > 0 ? longer : words;
+  const meaningful = words.filter((word) => !isFunctionWord(word) && !isNumberWord(word));
+  const targets = meaningful.length > 0 ? meaningful : words;
 
-  const near: Record<string, Record<string, number>> = {};
-  if (candidates.length === 0) return near;
+  const near: Record<string, number[]> = {};
+  if (targets.length === 0) return { targets, near };
 
   for (const [word, score] of Object.entries(SAMPLE_SIMILARITY_SCORES)) {
-    if (score < NEAR_SCORE) continue;
-    const first = candidates[hash(word) % candidates.length];
-    const targets: Record<string, number> = { [first]: score };
-
-    const second = candidates[hash(`${word}:second`) % candidates.length];
-    const secondScore = score - SECOND_PLACEMENT_GAP;
-    if (second !== first && secondScore >= NEAR_SCORE) targets[second] = secondScore;
-
-    near[word] = targets;
+    const pairs: number[] = [];
+    const taken = new Set<number>();
+    for (let step = 0; step < SAMPLE_PLACEMENTS && taken.size < targets.length; step += 1) {
+      const placed = score - step * PLACEMENT_STEP;
+      if (placed < NEAR_SCORE) break;
+      // Hash-picked, then moved along past any song word this one already sits on.
+      let index = hash(`${word}:${step}`) % targets.length;
+      while (taken.has(index)) index = (index + 1) % targets.length;
+      taken.add(index);
+      pairs.push(index, placed);
+    }
+    if (pairs.length > 0) near[word] = pairs;
   }
-  return near;
+  return { targets, near };
 }
