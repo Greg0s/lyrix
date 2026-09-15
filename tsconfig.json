@@ -16,5 +16,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "scripts", "tests/unit/ci", "tests/unit/game", "tests/unit/scripts", "tests/unit/storage", "tests/e2e", "*.config.ts"]
+  "include": ["src", "scripts", "tests/unit/ci", "tests/unit/components", "tests/unit/game", "tests/unit/scripts", "tests/unit/storage", "tests/e2e", "*.config.ts"]
 }

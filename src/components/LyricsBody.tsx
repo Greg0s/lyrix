@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { SlotSection } from "../game/slots";
 import { WordToken } from "./WordToken";
 
@@ -5,7 +6,13 @@ interface LyricsBodyProps {
   sections: SlotSection[];
 }
 
-export function LyricsBody({ sections }: LyricsBodyProps) {
+/**
+ * Memoized, and given a `sections` array that only changes when the round
+ * does (see GameScreen): the lyrics are the biggest thing on the page and have
+ * nothing to do with the word being typed, so a keystroke must not re-render a
+ * single token. Guarded by tests/unit/components/gameScreen.test.tsx.
+ */
+export const LyricsBody = memo(function LyricsBody({ sections }: LyricsBodyProps) {
   return (
     <div className="lyrix-lyrics">
       {sections.map((section, sectionIndex) => (
@@ -22,4 +29,4 @@ export function LyricsBody({ sections }: LyricsBodyProps) {
       ))}
     </div>
   );
-}
+});

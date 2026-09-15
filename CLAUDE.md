@@ -81,11 +81,33 @@ Rules:
 Never test manually when it can be scripted instead — this applies to the developer and to Claude equally. Don't verify your own work with one-off ad-hoc checks either (a throwaway `curl` call, temporary `console.log` debugging, clicking through the app by hand): if a check is worth doing, turn it into a script and add it to the suite, so it's still there the next time the same thing needs verifying. Every feature or fix should come with an automated way to verify it, runnable as a single command.
 
 - **Unit tests**: Vitest, for game logic (word masking, matching, French text normalization — accents, elisions like "j'", "qu'") and Worker request handlers. Keep this logic decoupled from any rendering concern (including future 3D) so it stays testable in isolation.
+- **Component tests**: Vitest with jsdom + `@testing-library/react` (`tests/unit/components`), for what a
+  React change does to the player's experience — above all how much of the page a keystroke re-renders.
+  Assert on counted work (renders, reads, writes), never on timings, which would be flaky.
 - **End-to-end tests**: Playwright, for the actual player flow (load game, type a guess, see it revealed, win the round). Assert against the DOM/game state, not visual/pixel output.
 - **E2E runs against its own servers**: `npm run test:e2e` starts a fresh Vite dev server on port 15173 and Worker on 18787 (inspector 19229) — Vite's `/api` proxy follows it there through `API_PROXY_TARGET` — and never reuses a server that is already running, so it always tests this checkout's code while `npm run dev:all` (5173/8787) stays up here or in any other clone or worktree. Keep it that way: Playwright's readiness check only proves that *something* answers on a port, not which checkout started it. If a run stops with "… is already used", stop whatever holds the port instead of turning `reuseExistingServer` back on. Guarded by `tests/unit/ci/e2e-servers.test.ts`.
 - **Before marking a task done**: run the relevant test script(s) yourself (`npm test`, `npm run test:e2e`) and report the result. If verifying the task requires a check that isn't yet scripted, write that script first, then run it — don't verify by hand and move on.
 - **Every bug fix** must add a regression test that would have caught it, in the same commit as the fix.
 - **CI**: GitHub Actions runs the full test suite on every push/PR, before deployment.
+
+## Performance
+
+The game's own logic is cheap; everything that has ever been slow here was correct work being
+repeated for a value that had not changed. Two standing rules, and a habit:
+
+- **Nothing in the Worker's per-guess path may scale with the length of the song.** A song is
+  immutable once resolved, so anything derived from it is derived once and memoized — the
+  tokenization pass (`src/game/analyze.ts`), the resolved song itself, the parsed similarity table,
+  the HMAC key. When you add an isolate-level cache, add its `reset*()` and call it from the
+  affected tests' `beforeEach` in the same commit: until you do, a test that means to count real
+  work is quietly answered by the previous test's cache.
+- **Typing a guess must not re-render the lyrics.** They are the biggest thing on the page and have
+  nothing to do with the word being typed. Derived state goes through `useMemo` keyed on what it
+  actually reads (the round, the tried words), and the components that display it are `memo()`d.
+- **Measure before and after, and pin the result with a test that counts the work** — how many times
+  a song is tokenized, how many KV reads one round costs, how many tokens React renders for one
+  keystroke. None of this class of bug fails a test or looks wrong in a diff, so an unpinned fix
+  comes straight back. Never assert on elapsed time.
 
 ## Continuous Improvement Loop
 
@@ -168,7 +190,9 @@ That keeps the repository clean either way, but **uploading a derived table to p
   main.tsx          # React entry point (mounts <App />)
   App.tsx           # renders GameScreen
   roundStorage.ts   # localStorage persistence for today's round (todayKey/loadSavedRound/saveRound),
-                    # so a page reload resumes progress instead of restarting the daily song
+                    # so a page reload resumes progress instead of restarting the daily song.
+                    # saveRoundSoon defers the write to an idle callback (newest wins) and
+                    # flushSavedRound forces it out when the tab is hidden or closed
   /api
     client.ts       # fetch wrapper the frontend uses to call the Worker (fetchRound, submitGuess)
   /components       # presentational React components
@@ -186,12 +210,16 @@ That keeps the repository clean either way, but **uploading a derived table to p
     useGame.ts      # round/guess state machine; calls fetchRound/submitGuess, hydrates from
                     # roundStorage.ts before ever hitting the network, and persists after each change.
                     # Each tried word keeps its score and the hidden positions it is close to
-    useIsMobile.ts  # 760px breakpoint match, drives SideCard collapse on mobile
+    useIsMobile.ts  # 760px breakpoint, as a matchMedia subscription (fires only when it is crossed),
+                    # drives SideCard collapse on mobile
   /game             # masking, matching, normalization — framework-agnostic, unit-tested,
                     # imported by BOTH the frontend (src) and the Worker (worker/src)
     types.ts        # Song (server-only) + the RoundView/GuessResult wire contract, NearSlot included
     tokenize.ts     # splits text into word/non-word runs (keeps elisions like "l'amour" guessable)
     normalize.ts    # case/accent-insensitive key used for matching
+    analyze.ts      # one tokenize+normalize pass per song (tokens, their keys, their blanks, word keys,
+                    # word positions), memoized against the Song object. mask.ts and slots.ts read it
+                    # instead of walking the song themselves - see "Performance" below
     mask.ts         # builds masked DisplayToken views from a Song + found keys, checks victory; optionally
                     # attaches each hidden word's real text as devHint (DEV_REVEAL_LYRICS, dev-only)
     similarity.ts   # the 0-100 proximity scale: cosine -> score, score -> colour tier, tried-word
@@ -212,12 +240,15 @@ That keeps the repository clean either way, but **uploading a derived table to p
     resolveSong.ts # one catalog entry -> a playable Song via LRCLIB. Split out of songs.ts so it
                   # stays free of Workers-only globals: the offline table builder reuses it under Node
     songs.ts      # secret lyrics data — never imported from /src. getSongById resolves one
-                  # catalog id (cache -> LRCLIB -> parse); getTodaysSong adds the daily pick,
+                  # catalog id (isolate memo -> cache -> LRCLIB -> parse; resetSongMemo for tests),
+                  # getTodaysSong adds the daily pick,
                   # a fallback chain across the catalog, and a hardcoded emergency song for a
                   # total LRCLIB outage
     similarity.ts # reads the precomputed table for a song from Workers KV and answers each guess
                   # with its score plus the positions of the hidden words it is close to; degrades
-                  # to "no score, no placement" when unbound or broken
+                  # to "no score, no placement" when unbound or broken. The parsed table is memoized
+                  # per isolate (resetSimilarityMemo for tests) - parsing it per guess was the most
+                  # expensive thing in the request path
     sampleSimilarity.ts # hand-written placeholder scores (and hash-picked placements) for dev/e2e,
                   # gated on SIMILARITY_SAMPLE
     state.ts      # HMAC-signed round state (songId + foundKeys) via Web Crypto, so the
@@ -241,8 +272,11 @@ That keeps the repository clean either way, but **uploading a derived table to p
                 # (exercised via app.request() against a mocked fetch), state signing,
                 # similarity-table lookup against a fake KV namespace
   /unit/scripts # Vitest: the offline pipeline, against a 3-dimension fixture model (no real model in CI)
-  /unit/storage # Vitest: roundStorage save/load against a fake Storage
-  /unit/ci      # Vitest: tooling config — deploy-job env, e2e server ports/reuse/proxy wiring
+  /unit/storage # Vitest: roundStorage save/load against a fake Storage, deferred writes under fake timers
+  /unit/components # Vitest + jsdom + @testing-library/react: what the player feels between keystrokes —
+                # counts how many lyrics tokens React re-renders, and the round's storage round trip
+  /unit/ci      # Vitest: tooling config — deploy-job env, e2e server ports/reuse/proxy wiring,
+                # how the web fonts are loaded
   /e2e          # Playwright: real player flow through the browser, including a real LRCLIB call
 /docs
   LEARNINGS.md

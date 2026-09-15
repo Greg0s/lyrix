@@ -3,7 +3,7 @@ import { fetchRound, submitGuess } from "../api/client";
 import { normalize } from "../game/normalize";
 import { parseNearSlots } from "../game/slots";
 import type { NearSlot, RoundView } from "../game/types";
-import { loadSavedRound, saveRound } from "../roundStorage";
+import { loadSavedRound, saveRoundSoon } from "../roundStorage";
 
 export interface TriedWord {
   key: string;
@@ -71,7 +71,9 @@ export function useGame() {
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const round = await fetchRound(controller.signal);
-      saveRound(round, []);
+      // Deferred too: the freshly loaded round is the largest thing we ever
+      // serialize, and it sits right before the game's first paint.
+      saveRoundSoon(round, []);
       setState({
         round,
         triedWords: [],
@@ -91,10 +93,14 @@ export function useGame() {
     }
   }, []);
 
+  // The initial state above already hydrated synchronously from storage when
+  // today's round was saved, so the mount effect below must not hit the
+  // network for it. Answered from that first render rather than by parsing
+  // storage a second time (three times, under StrictMode's double mount).
+  const hydratedFromStorage = useRef(state.round !== null);
+
   useEffect(() => {
-    // The initial state above already hydrated synchronously from storage
-    // when today's round was saved - only hit the network when it wasn't.
-    if (loadSavedRound()) return;
+    if (hydratedFromStorage.current) return;
     void loadRound();
     return () => abortRef.current?.abort();
   }, [loadRound]);
@@ -129,7 +135,9 @@ export function useGame() {
         { key: result.key, display: raw, found: result.found, score: result.score ?? null, near },
         ...triedWords,
       ];
-      saveRound(result, newTriedWords);
+      // Deferred: serializing the whole masked round is the one heavy thing
+      // between the answer arriving and the player seeing it (see roundStorage).
+      saveRoundSoon(result, newTriedWords);
       setState((prev) => ({
         ...prev,
         round: result,

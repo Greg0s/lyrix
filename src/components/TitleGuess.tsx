@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { SlotToken } from "../game/slots";
 import { WordToken } from "./WordToken";
 
@@ -7,7 +8,7 @@ interface TitleGuessProps {
   artist?: string;
 }
 
-export function TitleGuess({ titleTokens, victory, artist }: TitleGuessProps) {
+export const TitleGuess = memo(function TitleGuess({ titleTokens, victory, artist }: TitleGuessProps) {
   return (
     <div>
       <p className="lyrix-title-label">Titre à deviner</p>
@@ -27,4 +28,4 @@ export function TitleGuess({ titleTokens, victory, artist }: TitleGuessProps) {
       ) : null}
     </div>
   );
-}
+});

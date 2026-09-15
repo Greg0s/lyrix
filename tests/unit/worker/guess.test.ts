@@ -4,8 +4,8 @@ import { NEAR_SCORE } from "../../../src/game/similarity";
 import { tokenize } from "../../../src/game/tokenize";
 import type { DisplayToken, GuessResult, RoundView, Song } from "../../../src/game/types";
 import app from "../../../worker/src/index";
-import { SIMILARITY_TABLE_VERSION, type SimilarityKv } from "../../../worker/src/similarity";
-import { getSongById } from "../../../worker/src/songs";
+import { resetSimilarityMemo, SIMILARITY_TABLE_VERSION, type SimilarityKv } from "../../../worker/src/similarity";
+import { getSongById, resetSongMemo } from "../../../worker/src/songs";
 
 const env = { STATE_SECRET: "test-secret" };
 
@@ -50,6 +50,12 @@ function mockLrclibFetch(): void {
 
 beforeEach(() => {
   mockLrclibFetch();
+  // Each test starts from a cold isolate: getSongById memoizes a resolved song
+  // for the isolate's lifetime (see worker/src/songs.ts), so without this a
+  // test that counts LRCLIB calls would be answered from the previous test's
+  // song and count none.
+  resetSongMemo();
+  resetSimilarityMemo();
 });
 
 afterEach(() => {
@@ -226,6 +232,19 @@ describe("POST /api/guess — proximity score", () => {
     expect(body.score).toBe(100);
     expect(body.near).toEqual([]);
     expect(get).not.toHaveBeenCalled();
+  });
+
+  it("reads the table once for a whole round, not once per guess", async () => {
+    const round = await getRound();
+    const get = vi.fn(async (key: string) =>
+      JSON.stringify({ version: SIMILARITY_TABLE_VERSION, songId: key, model: "test-model", scores: {}, near: {} })
+    );
+    const scoring = { ...env, SIMILARITY: { get } };
+
+    const first = await guess(round.state, "xylophoneinexistant", scoring);
+    await guess(first.body.state, "betteraveimaginaire", scoring);
+
+    expect(get).toHaveBeenCalledTimes(1);
   });
 
   it("reads the table of the song actually being played", async () => {
@@ -486,5 +505,40 @@ describe("malformed input", () => {
       env
     );
     expect(res.status).toBe(400);
+  });
+});
+
+describe("CORS preflight", () => {
+  // Pages and the Worker are on different origins in production, so a guess is
+  // preflighted. Without an explicit max-age the browser caches that preflight
+  // for its own default of a few seconds, and the player pays an extra round
+  // trip on most guesses.
+  it("tells the browser it can keep the preflight", async () => {
+    const res = await app.request(
+      "/api/guess",
+      {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://lyrix-eyg.pages.dev",
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "content-type",
+        },
+      },
+      env
+    );
+
+    expect(res.status).toBe(204);
+    expect(Number(res.headers.get("access-control-max-age"))).toBeGreaterThanOrEqual(3600);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    expect(res.headers.get("access-control-allow-methods")).toContain("POST");
+  });
+
+  it("answers a preflight without needing the signing secret", async () => {
+    const res = await app.request(
+      "/api/guess",
+      { method: "OPTIONS", headers: { Origin: "https://lyrix-eyg.pages.dev", "Access-Control-Request-Method": "POST" } },
+      {}
+    );
+    expect(res.status).toBe(204);
   });
 });
