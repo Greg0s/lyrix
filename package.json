@@ -16,7 +16,8 @@
     "deploy": "vite build && wrangler pages deploy dist",
     "deploy:worker": "wrangler deploy --config worker/wrangler.toml",
     "similarity:convert": "tsx scripts/convert-embeddings.ts",
-    "similarity:build": "tsx scripts/build-similarity-table.ts"
+    "similarity:build": "tsx scripts/build-similarity-table.ts",
+    "similarity:inspect": "tsx scripts/inspect-similarity-table.ts"
   },
   "keywords": [],
   "author": "",

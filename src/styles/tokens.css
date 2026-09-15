@@ -16,7 +16,7 @@
   --accent-tint: #f8d4a8;
   --accent-deep: #653500;
 
-  /* Semantic-proximity tiers, see src/game/similarity.ts */
+  /* Semantic-proximity tiers, and the stops of the ramp game.css shades scores along (see proximityHeat in src/game/similarity.ts) */
   --proximity-hot-bg: oklch(90% 0.09 145);
   --proximity-hot-border: oklch(66% 0.14 145);
   --proximity-hot-ink: oklch(34% 0.09 145);

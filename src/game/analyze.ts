@@ -1,5 +1,5 @@
 import { normalize } from "./normalize";
-import { tokenize } from "./tokenize";
+import { isNumberWord, tokenize } from "./tokenize";
 import type { Song } from "./types";
 
 /**
@@ -54,6 +54,12 @@ export interface SongAnalysis {
    * order. See src/game/slots.ts for what positions are for.
    */
   positions: ReadonlyMap<string, readonly number[]>;
+  /**
+   * The song's numbers ("2015"), each once, in reading order. A similarity
+   * table has no entry for a number, so the Worker compares a guessed number
+   * with these by value instead (see numberHint in worker/src/similarity.ts).
+   */
+  numberKeys: readonly string[];
 }
 
 const cache = new WeakMap<Song, SongAnalysis>();
@@ -69,6 +75,7 @@ function analyzeLine(text: string): AnalyzedToken[] {
 function analyze(song: Song): SongAnalysis {
   const wordKeys = new Set<string>();
   const positions = new Map<string, number[]>();
+  const numberKeys: string[] = [];
   let position = 0;
 
   const visit = (text: string): AnalyzedToken[] => {
@@ -77,8 +84,12 @@ function analyze(song: Song): SongAnalysis {
       if (!token.isWord) continue;
       wordKeys.add(token.key);
       const existing = positions.get(token.key);
-      if (existing) existing.push(position);
-      else positions.set(token.key, [position]);
+      if (existing) {
+        existing.push(position);
+      } else {
+        positions.set(token.key, [position]);
+        if (isNumberWord(token.key)) numberKeys.push(token.key);
+      }
       position += 1;
     }
     return tokens;
@@ -97,6 +108,7 @@ function analyze(song: Song): SongAnalysis {
     titleKeys: title.filter((token) => token.isWord).map((token) => token.key),
     wordKeys,
     positions,
+    numberKeys,
   };
 }
 

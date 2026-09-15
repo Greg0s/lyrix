@@ -1,5 +1,6 @@
 import { proximityTier } from "../game/similarity";
 import type { SlotToken } from "../game/slots";
+import { heatStyle } from "./heatStyle";
 
 interface WordTokenProps {
   token: SlotToken;
@@ -23,6 +24,7 @@ export function WordToken({ token }: WordTokenProps) {
     return (
       <span
         className={`token-word-near tier-${proximityTier({ found: false, score })}`}
+        style={heatStyle(score)}
         title={`« ${text} » est proche de ce mot (${score}/100) — ${letters} lettre${letters === 1 ? "" : "s"}`}
       >
         {/* The word's own blank stays in the layout, invisible, so the slot is never narrower than the word it hides. */}
