@@ -10,11 +10,31 @@ import { signState, verifyState } from "./state";
 
 interface Env extends SimilarityEnv {
   STATE_SECRET: string;
+  /**
+   * Dev/e2e only, never set in production: makes every still-hidden word's
+   * real text ride along as `devHint`, so the game can be played and the
+   * close-word mechanic debugged without guessing blind. See CLAUDE.md's
+   * anti-cheat section and DisplayToken.devHint.
+   */
+  DEV_REVEAL_LYRICS?: string;
 }
 
 const MAX_WORD_LENGTH = 64;
 
 const app = new Hono<{ Bindings: Env }>();
+
+// Dev-only, once per isolate: a quiet flag would otherwise look like a CSS bug
+// the first time someone notices faint lyrics behind the blanks.
+let devRevealAnnounced = false;
+
+function announceDevReveal(): void {
+  if (devRevealAnnounced) return;
+  devRevealAnnounced = true;
+  console.log(
+    "round: DEV_REVEAL_LYRICS is on - every still-hidden word's real text is attached as devHint. " +
+      "Dev/e2e only, never set in production."
+  );
+}
 
 app.use("/api/*", cors());
 
@@ -35,7 +55,12 @@ app.use("/api/*", async (c, next) => {
   return next();
 });
 
-async function buildRoundView(songId: string, foundKeys: string[], secret: string): Promise<RoundView | null> {
+async function buildRoundView(
+  songId: string,
+  foundKeys: string[],
+  secret: string,
+  devReveal: boolean
+): Promise<RoundView | null> {
   const song = await getSongById(songId);
   if (!song) return null;
 
@@ -46,16 +71,18 @@ async function buildRoundView(songId: string, foundKeys: string[], secret: strin
   return {
     songId: song.id,
     state,
-    title: { tokens: buildTitleView(song, foundSet) },
-    sections: buildSectionsView(song, foundSet),
+    title: { tokens: buildTitleView(song, foundSet, devReveal) },
+    sections: buildSectionsView(song, foundSet, devReveal),
     victory,
     ...(victory ? { artist: song.artist } : {}),
   };
 }
 
 app.get("/api/round", async (c) => {
+  const devReveal = c.env.DEV_REVEAL_LYRICS === "1";
+  if (devReveal) announceDevReveal();
   const song = await getTodaysSong();
-  const view = await buildRoundView(song.id, [], c.env.STATE_SECRET);
+  const view = await buildRoundView(song.id, [], c.env.STATE_SECRET, devReveal);
   if (!view) return c.json({ error: "no songs available" }, 500);
   return c.json(view);
 });
@@ -95,7 +122,9 @@ app.post("/api/guess", async (c) => {
   const found = songWordKeys(song).has(key);
   const newFoundKeys = found ? [...new Set([...payload.foundKeys, key])] : payload.foundKeys;
 
-  const view = await buildRoundView(song.id, newFoundKeys, c.env.STATE_SECRET);
+  const devReveal = c.env.DEV_REVEAL_LYRICS === "1";
+  if (devReveal) announceDevReveal();
+  const view = await buildRoundView(song.id, newFoundKeys, c.env.STATE_SECRET, devReveal);
   if (!view) return c.json({ error: "invalid or expired round state" }, 400);
 
   // A found word is its own closest match and reveals itself, so it needs no

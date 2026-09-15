@@ -60,3 +60,30 @@ describe("buildSectionsView", () => {
     expect(view[0].lines).toHaveLength(1);
   });
 });
+
+describe("devReveal", () => {
+  it("attaches no devHint by default", () => {
+    const title = buildTitleView(song, new Set());
+    const lyrics = buildSectionsView(song, new Set());
+    expect(title.every((t) => t.devHint === undefined)).toBe(true);
+    expect(lyrics[0].lines[0].tokens.every((t) => t.devHint === undefined)).toBe(true);
+  });
+
+  it("attaches the real text of every still-hidden word when on", () => {
+    const view = buildTitleView(song, new Set(["ete"]), true);
+    const words = view.filter((t) => t.isWord);
+    // "L'été bleu" -> L, ete, bleu (raw case preserved, like `text`); "ete" is found, the other two stay hidden.
+    expect(words.map((t) => t.devHint)).toEqual(["L", undefined, "bleu"]);
+  });
+
+  it("never attaches devHint to an already-revealed word or to punctuation", () => {
+    const view = buildTitleView(song, new Set(["l", "ete", "bleu"]), true);
+    expect(view.every((t) => t.devHint === undefined)).toBe(true);
+  });
+
+  it("reveals hidden lyrics words the same way", () => {
+    const view = buildSectionsView(song, new Set(), true);
+    const words = view[0].lines[0].tokens.filter((t) => t.isWord);
+    expect(words.every((t) => typeof t.devHint === "string" && t.devHint.length > 0)).toBe(true);
+  });
+});
