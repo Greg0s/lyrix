@@ -507,3 +507,38 @@ describe("malformed input", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("CORS preflight", () => {
+  // Pages and the Worker are on different origins in production, so a guess is
+  // preflighted. Without an explicit max-age the browser caches that preflight
+  // for its own default of a few seconds, and the player pays an extra round
+  // trip on most guesses.
+  it("tells the browser it can keep the preflight", async () => {
+    const res = await app.request(
+      "/api/guess",
+      {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://lyrix-eyg.pages.dev",
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "content-type",
+        },
+      },
+      env
+    );
+
+    expect(res.status).toBe(204);
+    expect(Number(res.headers.get("access-control-max-age"))).toBeGreaterThanOrEqual(3600);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    expect(res.headers.get("access-control-allow-methods")).toContain("POST");
+  });
+
+  it("answers a preflight without needing the signing secret", async () => {
+    const res = await app.request(
+      "/api/guess",
+      { method: "OPTIONS", headers: { Origin: "https://lyrix-eyg.pages.dev", "Access-Control-Request-Method": "POST" } },
+      {}
+    );
+    expect(res.status).toBe(204);
+  });
+});

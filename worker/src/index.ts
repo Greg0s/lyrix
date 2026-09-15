@@ -36,7 +36,16 @@ function announceDevReveal(): void {
   );
 }
 
-app.use("/api/*", cors());
+// Pages and the Worker sit on different origins (see the deploy job in
+// .github/workflows/ci.yml), so POST /api/guess is a cross-origin request with
+// a JSON content type: the browser preflights it. Hono sends no
+// Access-Control-Max-Age by default, which leaves browsers on their own
+// default of a few seconds — near enough one extra round trip per guess, on
+// the path the player is waiting on. A day (browsers clamp it to their own
+// maximum, 2h in Chromium) makes it one preflight per session instead.
+const PREFLIGHT_MAX_AGE_SECONDS = 86_400;
+
+app.use("/api/*", cors({ maxAge: PREFLIGHT_MAX_AGE_SECONDS }));
 
 // Without this, a missing STATE_SECRET surfaces as an opaque Web Crypto
 // "Imported HMAC key length (0)" DataError from signState, several frames
