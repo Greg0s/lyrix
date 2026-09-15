@@ -1,53 +1,46 @@
-import { normalize } from "./normalize";
-import { tokenize } from "./tokenize";
+import { analyzeSong, type AnalyzedToken } from "./analyze";
 import type { DisplaySection, DisplayToken, Song } from "./types";
 
-function maskToken(text: string, isWord: boolean, revealed: boolean, devReveal: boolean): DisplayToken {
-  if (!isWord) return { text, isWord, revealed: true };
-  if (revealed) return { text, isWord, revealed: true };
-  const hidden: DisplayToken = { text: "_".repeat(text.length), isWord, revealed: false };
-  return devReveal ? { ...hidden, devHint: text } : hidden;
+// Masking reads the song's single tokenization pass (see analyze.ts) rather
+// than re-tokenizing and re-normalizing every line: the only per-request work
+// left here is allocating the DisplayTokens that go on the wire.
+function maskToken(token: AnalyzedToken, foundKeys: ReadonlySet<string>, devReveal: boolean): DisplayToken {
+  if (!token.isWord) return { text: token.text, isWord: false, revealed: true };
+  if (foundKeys.has(token.key)) return { text: token.text, isWord: true, revealed: true };
+  const hidden: DisplayToken = { text: token.blank, isWord: true, revealed: false };
+  return devReveal ? { ...hidden, devHint: token.text } : hidden;
 }
 
-function buildTokens(text: string, foundKeys: ReadonlySet<string>, devReveal: boolean): DisplayToken[] {
-  return tokenize(text).map((token) =>
-    maskToken(token.text, token.isWord, token.isWord && foundKeys.has(normalize(token.text)), devReveal)
-  );
+function buildTokens(
+  tokens: readonly AnalyzedToken[],
+  foundKeys: ReadonlySet<string>,
+  devReveal: boolean
+): DisplayToken[] {
+  return tokens.map((token) => maskToken(token, foundKeys, devReveal));
 }
 
 /** `devReveal` attaches every still-hidden word's real text as `devHint` - see DisplayToken and CLAUDE.md's anti-cheat section. */
 export function buildTitleView(song: Song, foundKeys: ReadonlySet<string>, devReveal = false): DisplayToken[] {
-  return buildTokens(song.title, foundKeys, devReveal);
+  return buildTokens(analyzeSong(song).title, foundKeys, devReveal);
 }
 
 export function buildSectionsView(song: Song, foundKeys: ReadonlySet<string>, devReveal = false): DisplaySection[] {
-  return song.sections.map((section) => ({
+  return analyzeSong(song).sections.map((section) => ({
     label: section.label,
-    lines: section.lines.map((line) => ({ tokens: buildTokens(line, foundKeys, devReveal) })),
+    lines: section.lines.map((line) => ({ tokens: buildTokens(line.tokens, foundKeys, devReveal) })),
   }));
 }
 
-export function titleWordKeys(song: Song): string[] {
-  return tokenize(song.title)
-    .filter((token) => token.isWord)
-    .map((token) => normalize(token.text));
+export function titleWordKeys(song: Song): readonly string[] {
+  return analyzeSong(song).titleKeys;
 }
 
 export function isVictory(song: Song, foundKeys: ReadonlySet<string>): boolean {
-  const keys = titleWordKeys(song);
+  const keys = analyzeSong(song).titleKeys;
   return keys.length > 0 && keys.every((key) => foundKeys.has(key));
 }
 
 /** Every normalized word key anywhere in the song (title + all lyric lines). */
-export function songWordKeys(song: Song): Set<string> {
-  const keys = new Set<string>();
-  song.sections.forEach((section) => {
-    section.lines.forEach((line) => {
-      tokenize(line).forEach((token) => {
-        if (token.isWord) keys.add(normalize(token.text));
-      });
-    });
-  });
-  titleWordKeys(song).forEach((key) => keys.add(key));
-  return keys;
+export function songWordKeys(song: Song): ReadonlySet<string> {
+  return analyzeSong(song).wordKeys;
 }
