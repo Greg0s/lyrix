@@ -91,3 +91,64 @@ export function saveRound(
     // localStorage can throw (private browsing, quota, disabled storage) - persistence is a nice-to-have, never fatal.
   }
 }
+
+/**
+ * Persisting the round is a nice-to-have, and it is not small: a real song's
+ * masked view is hundreds of tokens, so serializing it and handing it to
+ * localStorage (a synchronous, disk-backed write) cost a few milliseconds
+ * right where the player is waiting to see their guess appear. So the write
+ * is scheduled instead of done inline, and only the latest one survives: two
+ * guesses in quick succession write once, not twice.
+ */
+interface PendingWrite {
+  round: RoundView;
+  triedWords: TriedWord[];
+  storage: Storage;
+}
+
+let pendingWrite: PendingWrite | null = null;
+let cancelScheduled: (() => void) | null = null;
+let flushOnHideRegistered = false;
+
+function schedule(run: () => void): () => void {
+  // An idle callback where there is one, so the write waits for a gap in the
+  // player's own activity; the timeout keeps it from being put off for ever.
+  if (typeof requestIdleCallback === "function") {
+    const handle = requestIdleCallback(run, { timeout: 1000 });
+    return () => cancelIdleCallback(handle);
+  }
+  const handle = setTimeout(run, 0);
+  return () => clearTimeout(handle);
+}
+
+/** Writes whatever is still pending, now. Safe to call when nothing is. */
+export function flushSavedRound(): void {
+  cancelScheduled?.();
+  cancelScheduled = null;
+  const pending = pendingWrite;
+  pendingWrite = null;
+  if (pending) saveRound(pending.round, pending.triedWords, pending.storage);
+}
+
+function registerFlushOnHide(): void {
+  if (flushOnHideRegistered || typeof window === "undefined") return;
+  flushOnHideRegistered = true;
+  // A deferred write must not be lost to a tab being closed or backgrounded;
+  // pagehide is the one event that fires reliably on mobile for both.
+  window.addEventListener("pagehide", flushSavedRound);
+  window.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushSavedRound();
+  });
+}
+
+/** Same as saveRound, off the critical path. The newest call wins; see flushSavedRound. */
+export function saveRoundSoon(
+  round: RoundView,
+  triedWords: TriedWord[],
+  storage: Storage | undefined = globalThis.localStorage
+): void {
+  if (!storage) return;
+  registerFlushOnHide();
+  pendingWrite = { round, triedWords, storage };
+  cancelScheduled ??= schedule(flushSavedRound);
+}

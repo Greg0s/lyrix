@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { proximityTier, sortByProximity } from "../game/similarity";
 import type { TriedWord } from "../hooks/useGame";
 
@@ -5,11 +6,12 @@ interface TriedWordsProps {
   triedWords: TriedWord[];
 }
 
-export function TriedWords({ triedWords }: TriedWordsProps) {
-  // Sorted at render time only: the stored list stays in guess order, so a
-  // reload doesn't rewrite the player's history.
-  const sorted = sortByProximity(triedWords);
-  const anyScored = triedWords.some((word) => word.score !== null);
+export const TriedWords = memo(function TriedWords({ triedWords }: TriedWordsProps) {
+  // Sorted for display only: the stored list stays in guess order, so a reload
+  // doesn't rewrite the player's history. Memoized with the list it sorts, so
+  // typing the next guess doesn't re-sort and re-render every chip.
+  const sorted = useMemo(() => sortByProximity(triedWords), [triedWords]);
+  const anyScored = useMemo(() => triedWords.some((word) => word.score !== null), [triedWords]);
 
   return (
     <div>
@@ -34,4 +36,4 @@ export function TriedWords({ triedWords }: TriedWordsProps) {
       </div>
     </div>
   );
-}
+});
