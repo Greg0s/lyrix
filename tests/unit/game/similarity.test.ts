@@ -6,6 +6,7 @@ import {
   MAX_PROXIMITY_SCORE,
   NEAR_SCORE,
   numberProximityScore,
+  proximityHeat,
   proximityTier,
   scoreFromRank,
   sortByProximity,
@@ -94,6 +95,27 @@ describe("proximityTier", () => {
 
   it("distinguishes a word the model doesn't know from a very distant one", () => {
     expect(proximityTier({ found: false, score: null })).toBe("unknown");
+  });
+});
+
+describe("proximityHeat", () => {
+  it("runs from 0 to 1 across the scale", () => {
+    expect(proximityHeat(0)).toBe(0);
+    expect(proximityHeat(50)).toBe(0.5);
+    expect(proximityHeat(MAX_MISSED_SCORE)).toBe(1);
+  });
+
+  it("gives scores within one tier shades of their own", () => {
+    expect(proximityHeat(41)).toBeLessThan(proximityHeat(58));
+    expect(proximityHeat(62)).toBeLessThan(proximityHeat(85));
+  });
+
+  it("rounds to hundredths, so the inline style stays short", () => {
+    expect(proximityHeat(71)).toBe(0.76);
+  });
+
+  it("treats a non-finite score as the coldest", () => {
+    expect(proximityHeat(Number.NaN)).toBe(0);
   });
 });
 

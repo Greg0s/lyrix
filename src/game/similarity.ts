@@ -86,6 +86,22 @@ export function proximityTier(word: ProximityScored): ProximityTier {
   return "cold";
 }
 
+// The colour ramp's ends: a score of HEAT_FLOOR or less is as cold as it gets,
+// HEAT_CEILING or more as hot, and every score between gets its own shade.
+const HEAT_FLOOR = 10;
+const HEAT_CEILING = 90;
+
+/**
+ * Where a score sits on the cold-to-hot colour ramp, from 0 to 1 in
+ * hundredths (see game.css). The tiers only name three bands; the ramp tells
+ * a 41 from a 58, and a 62 from a 95.
+ */
+export function proximityHeat(score: number): number {
+  if (!Number.isFinite(score)) return 0;
+  const heat = (score - HEAT_FLOOR) / (HEAT_CEILING - HEAT_FLOOR);
+  return Math.round(Math.min(1, Math.max(0, heat)) * 100) / 100;
+}
+
 // Found words rank first even if they carry no score, so a round saved
 // before scoring existed still sorts sensibly after an update.
 function rank(word: ProximityScored): number {
