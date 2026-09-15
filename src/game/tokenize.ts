@@ -1,6 +1,15 @@
 import type { Token } from "./types";
 
-const WORD_RUN = "[A-Za-zÀ-ÖØ-öø-ÿ]+";
+/**
+ * The letters words are made of: ASCII, Latin-1's accented letters, and the
+ * three French letters Latin-1 lacks — œ and Œ ("cœur", "sœur", "œil") and Ÿ,
+ * the capital of ÿ. Without œ, "cœur" used to split into "c" and "ur" and could
+ * never be found. Shared with scripts/lib/vocabulary.ts, so the embedding model
+ * is read with the same idea of a word as the lyrics.
+ */
+export const LETTER_CLASS = "A-Za-zÀ-ÖØ-öø-ÿŒœŸ";
+
+const WORD_RUN = `[${LETTER_CLASS}]+`;
 const SPLIT_ON_WORDS = new RegExp(`(${WORD_RUN})`);
 const IS_WORD = new RegExp(`^${WORD_RUN}$`);
 

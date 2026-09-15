@@ -1,4 +1,5 @@
 import { normalize } from "../../src/game/normalize";
+import { LETTER_CLASS } from "../../src/game/tokenize";
 
 /**
  * Picking the reference vocabulary a similarity table covers.
@@ -11,10 +12,10 @@ import { normalize } from "../../src/game/normalize";
  * table is scored (see similarityTable.ts).
  */
 
-// Same letter class as src/game/tokenize.ts's word runs: anything a player
+// The same letters as src/game/tokenize.ts's word runs: anything a player
 // can't type as a single guessed word is useless in the table.
-const LETTERS_ONLY = /^[A-Za-zÀ-ÖØ-öø-ÿ]+$/;
-const STARTS_UPPERCASE = /^[A-ZÀ-ÖØ-Þ]/;
+const LETTERS_ONLY = new RegExp(`^[${LETTER_CLASS}]+$`);
+const STARTS_UPPERCASE = /^[A-ZÀ-ÖØ-ÞŒŸ]/;
 
 export interface KeyIndex {
   /** Normalized key -> every model row holding a form of that key. */
