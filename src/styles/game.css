@@ -80,6 +80,12 @@
   letter-spacing: 0.03em;
 }
 
+/* Dev-only (DEV_REVEAL_LYRICS, never on in production): the real word underneath a still-hidden blank, faint on purpose. */
+.token-word-devhint {
+  color: var(--color-ink);
+  opacity: 0.32;
+}
+
 .token-word-found {
   color: var(--color-ink);
   background: var(--accent-tint);

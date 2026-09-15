@@ -2,25 +2,28 @@ import { normalize } from "./normalize";
 import { tokenize } from "./tokenize";
 import type { DisplaySection, DisplayToken, Song } from "./types";
 
-function maskToken(text: string, isWord: boolean, revealed: boolean): DisplayToken {
+function maskToken(text: string, isWord: boolean, revealed: boolean, devReveal: boolean): DisplayToken {
   if (!isWord) return { text, isWord, revealed: true };
-  return revealed ? { text, isWord, revealed: true } : { text: "_".repeat(text.length), isWord, revealed: false };
+  if (revealed) return { text, isWord, revealed: true };
+  const hidden: DisplayToken = { text: "_".repeat(text.length), isWord, revealed: false };
+  return devReveal ? { ...hidden, devHint: text } : hidden;
 }
 
-function buildTokens(text: string, foundKeys: ReadonlySet<string>): DisplayToken[] {
+function buildTokens(text: string, foundKeys: ReadonlySet<string>, devReveal: boolean): DisplayToken[] {
   return tokenize(text).map((token) =>
-    maskToken(token.text, token.isWord, token.isWord && foundKeys.has(normalize(token.text)))
+    maskToken(token.text, token.isWord, token.isWord && foundKeys.has(normalize(token.text)), devReveal)
   );
 }
 
-export function buildTitleView(song: Song, foundKeys: ReadonlySet<string>): DisplayToken[] {
-  return buildTokens(song.title, foundKeys);
+/** `devReveal` attaches every still-hidden word's real text as `devHint` - see DisplayToken and CLAUDE.md's anti-cheat section. */
+export function buildTitleView(song: Song, foundKeys: ReadonlySet<string>, devReveal = false): DisplayToken[] {
+  return buildTokens(song.title, foundKeys, devReveal);
 }
 
-export function buildSectionsView(song: Song, foundKeys: ReadonlySet<string>): DisplaySection[] {
+export function buildSectionsView(song: Song, foundKeys: ReadonlySet<string>, devReveal = false): DisplaySection[] {
   return song.sections.map((section) => ({
     label: section.label,
-    lines: section.lines.map((line) => ({ tokens: buildTokens(line, foundKeys) })),
+    lines: section.lines.map((line) => ({ tokens: buildTokens(line, foundKeys, devReveal) })),
   }));
 }
 

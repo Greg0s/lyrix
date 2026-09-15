@@ -20,6 +20,12 @@ export interface DisplayToken {
   text: string;
   isWord: boolean;
   revealed: boolean;
+  /**
+   * The real word, sent only when the Worker's `DEV_REVEAL_LYRICS` flag is on
+   * (dev/e2e only, never in production - see CLAUDE.md's anti-cheat section).
+   * Set for a still-hidden word only; a revealed one already shows itself.
+   */
+  devHint?: string;
 }
 
 export interface DisplayLine {

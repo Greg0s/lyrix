@@ -358,6 +358,57 @@ describe("POST /api/guess — close words", () => {
   });
 });
 
+describe("DEV_REVEAL_LYRICS", () => {
+  it("never attaches devHint by default", async () => {
+    const round = await getRound();
+    expect(allTokens(round).every((t) => t.devHint === undefined)).toBe(true);
+
+    const { body } = await guess(round.state, "xylophoneinexistant");
+    expect(allTokens(body).every((t) => t.devHint === undefined)).toBe(true);
+  });
+
+  it("attaches every still-hidden word's real text when on, matching the actual song", async () => {
+    const devEnv = { ...env, DEV_REVEAL_LYRICS: "1" };
+    const res = await app.request("/api/round", {}, devEnv);
+    const round = (await res.json()) as RoundView;
+    const song = await getSongById(round.songId);
+    if (!song) throw new Error("round song not found");
+
+    const words = allTokens(round).filter((t) => t.isWord);
+    expect(words.length).toBeGreaterThan(0);
+    const realKeys = new Set(wordsInOrder(song));
+    // Nothing is found yet, so every word is still masked, and every one now
+    // carries its real text - checked against the song itself, not echoed back.
+    for (const token of words) {
+      expect(token.revealed).toBe(false);
+      expect(typeof token.devHint).toBe("string");
+      expect(realKeys.has(normalize(token.devHint as string))).toBe(true);
+    }
+  });
+
+  it("never sends devHint for a word that is already found", async () => {
+    const devEnv = { ...env, DEV_REVEAL_LYRICS: "1" };
+    const round = (await (await app.request("/api/round", {}, devEnv)).json()) as RoundView;
+    const song = await getSongById(round.songId);
+    if (!song) throw new Error("round song not found");
+    const titleWord = tokenize(song.title).find((t) => t.isWord);
+    if (!titleWord) throw new Error("song title has no word tokens");
+
+    const { body } = await guess(round.state, titleWord.text, devEnv);
+    const found = allTokens(body).find((t) => t.isWord && t.revealed && normalize(t.text) === normalize(titleWord.text));
+    expect(found).toBeDefined();
+    expect(found?.devHint).toBeUndefined();
+
+    const stillHidden = allTokens(body).filter((t) => t.isWord && !t.revealed);
+    expect(stillHidden.every((t) => typeof t.devHint === "string")).toBe(true);
+  });
+
+  it("treats any value other than the literal string \"1\" as off", async () => {
+    const round = (await (await app.request("/api/round", {}, { ...env, DEV_REVEAL_LYRICS: "true" })).json()) as RoundView;
+    expect(allTokens(round).every((t) => t.devHint === undefined)).toBe(true);
+  });
+});
+
 describe("a missing STATE_SECRET", () => {
   // Regression test: with no worker/.dev.vars on disk, env.STATE_SECRET is
   // undefined and every request used to blow up inside Web Crypto with

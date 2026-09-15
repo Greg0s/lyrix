@@ -98,7 +98,7 @@ Keep a `docs/LEARNINGS.md` file (create it if it doesn't exist) as a running log
 
 ## Domain-Specific Rules
 
-- **Anti-cheat is a hard requirement**, even in the MVP: the Worker is the only thing that knows the actual lyrics. It receives a guessed word and returns which positions match — it never returns, and the client never receives, the full text before the round is won.
+- **Anti-cheat is a hard requirement**, even in the MVP: the Worker is the only thing that knows the actual lyrics. It receives a guessed word and returns which positions match — it never returns, and the client never receives, the full text before the round is won. The one narrow exception is the `DEV_REVEAL_LYRICS` Worker flag (`worker/src/index.ts`): when set, `buildTitleView`/`buildSectionsView` (`src/game/mask.ts`) attach every still-hidden word's real text to the round view as `DisplayToken.devHint`, so the frontend (`WordToken.tsx`) can show it at low opacity for local debugging of the game and the close-word mechanic — a found word or a close guess still always takes priority over it. Wired into the `dev:worker` npm script exactly like `SIMILARITY_SAMPLE` (so `npm run dev:all` and `npm run test:e2e` both carry it), never present in `wrangler.toml` or a production secret, so a production response is unaffected.
 - **French text matching**: normalize both the guess and the stored lyrics before comparing (case-insensitive, accent-insensitive) and account for French elisions ("j'aime" vs "je aime", "qu'il", "l'amour") so a correct guess isn't missed due to punctuation attached to the word.
 - **LRCLIB data isn't guaranteed clean**: handle missing lyrics, instrumental sections, and inconsistent formatting gracefully rather than assuming every response is well-formed.
 
@@ -176,7 +176,8 @@ That keeps the repository clean either way, but **uploading a derived table to p
                     # hidden word's closest guess onto the round (slots.ts) before rendering it
     TitleGuess.tsx  # masked title, victory banner ("come back tomorrow" note once solved)
     LyricsBody.tsx  # masked lyrics, grouped by section
-    WordToken.tsx   # one title/lyrics token: punctuation, found word, blank, or blank holding a close guess
+    WordToken.tsx   # one title/lyrics token: punctuation, found word, blank, blank holding a close guess,
+                    # or (dev-only) blank showing its real text at low opacity
     GuessForm.tsx   # word-guess input
     TriedWords.tsx  # past guesses: found vs. missed, proximity colour + score, sorted by score
     SideCard.tsx    # collapsible card shell, used for both side panels
@@ -191,7 +192,8 @@ That keeps the repository clean either way, but **uploading a derived table to p
     types.ts        # Song (server-only) + the RoundView/GuessResult wire contract, NearSlot included
     tokenize.ts     # splits text into word/non-word runs (keeps elisions like "l'amour" guessable)
     normalize.ts    # case/accent-insensitive key used for matching
-    mask.ts         # builds masked DisplayToken views from a Song + found keys, checks victory
+    mask.ts         # builds masked DisplayToken views from a Song + found keys, checks victory; optionally
+                    # attaches each hidden word's real text as devHint (DEV_REVEAL_LYRICS, dev-only)
     similarity.ts   # the 0-100 proximity scale: cosine -> score, score -> colour tier, tried-word
                     # sorting, NEAR_SCORE. No embedding maths — that only ever runs offline, in /scripts
     slots.ts        # addressing hidden words by position: wordPositions (Worker side), the closest
