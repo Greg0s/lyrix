@@ -9,7 +9,7 @@ A free web game inspired by Pedantix, built around song lyrics instead of Wikipe
 - One song per day: every player gets the same puzzle (Motus/Wordle-style), rotating at UTC midnight from a curated catalog (`worker/src/catalog.ts`). There is no "replay with a different song" — once solved, the player waits for tomorrow's song.
 - Target audience: French-speaking, tech-savvy web users.
 - No user accounts or personal data in the MVP.
-- Project name: TBD — update this section once decided.
+- Project name: **Lyrix**.
 
 ## Current Phase: MVP (no 3D)
 
