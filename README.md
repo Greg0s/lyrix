@@ -46,9 +46,13 @@ npm run dev:worker  # API only (wrangler dev)
 Neither command needs anything running first. `npm run test:e2e` starts its own frontend and Worker on dedicated ports (15173 and 18787, inspector 19229) and never reuses a server that's already running, so it always tests this clone's code, even with `npm run dev:all` up here or in another clone. If a run stops with "… is already used", something still holds one of those ports — most likely an interrupted e2e run.
 
 ```bash
-npm test        # lint + typecheck + unit tests (Vitest)
+npm test        # lint + typecheck + unit and component tests (Vitest)
 npm run test:e2e  # end-to-end tests (Playwright)
 ```
+
+`npm test` covers the game logic and the Worker's routes under plain Node, plus a component suite that
+renders the game in jsdom — that one exists mostly to keep a keystroke from re-rendering the lyrics, so
+it counts renders rather than timing anything.
 
 ## Semantic Proximity Scoring
 
