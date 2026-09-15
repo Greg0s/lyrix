@@ -4,6 +4,26 @@ A running log of gotchas, root causes, and anything that cost real time to figur
 
 Each entry: date, short title, what happened, how it was resolved.
 
+## 2026-09-15 — "Similarity is too strict": nobody had seen a real score yet, and the real design had blind spots
+
+The report: "demain" wasn't shown as close to "lendemains", nor "eau" to "nager" or "eaux", while Pedantix links much more loosely ("2000" to "2015", "france" to "allemagne", "grec" to "latin").
+
+**Everything observed so far came from the placeholder table.** No embedding model had ever been downloaded, on this machine or anywhere else, and the KV binding was still commented out. So every score seen in dev came from `SIMILARITY_SAMPLE`: 48 hand-written words, placed on arbitrary song words. "demain" and "eau" weren't among them, so they scored `null`. Two stale facts came out on the way. The model name CLAUDE.md documented (`frWac_no_postag_no_phrase_200_cut100`) matches no published file: the 200-dimension skip-gram model is `frWac_non_lem_no_postag_no_phrase_200_skip_cut100.bin`, and `non_lem` matters, since a lemmatized model has no "eaux" and no conjugated verbs. And the author's page settles the licence question left open here: CC BY 3.0, reusable with attribution.
+
+**Measured on the real model, the cosines were fine and the design around them wasn't.** A throwaway probe loaded the model and the day's song ("Désenchantée", 102 distinct words). Cosines: demain~lendemains 0.43, eaux~eau 0.77, nager~eau 0.37, france~allemagne 0.53, grec~latin 0.83, while unrelated pairs sat at 0.20 or below. Three things lost the placements:
+
+- **Function words took the slots.** Ranked by cosine, the song words nearest "demain" were "va", "la" and "attendre", so with `MAX_NEAR_TARGETS = 3` "lendemains" never got a slot, and "betterave" went to "mais" (as in maïs). With a 0.30 threshold, 77% of the vocabulary landed somewhere, mostly on "de", "la" or "et".
+- **A fixed cosine threshold means something different for every hidden word.** A word's 1000th nearest neighbour (among the 50k most frequent) sat anywhere between 0.29 and 0.46, so 0.30 was far too loose for some words and too strict for others.
+- **The model isn't what the pipeline assumed.** It is lowercased (12 capitalized entries out of 155k, so the proper-noun filter never did anything), it spells "coeur", and it has no digit tokens at all, so "2000"~"2015" can't come from it.
+
+A real bug turned up on the way, fixed on its own: `tokenize()`'s letter class stopped at Latin-1, which has no œ, so "cœur" split into "c" and "ur" and could never be found. The class now includes œ, Œ and Ÿ, and `normalize()` spells out œ and æ. Regression tests: `tokenize.test.ts`, `normalize.test.ts`.
+
+**Resolution.** Scores are ranks: for each song word, the 50,000 most frequent words are ranked by cosine and a word scores `100 − 20·log10(rank)` — 80 for a top-10 neighbour, 60 for top 100, 40 for top 1000. A guess is placed at rank 1000 or better (`NEAR_SCORE` 40), on up to 16 song words, never under a 0.2 cosine. Function words are never pointed at and get no score. Numbers are hidden words too, compared by value in the Worker. Tables moved to version 3, with placements pointing at a `targets` list by index. On the real table: demain → lendemains 43 (among 8 placements), eau → eaux 81 and nager 47, désespoir → 16 song words that all make sense, voiture, ordinateur and betterave → nowhere; 1.31 MB for 49.8k words. Built from a short hand-written text: allemagne → france 83, grec → latin 99. `npm run similarity:inspect` prints this for any built table.
+
+**Considered and rejected**: retuning the cosine threshold, which can't suit every word and keeps the function-word hubs; and placing down to rank 1778 (score 35), whose extra links were mostly noise ("voiture" on "air", "france" on "haut").
+
+**Takeaway**: a placeholder that makes a feature testable also makes it look finished. Measure against the real model before tuning anything, and keep the measurement scripted.
+
 ## 2026-09-15 — An optimization pass: where the time actually went, and the three caches it added
 
 A full pass over the project for speed and smoothness. Worth writing down because almost none of the cost was where it looked like it would be — the game's own logic is cheap, and every real problem was work being repeated for a value that never changed.
