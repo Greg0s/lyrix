@@ -48,17 +48,53 @@ const EMERGENCY_FALLBACK_SONG: Song = {
   ],
 };
 
+// Songs resolved by this isolate, on top of the (cross-isolate, cross-colo)
+// Cache API layer. Two reasons, both about the request path rather than about
+// LRCLIB: a Cache API hit still costs a lookup plus a JSON parse of the whole
+// lyrics on every single guess, and a freshly parsed object would also defeat
+// the per-song analysis cache (see src/game/analyze.ts), making every guess
+// re-tokenize the song. Keeping one object per id gives both layers something
+// stable to hang on to.
+//
+// A song's lyrics never change once resolved, so there is no invalidation: a
+// new isolate is the refresh. Bounded anyway, since a long-lived isolate can
+// see several days roll over, plus rounds still in progress on earlier songs.
+const MAX_MEMOIZED_SONGS = 4;
+
+const memoizedSongs = new Map<string, Song>();
+
+function memoize(song: Song): Song {
+  memoizedSongs.set(song.id, song);
+  // Map iterates in insertion order, so the first key is the oldest entry.
+  if (memoizedSongs.size > MAX_MEMOIZED_SONGS) {
+    const oldest = memoizedSongs.keys().next();
+    if (!oldest.done) memoizedSongs.delete(oldest.value);
+  }
+  return song;
+}
+
+/** Drops the isolate's memoized songs. For tests: production never needs it, since a resolved song never changes. */
+export function resetSongMemo(): void {
+  memoizedSongs.clear();
+}
+
 export async function getSongById(id: string): Promise<Song | null> {
   if (id === EMERGENCY_FALLBACK_SONG.id) return EMERGENCY_FALLBACK_SONG;
+
+  const memoized = memoizedSongs.get(id);
+  if (memoized) return memoized;
 
   const entry = catalog.find((candidate) => candidate.id === id);
   if (!entry) return null;
 
   const cached = await getCachedSong(id);
-  if (cached) return cached;
+  if (cached) return memoize(cached);
 
   const song = await resolveFromLrclib(entry);
-  if (song) await putCachedSong(id, song);
+  if (song) {
+    await putCachedSong(id, song);
+    return memoize(song);
+  }
   return song;
 }
 

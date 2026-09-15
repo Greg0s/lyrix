@@ -8,6 +8,7 @@ import {
   nearSlotsFromTable,
   parseSimilarityTable,
   proximityHint,
+  resetSimilarityMemo,
   scoreFromTable,
   SIMILARITY_TABLE_VERSION,
   type SimilarityEnv,
@@ -41,6 +42,10 @@ let logged: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   logged = vi.spyOn(console, "log").mockImplementation(() => {});
+  // Each test starts from a cold isolate: a parsed table is memoized for the
+  // isolate's lifetime (see loadSimilarityTable), so a test counting KV reads
+  // would otherwise be answered from the previous test's table.
+  resetSimilarityMemo();
 });
 
 afterEach(() => {
@@ -229,7 +234,41 @@ describe("proximityHint", () => {
       ],
     });
     expect(get).toHaveBeenCalledTimes(1);
-    expect(get).toHaveBeenCalledWith(song.id);
+    // The read asks KV to serve from the colo cache when it can; the table
+    // changes only when a song is rebuilt.
+    expect(get).toHaveBeenCalledWith(song.id, { cacheTtl: expect.any(Number) });
+  });
+
+  // A production table holds tens of thousands of entries, and it used to be
+  // read from KV and JSON.parsed again on every single guess of the day.
+  it("parses the table once, then answers later guesses from the isolate", async () => {
+    const get = vi.fn(async () => table({ averse: 72, orage: 40 }, { averse: { pluie: 72 } }));
+    const env: SimilarityEnv = { SIMILARITY: { get } };
+
+    const first = await proximityHint(env, song, "averse", new Set());
+    const second = await proximityHint(env, song, "orage", new Set());
+
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(first.score).toBe(72);
+    expect(second.score).toBe(40);
+  });
+
+  it("keeps one namespace's table away from another's", async () => {
+    const mine = vi.fn(async () => table({ averse: 72 }));
+    const theirs = vi.fn(async () => table({ averse: 11 }));
+
+    expect((await proximityHint({ SIMILARITY: { get: mine } }, song, "averse", new Set())).score).toBe(72);
+    expect((await proximityHint({ SIMILARITY: { get: theirs } }, song, "averse", new Set())).score).toBe(11);
+  });
+
+  it("does not answer one song's guess from another song's table", async () => {
+    const get = vi.fn(async (key: string) => (key === song.id ? table({ averse: 72 }) : table({ averse: 3 })));
+    const env: SimilarityEnv = { SIMILARITY: { get } };
+    const other: Song = { ...song, id: "another-song" };
+
+    expect((await proximityHint(env, song, "averse", new Set())).score).toBe(72);
+    expect((await proximityHint(env, other, "averse", new Set())).score).toBe(3);
+    expect(get).toHaveBeenCalledTimes(2);
   });
 
   it("scores and places a word from the dev placeholder table", async () => {

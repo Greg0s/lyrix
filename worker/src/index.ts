@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { buildSectionsView, buildTitleView, isVictory, songWordKeys } from "../../src/game/mask";
 import { normalize } from "../../src/game/normalize";
 import { MAX_PROXIMITY_SCORE } from "../../src/game/similarity";
-import type { GuessResult, RoundView } from "../../src/game/types";
+import type { GuessResult, RoundView, Song } from "../../src/game/types";
 import { proximityHint, type ProximityHint, type SimilarityEnv } from "./similarity";
 import { getSongById, getTodaysSong } from "./songs";
 import { signState, verifyState } from "./state";
@@ -55,18 +55,18 @@ app.use("/api/*", async (c, next) => {
   return next();
 });
 
+// Takes the resolved Song rather than an id: both routes have already resolved
+// it by the time they get here, and looking it up again would repeat a Cache
+// API read and a full JSON parse of the lyrics for nothing.
 async function buildRoundView(
-  songId: string,
+  song: Song,
   foundKeys: string[],
   secret: string,
   devReveal: boolean
-): Promise<RoundView | null> {
-  const song = await getSongById(songId);
-  if (!song) return null;
-
+): Promise<RoundView> {
   const foundSet = new Set(foundKeys);
   const victory = isVictory(song, foundSet);
-  const state = await signState({ songId, foundKeys: [...foundSet] }, secret);
+  const state = await signState({ songId: song.id, foundKeys: [...foundSet] }, secret);
 
   return {
     songId: song.id,
@@ -82,9 +82,7 @@ app.get("/api/round", async (c) => {
   const devReveal = c.env.DEV_REVEAL_LYRICS === "1";
   if (devReveal) announceDevReveal();
   const song = await getTodaysSong();
-  const view = await buildRoundView(song.id, [], c.env.STATE_SECRET, devReveal);
-  if (!view) return c.json({ error: "no songs available" }, 500);
-  return c.json(view);
+  return c.json(await buildRoundView(song, [], c.env.STATE_SECRET, devReveal));
 });
 
 app.post("/api/guess", async (c) => {
@@ -124,8 +122,7 @@ app.post("/api/guess", async (c) => {
 
   const devReveal = c.env.DEV_REVEAL_LYRICS === "1";
   if (devReveal) announceDevReveal();
-  const view = await buildRoundView(song.id, newFoundKeys, c.env.STATE_SECRET, devReveal);
-  if (!view) return c.json({ error: "invalid or expired round state" }, 400);
+  const view = await buildRoundView(song, newFoundKeys, c.env.STATE_SECRET, devReveal);
 
   // A found word is its own closest match and reveals itself, so it needs no
   // table lookup. A missed one gets its score plus the positions of the hidden

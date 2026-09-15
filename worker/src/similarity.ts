@@ -17,7 +17,7 @@ export const SIMILARITY_TABLE_VERSION = 2;
 
 /** The slice of a Workers `KVNamespace` we use — narrow on purpose, so tests can pass a plain fake. */
 export interface SimilarityKv {
-  get(key: string): Promise<string | null>;
+  get(key: string, options?: { cacheTtl?: number }): Promise<string | null>;
 }
 
 export interface SimilarityEnv {
@@ -87,12 +87,59 @@ function announceSampleMode(): void {
   );
 }
 
-/** Never throws: a KV hiccup or a malformed table degrades to "no score", never to a failed guess. */
-export async function loadSimilarityTable(env: SimilarityEnv, song: Song): Promise<SimilarityTable | null> {
+/**
+ * How long KV may answer a read from the colo's cache instead of going to a
+ * central store. Tables are rebuilt only when a song joins the catalog, so an
+ * hour costs nothing and spares a cold isolate the slow path.
+ */
+const KV_CACHE_TTL_SECONDS = 3600;
+
+/**
+ * How long this isolate keeps a table it has already parsed. A production
+ * table holds tens of thousands of entries, and JSON.parse of the whole thing
+ * ran on *every* guess — by far the most expensive thing in the request path,
+ * for a value that is the same for every player all day. Kept short enough
+ * that re-uploading a table still takes effect the same session.
+ */
+const TABLE_MEMO_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * A miss is remembered too, so a song with no table doesn't pay a KV read per
+ * guess — but only briefly, so a table uploaded mid-round shows up quickly.
+ */
+const MISS_MEMO_TTL_MS = 60 * 1000;
+
+interface MemoizedTable {
+  /** The bindings the entry was produced from: a different namespace (or a test's fake) must not be answered from it. */
+  kv: SimilarityKv | undefined;
+  sample: boolean;
+  songId: string;
+  table: SimilarityTable | null;
+  expiresAt: number;
+}
+
+// One slot: a given day has one song in play, so anything more would only hold
+// on to tables nobody is going to ask for again.
+let memoized: MemoizedTable | null = null;
+
+/** Drops the isolate's parsed table. For tests; production relies on the TTLs above. */
+export function resetSimilarityMemo(): void {
+  memoized = null;
+}
+
+function memoizedFor(env: SimilarityEnv, song: Song, now: number): MemoizedTable | null {
+  if (!memoized || memoized.expiresAt <= now) return null;
+  if (memoized.songId !== song.id) return null;
+  if (memoized.kv !== env.SIMILARITY) return null;
+  if (memoized.sample !== (env.SIMILARITY_SAMPLE === "1")) return null;
+  return memoized;
+}
+
+async function readTable(env: SimilarityEnv, song: Song): Promise<SimilarityTable | null> {
   if (env.SIMILARITY) {
     let raw: string | null;
     try {
-      raw = await env.SIMILARITY.get(song.id);
+      raw = await env.SIMILARITY.get(song.id, { cacheTtl: KV_CACHE_TTL_SECONDS });
     } catch {
       return null;
     }
@@ -116,6 +163,23 @@ export async function loadSimilarityTable(env: SimilarityEnv, song: Song): Promi
     };
   }
   return null;
+}
+
+/** Never throws: a KV hiccup or a malformed table degrades to "no score", never to a failed guess. */
+export async function loadSimilarityTable(env: SimilarityEnv, song: Song): Promise<SimilarityTable | null> {
+  const now = Date.now();
+  const hit = memoizedFor(env, song, now);
+  if (hit) return hit.table;
+
+  const table = await readTable(env, song);
+  memoized = {
+    kv: env.SIMILARITY,
+    sample: env.SIMILARITY_SAMPLE === "1",
+    songId: song.id,
+    table,
+    expiresAt: now + (table ? TABLE_MEMO_TTL_MS : MISS_MEMO_TTL_MS),
+  };
+  return table;
 }
 
 /** `null` for a word the table doesn't cover, so the UI can tell "far away" from "unknown word". */
