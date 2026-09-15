@@ -20,7 +20,8 @@ let query: MediaQueryList | null | undefined;
 
 function mobileQuery(): MediaQueryList | null {
   if (query === undefined) {
-    query = typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(MOBILE_QUERY) : null;
+    const available = typeof window !== "undefined" && typeof window.matchMedia === "function";
+    query = available ? window.matchMedia(MOBILE_QUERY) : null;
   }
   return query;
 }

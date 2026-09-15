@@ -253,12 +253,22 @@ describe("proximityHint", () => {
     expect(second.score).toBe(40);
   });
 
-  it("keeps one namespace's table away from another's", async () => {
-    const mine = vi.fn(async () => table({ averse: 72 }));
-    const theirs = vi.fn(async () => table({ averse: 11 }));
+  it("re-reads the table once the memo is dropped", async () => {
+    const first = vi.fn(async () => table({ averse: 72 }));
+    const second = vi.fn(async () => table({ averse: 11 }));
 
-    expect((await proximityHint({ SIMILARITY: { get: mine } }, song, "averse", new Set())).score).toBe(72);
-    expect((await proximityHint({ SIMILARITY: { get: theirs } }, song, "averse", new Set())).score).toBe(11);
+    expect((await proximityHint({ SIMILARITY: { get: first } }, song, "averse", new Set())).score).toBe(72);
+    resetSimilarityMemo();
+    expect((await proximityHint({ SIMILARITY: { get: second } }, song, "averse", new Set())).score).toBe(11);
+  });
+
+  it("never answers an unbound request from a table read through a binding", async () => {
+    const get = vi.fn(async () => table({ averse: 72 }));
+
+    expect((await proximityHint({ SIMILARITY: { get } }, song, "averse", new Set())).score).toBe(72);
+    // No namespace and no sample table: the feature is simply off, and a
+    // memoized table must not bring it back.
+    expect(await proximityHint({}, song, "averse", new Set())).toEqual({ score: null, near: [] });
   });
 
   it("does not answer one song's guess from another song's table", async () => {

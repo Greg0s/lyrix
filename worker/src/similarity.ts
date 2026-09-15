@@ -110,8 +110,14 @@ const TABLE_MEMO_TTL_MS = 5 * 60 * 1000;
 const MISS_MEMO_TTL_MS = 60 * 1000;
 
 interface MemoizedTable {
-  /** The bindings the entry was produced from: a different namespace (or a test's fake) must not be answered from it. */
-  kv: SimilarityKv | undefined;
+  /**
+   * What the entry was produced from. Deliberately *not* the binding object
+   * itself: a Worker has one SIMILARITY namespace, so identity would add no
+   * safety in production, and keying on it would silently disable the memo for
+   * good if the runtime ever handed out a fresh binding object per request.
+   * Tests get their isolation from resetSimilarityMemo() instead.
+   */
+  bound: boolean;
   sample: boolean;
   songId: string;
   table: SimilarityTable | null;
@@ -130,7 +136,7 @@ export function resetSimilarityMemo(): void {
 function memoizedFor(env: SimilarityEnv, song: Song, now: number): MemoizedTable | null {
   if (!memoized || memoized.expiresAt <= now) return null;
   if (memoized.songId !== song.id) return null;
-  if (memoized.kv !== env.SIMILARITY) return null;
+  if (memoized.bound !== (env.SIMILARITY !== undefined)) return null;
   if (memoized.sample !== (env.SIMILARITY_SAMPLE === "1")) return null;
   return memoized;
 }
@@ -173,7 +179,7 @@ export async function loadSimilarityTable(env: SimilarityEnv, song: Song): Promi
 
   const table = await readTable(env, song);
   memoized = {
-    kv: env.SIMILARITY,
+    bound: env.SIMILARITY !== undefined,
     sample: env.SIMILARITY_SAMPLE === "1",
     songId: song.id,
     table,

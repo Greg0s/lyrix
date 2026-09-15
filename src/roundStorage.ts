@@ -133,10 +133,12 @@ export function flushSavedRound(): void {
 function registerFlushOnHide(): void {
   if (flushOnHideRegistered || typeof window === "undefined") return;
   flushOnHideRegistered = true;
-  // A deferred write must not be lost to a tab being closed or backgrounded;
-  // pagehide is the one event that fires reliably on mobile for both.
+  // A deferred write must not be lost to a tab being closed or backgrounded.
+  // Both events, because neither covers it alone: a phone can discard a
+  // backgrounded tab without ever firing pagehide, and a same-document
+  // navigation fires pagehide without the page being hidden first.
   window.addEventListener("pagehide", flushSavedRound);
-  window.addEventListener("visibilitychange", () => {
+  document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") flushSavedRound();
   });
 }
