@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildSectionsView, buildTitleView, isVictory, songWordKeys, titleWordKeys } from "../../../src/game/mask";
+import {
+  buildSectionsView,
+  buildTitleView,
+  isVictory,
+  songNumberKeys,
+  songWordKeys,
+  titleWordKeys,
+} from "../../../src/game/mask";
 import type { Song } from "../../../src/game/types";
 
 const song: Song = {
@@ -49,6 +56,22 @@ describe("songWordKeys", () => {
     expect(keys.has("chante")).toBe(true);
     expect(keys.has("bleu")).toBe(true);
     expect(keys.has("ete")).toBe(true);
+  });
+});
+
+describe("numbers", () => {
+  const counted: Song = { ...song, title: "Les 90 ans", sections: [{ label: "Couplet 1", lines: ["Née en 1975"] }] };
+
+  it("hides a number like any other word, at its own length", () => {
+    const words = buildSectionsView(counted, new Set())[0].lines[0].tokens.filter((t) => t.isWord);
+    expect(words.map((t) => t.text)).toEqual(["___", "__", "____"]);
+  });
+
+  it("makes it a word of the song, found by guessing it", () => {
+    expect(songWordKeys(counted).has("1975")).toBe(true);
+    expect(songNumberKeys(counted)).toEqual(["90", "1975"]);
+    const words = buildSectionsView(counted, new Set(["1975"]))[0].lines[0].tokens.filter((t) => t.isWord);
+    expect(words.map((t) => t.text)).toEqual(["___", "__", "1975"]);
   });
 });
 

@@ -56,22 +56,25 @@ it counts renders rather than timing anything.
 
 ## Semantic Proximity Scoring
 
-A guess that isn't in the lyrics still comes back with a 0-100 score saying how semantically close it is, Cemantix-style — and when it is close to hidden words, it shows up in their place in the lyrics, Pedantix-style (the Worker only ever says *where*, never which word is there). The scoring is precomputed offline — the Worker only ever does a key lookup — so it needs a one-time setup before it does anything in production:
+A guess that isn't in the lyrics still comes back with a 0-100 score saying how semantically close it is, Cemantix-style — and when it is close to hidden words, it shows up in their place in the lyrics, Pedantix-style, shaded from orange to green as it gets closer (the Worker only ever says *where*, never which word is there). A score is a rank: 80 means the guess is among a hidden word's 10 nearest neighbours in the embedding model, 60 among its 100, 40 among its 1,000 — which is also how close a guess has to be to show up in the lyrics. Grammatical words (articles, pronouns, prepositions…) never count, and numbers are compared by value, so 2000 is close to 2015.
+
+The scoring is precomputed offline — the Worker only ever does a key lookup — so it needs a one-time setup before it does anything in production:
 
 ```bash
-# 1. download a French word2vec model by hand into data/models/ (see the licence note below)
-# 2. compact it
-npm run similarity:convert -- --input data/models/<model>.bin --output data/models/frwac.vecbin --max-words 200000
-# 3. build the per-song tables
+# 1. download frWac_non_lem_no_postag_no_phrase_200_skip_cut100.bin by hand from https://fauconnier.github.io/#data into data/models/
+# 2. compact it (optional: the build reads the .bin directly too)
+npm run similarity:convert -- --input data/models/frWac_non_lem_no_postag_no_phrase_200_skip_cut100.bin --output data/models/frwac.vecbin --max-words 200000
+# 3. build the per-song tables, and check what one of them answers
 npm run similarity:build -- --model data/models/frwac.vecbin --all --bulk
+npm run similarity:inspect -- --song papaoutai amour papa
 # 4. create the KV namespace, uncomment the binding in worker/wrangler.toml, and upload
 npx wrangler kv namespace create SIMILARITY
 npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote --config worker/wrangler.toml
 ```
 
-Without that namespace the game runs exactly as before, with no scores and no close words in the lyrics. Local development doesn't need any of it: `npm run dev:worker` serves hand-written placeholder scores so the coloured chips, and the close words shown in the lyrics, are visible right away. Only a few dozen words carry one — the API log lists them all on the first guess (any other word scores nothing, and a word that is in the lyrics is revealed instead of scored). Where a placeholder word lands in the lyrics is arbitrary: real neighbours only come from the embedding model.
+Without that namespace the game runs exactly as before, with no scores and no close words in the lyrics. Local development doesn't need any of it: `npm run dev:worker` serves hand-written placeholder scores so the coloured chips, and the close words shown in the lyrics, are visible right away. Only a few dozen words carry one — the API log lists them all on the first guess (any other word scores nothing, and a word that is in the lyrics is revealed instead of scored). Where a placeholder word lands in the lyrics is arbitrary: real neighbours only come from the embedding model, and `npm run similarity:inspect` is how to see them.
 
-> **Licence note — unresolved.** The default model, [frWac2Vec](https://fauconnier.github.io/#data), has reuse terms that nobody has verified yet. Nothing is downloaded or committed automatically, and `data/` is gitignored, but **check the licence before uploading derived tables to production**. Any word2vec-format model works — see the "Semantic Proximity Scoring" section of [CLAUDE.md](CLAUDE.md).
+> **Licence.** [frWac2Vec](https://fauconnier.github.io/#data), by Jean-Philippe Fauconnier, is published under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/): it can be reused, and tables derived from it uploaded, with attribution — the game credits it under the tried-word list whenever a score is shown. It is still never committed or downloaded automatically (`data/` is gitignored). Any word2vec-format model works — see the "Semantic Proximity Scoring" section of [CLAUDE.md](CLAUDE.md).
 
 ## Project Structure
 
