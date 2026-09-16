@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { tokenize } from "../../src/game/tokenize";
 import type { GuessResult, RoundView } from "../../src/game/types";
 import { catalog } from "../../worker/src/catalog";
@@ -27,6 +27,14 @@ const UNKNOWN_WORD = "zzzinconnu"; // absent from the table -> no score at all
 function chipOf(page: Page, word: string) {
   const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return page.locator(".lyrix-tried-list .lyrix-chip", { hasText: new RegExp(`^${escaped}\\s*\\d*$`) });
+}
+
+/** The shade a scored word carries, as set inline for game.css's cold-to-hot ramp. */
+async function heatOf(locator: Locator): Promise<number> {
+  const style = (await locator.getAttribute("style")) ?? "";
+  const match = /--heat:\s*([\d.]+)/.exec(style);
+  if (!match) throw new Error(`no --heat in style="${style}"`);
+  return Number(match[1]);
 }
 
 /** Submits a word and waits for it to join the tried-word list. */
@@ -71,6 +79,35 @@ test("colours and ranks tried words by how close they are to the song", async ({
   await expect(chips.nth(2)).toContainText(UNKNOWN_WORD);
 
   await expect(page.getByText("Plus le score est élevé", { exact: false })).toBeVisible();
+  // CC BY 3.0: the model is credited wherever its numbers show.
+  await expect(page.getByRole("link", { name: "frWac2Vec" })).toBeVisible();
+});
+
+test("shades each close word by how close it is", async ({ page }) => {
+  await page.goto("/");
+  await guess(page, CLOSE_WORD);
+
+  // The placeholder table spreads a word over a few hidden words, a step
+  // further off each time, and each of those steps gets its own shade.
+  const placed = page.locator(".token-word-near", { hasText: CLOSE_WORD });
+  await expect(placed.first()).toBeVisible();
+  const shaded: { heat: number; background: string }[] = [];
+  for (const slot of await placed.all()) {
+    shaded.push({
+      heat: await heatOf(slot),
+      background: await slot.evaluate((element) => getComputedStyle(element).backgroundColor),
+    });
+  }
+  const heats = shaded.map((slot) => slot.heat);
+  expect(new Set(heats).size).toBeGreaterThan(1);
+
+  // Different shades, not just different numbers in an attribute.
+  const hottest = shaded.find((slot) => slot.heat === Math.max(...heats));
+  const coolest = shaded.find((slot) => slot.heat === Math.min(...heats));
+  expect(hottest?.background).not.toBe(coolest?.background);
+
+  // The chip wears the shade of the guess's best placement.
+  expect(await heatOf(chipOf(page, CLOSE_WORD))).toBe(Math.max(...heats));
 });
 
 test("keeps proximity scores after reloading the page", async ({ page }) => {

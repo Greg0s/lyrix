@@ -1,17 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalize } from "../../../src/game/normalize";
-import { NEAR_SCORE } from "../../../src/game/similarity";
+import { NEAR_SCORE, numberProximityScore } from "../../../src/game/similarity";
 import { tokenize } from "../../../src/game/tokenize";
 import type { DisplayToken, GuessResult, RoundView, Song } from "../../../src/game/types";
 import app from "../../../worker/src/index";
 import { resetSimilarityMemo, SIMILARITY_TABLE_VERSION, type SimilarityKv } from "../../../worker/src/similarity";
 import { getSongById, resetSongMemo } from "../../../worker/src/songs";
+import { encodeNear, type ReadableNear } from "./similarityTableFixture";
 
 const env = { STATE_SECRET: "test-secret" };
 
 interface KvTable {
   scores?: Record<string, number>;
-  near?: Record<string, Record<string, number>>;
+  near?: ReadableNear;
   /** When set, only this song has a table, which proves the right one is read. */
   songId?: string;
 }
@@ -22,7 +23,13 @@ function similarityKv({ scores = {}, near = {}, songId }: KvTable): SimilarityKv
     get: async (key: string) =>
       songId && key !== songId
         ? null
-        : JSON.stringify({ version: SIMILARITY_TABLE_VERSION, songId: key, model: "test-model", scores, near }),
+        : JSON.stringify({
+            version: SIMILARITY_TABLE_VERSION,
+            songId: key,
+            model: "test-model",
+            scores,
+            ...encodeNear(near),
+          }),
   };
 }
 
@@ -35,15 +42,15 @@ function requestUrl(input: string | URL | Request): URL {
 }
 
 /** Stubs the LRCLIB search call the Worker makes, so route tests never hit the real network. Echoes the requested artist back so `bestMatch` finds an exact hit for whichever song is active today. */
-function mockLrclibFetch(): void {
+function mockLrclibFetch(plainLyrics: string = FIXTURE_LYRICS): void {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string | URL | Request) => {
       const artistName = requestUrl(input).searchParams.get("artist_name") ?? "Unknown";
-      return new Response(
-        JSON.stringify([{ artistName, instrumental: false, plainLyrics: FIXTURE_LYRICS, syncedLyrics: null }]),
-        { status: 200, headers: { "content-type": "application/json" } }
-      );
+      return new Response(JSON.stringify([{ artistName, instrumental: false, plainLyrics, syncedLyrics: null }]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
     })
   );
 }
@@ -237,7 +244,14 @@ describe("POST /api/guess — proximity score", () => {
   it("reads the table once for a whole round, not once per guess", async () => {
     const round = await getRound();
     const get = vi.fn(async (key: string) =>
-      JSON.stringify({ version: SIMILARITY_TABLE_VERSION, songId: key, model: "test-model", scores: {}, near: {} })
+      JSON.stringify({
+        version: SIMILARITY_TABLE_VERSION,
+        songId: key,
+        model: "test-model",
+        scores: {},
+        targets: [],
+        near: {},
+      })
     );
     const scoring = { ...env, SIMILARITY: { get } };
 
@@ -373,6 +387,39 @@ describe("POST /api/guess — close words", () => {
     };
     const { body } = await guess(round.state, "xylophoneinexistant", scoring);
     expect(body.score).toBe(20);
+    expect(body.near).toEqual([]);
+  });
+});
+
+describe("POST /api/guess — numbers", () => {
+  beforeEach(() => {
+    mockLrclibFetch("Nee en 1975\nRevenue en 2015");
+  });
+
+  it("hides a number in the lyrics until it is guessed", async () => {
+    const round = await getRound();
+    expect(wordsInOrder(await playedSong(round))).toContain("2015");
+    expect(allTokens(round).some((t) => t.text.includes("2015"))).toBe(false);
+
+    const { body } = await guess(round.state, "2015");
+    expect(body.found).toBe(true);
+    expect(allTokens(body).some((t) => t.revealed && t.text === "2015")).toBe(true);
+  });
+
+  it("shows a close number in place of the hidden ones, once similarity is on", async () => {
+    const round = await getRound();
+    const words = wordsInOrder(await playedSong(round));
+
+    const { body } = await guess(round.state, "2010", { ...env, SIMILARITY: similarityKv({}) });
+    expect(body.found).toBe(false);
+    expect(body.score).toBe(numberProximityScore("2010", "2015"));
+    expect(body.near).toContainEqual({ position: words.indexOf("2015"), score: numberProximityScore("2010", "2015") });
+  });
+
+  it("gives a number nothing when similarity is off", async () => {
+    const round = await getRound();
+    const { body } = await guess(round.state, "2010");
+    expect(body.score).toBeNull();
     expect(body.near).toEqual([]);
   });
 });

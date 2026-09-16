@@ -18,7 +18,8 @@
     "deploy:worker": "wrangler deploy --config worker/wrangler.toml",
     "deploy:check": "wrangler deploy --dry-run --config worker/wrangler.toml",
     "similarity:convert": "tsx scripts/convert-embeddings.ts",
-    "similarity:build": "tsx scripts/build-similarity-table.ts"
+    "similarity:build": "tsx scripts/build-similarity-table.ts",
+    "similarity:inspect": "tsx scripts/inspect-similarity-table.ts"
   },
   "keywords": [],
   "author": "",

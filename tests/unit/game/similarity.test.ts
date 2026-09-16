@@ -2,31 +2,68 @@ import { describe, expect, it } from "vitest";
 import {
   clampScore,
   HOT_SCORE,
+  MAX_MISSED_SCORE,
   MAX_PROXIMITY_SCORE,
+  NEAR_SCORE,
+  numberProximityScore,
+  proximityHeat,
   proximityTier,
-  scoreFromCosine,
+  scoreFromRank,
   sortByProximity,
   WARM_SCORE,
 } from "../../../src/game/similarity";
 
-describe("scoreFromCosine", () => {
-  it("maps a perfect match to the top of the scale", () => {
-    expect(scoreFromCosine(1)).toBe(MAX_PROXIMITY_SCORE);
+describe("scoreFromRank", () => {
+  it("gives a hidden word's nearest neighbour the best score a missed word can get", () => {
+    expect(scoreFromRank(1)).toBe(MAX_MISSED_SCORE);
   });
 
-  it("collapses negative similarities to zero", () => {
-    expect(scoreFromCosine(-0.4)).toBe(0);
-    expect(scoreFromCosine(-1)).toBe(0);
+  it("takes the same number of points off for every tenfold step down the neighbour list", () => {
+    expect(scoreFromRank(10)).toBe(80);
+    expect(scoreFromRank(100)).toBe(60);
+    expect(scoreFromRank(1000)).toBe(40);
+    expect(scoreFromRank(10_000)).toBe(20);
   });
 
-  it("rounds to an integer score", () => {
-    expect(scoreFromCosine(0.4242)).toBe(42);
-    expect(scoreFromCosine(0.567)).toBe(57);
+  it("puts a hidden word's thousandth neighbour on the placement threshold, and not much further", () => {
+    expect(scoreFromRank(1000)).toBe(NEAR_SCORE);
+    expect(scoreFromRank(1100)).toBeLessThan(NEAR_SCORE);
   });
 
-  it("treats a non-finite similarity as zero rather than propagating NaN", () => {
-    expect(scoreFromCosine(Number.NaN)).toBe(0);
-    expect(scoreFromCosine(Number.NEGATIVE_INFINITY)).toBe(0);
+  it("never goes below zero, however far down the list", () => {
+    expect(scoreFromRank(1e9)).toBe(0);
+    expect(scoreFromRank(Number.POSITIVE_INFINITY)).toBe(0);
+  });
+
+  it("treats a nonsense rank safely", () => {
+    expect(scoreFromRank(Number.NaN)).toBe(0);
+    expect(scoreFromRank(0)).toBe(MAX_MISSED_SCORE);
+  });
+
+  it("only returns integers", () => {
+    for (const rank of [2, 3, 7, 42, 999, 31_415]) expect(Number.isInteger(scoreFromRank(rank))).toBe(true);
+  });
+});
+
+describe("numberProximityScore", () => {
+  it("counts years a few apart as close", () => {
+    expect(numberProximityScore("1789", "1790")).toBe(84);
+    expect(numberProximityScore("2000", "2015")).toBe(62);
+    expect(numberProximityScore("2000", "2015")).toBeGreaterThanOrEqual(HOT_SCORE);
+  });
+
+  it("judges a gap against the size of the numbers", () => {
+    expect(numberProximityScore("3", "4")).toBeGreaterThanOrEqual(NEAR_SCORE);
+    expect(numberProximityScore("20", "30")).toBeLessThan(NEAR_SCORE);
+    expect(numberProximityScore("100", "1000")).toBeLessThan(numberProximityScore("20", "30"));
+  });
+
+  it("does not care which number is the guess", () => {
+    expect(numberProximityScore("2015", "2000")).toBe(numberProximityScore("2000", "2015"));
+  });
+
+  it("scores the same value written differently as close as a missed word can be", () => {
+    expect(numberProximityScore("007", "7")).toBe(MAX_MISSED_SCORE);
   });
 });
 
@@ -52,8 +89,33 @@ describe("proximityTier", () => {
     expect(proximityTier({ found: false, score: 0 })).toBe("cold");
   });
 
+  it("makes any score close enough to be placed at least warm", () => {
+    expect(proximityTier({ found: false, score: NEAR_SCORE })).toBe("warm");
+  });
+
   it("distinguishes a word the model doesn't know from a very distant one", () => {
     expect(proximityTier({ found: false, score: null })).toBe("unknown");
+  });
+});
+
+describe("proximityHeat", () => {
+  it("runs from 0 to 1 across the scale", () => {
+    expect(proximityHeat(0)).toBe(0);
+    expect(proximityHeat(50)).toBe(0.5);
+    expect(proximityHeat(MAX_MISSED_SCORE)).toBe(1);
+  });
+
+  it("gives scores within one tier shades of their own", () => {
+    expect(proximityHeat(41)).toBeLessThan(proximityHeat(58));
+    expect(proximityHeat(62)).toBeLessThan(proximityHeat(85));
+  });
+
+  it("rounds to hundredths, so the inline style stays short", () => {
+    expect(proximityHeat(71)).toBe(0.76);
+  });
+
+  it("treats a non-finite score as the coldest", () => {
+    expect(proximityHeat(Number.NaN)).toBe(0);
   });
 });
 

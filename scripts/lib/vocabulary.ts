@@ -1,20 +1,22 @@
 import { normalize } from "../../src/game/normalize";
+import { LETTER_CLASS } from "../../src/game/tokenize";
 
 /**
  * Picking the reference vocabulary a similarity table covers.
  *
  * Two vocabularies meet here and they don't use the same spelling rules:
- *  - the embedding model's, which keeps case and accents ("Été", "été", "ETE");
+ *  - the embedding model's, which may keep case and accents ("Été", "été", "ETE");
  *  - the game's, whose lookup key is `normalize()`d (lowercase, accent-free).
  * Everything below is keyed the game's way, and one key can therefore map to
  * several model rows — they're all kept, and the best of them wins when the
  * table is scored (see similarityTable.ts).
  */
 
-// Same letter class as src/game/tokenize.ts's word runs: anything a player
-// can't type as a single guessed word is useless in the table.
-const LETTERS_ONLY = /^[A-Za-zÀ-ÖØ-öø-ÿ]+$/;
-const STARTS_UPPERCASE = /^[A-ZÀ-ÖØ-Þ]/;
+// The same letters as src/game/tokenize.ts's word runs: anything a player can't
+// type as a single guessed word is useless in the table. Digits are left out on
+// purpose, although tokenize() makes a word of a number: numbers are compared by
+// value (see numberProximityScore), never through a vector.
+const LETTERS_ONLY = new RegExp(`^[${LETTER_CLASS}]+$`);
 
 export interface KeyIndex {
   /** Normalized key -> every model row holding a form of that key. */
@@ -23,29 +25,29 @@ export interface KeyIndex {
   keysByFrequency: string[];
 }
 
-/** Proper nouns are excluded: frWac2Vec keeps "Paris" and "Renaud" as ordinary vocabulary entries, and they make poor hints. */
+/**
+ * A model entry a player could type as one guess. Proper nouns are welcome:
+ * "france" is as good a hint for "allemagne" as one common noun is for
+ * another, and a lowercased model like frWac2Vec can't tell them apart anyway.
+ */
 export function isReferenceCandidate(word: string): boolean {
-  return LETTERS_ONLY.test(word) && !STARTS_UPPERCASE.test(word);
+  return LETTERS_ONLY.test(word);
 }
 
 export function indexByKey(words: readonly string[]): KeyIndex {
   const rowsByKey = new Map<string, number[]>();
-  const listed = new Set<string>();
   const keysByFrequency: string[] = [];
 
   words.forEach((word, row) => {
-    if (!LETTERS_ONLY.test(word)) return;
+    if (!isReferenceCandidate(word)) return;
     const key = normalize(word);
     if (key.length === 0) return;
 
     const existing = rowsByKey.get(key);
-    if (existing) existing.push(row);
-    else rowsByKey.set(key, [row]);
-
-    // A key whose first form is capitalized ("Été" before "été") must still
-    // become a reference word once a lowercase form shows up further down.
-    if (isReferenceCandidate(word) && !listed.has(key)) {
-      listed.add(key);
+    if (existing) {
+      existing.push(row);
+    } else {
+      rowsByKey.set(key, [row]);
       keysByFrequency.push(key);
     }
   });
@@ -54,14 +56,19 @@ export function indexByKey(words: readonly string[]): KeyIndex {
 }
 
 export interface ReferenceOptions {
-  /** Reference word list (e.g. Lexique383, one word per line). Falls back to the model's own frequency order. */
+  /** Reference word list (e.g. Lexique383, one word per line), most frequent first. Falls back to the model's own frequency order. */
   words?: readonly string[];
   maxWords: number;
   /** Always included however rare — in practice the song's own words, so a target is never missing from its table. */
   required?: Iterable<string>;
 }
 
-/** The keys a table will cover: the model's vocabulary intersected with a common-word list, plus the song's own words. */
+/**
+ * The keys a table will cover, most frequent first: the model's vocabulary
+ * intersected with a common-word list, plus the song's own words. The order
+ * matters, since ranks are counted among the first of them (see
+ * RANK_VOCABULARY_SIZE in similarityTable.ts).
+ */
 export function selectReferenceKeys(index: KeyIndex, options: ReferenceOptions): string[] {
   const selected = new Set<string>();
 

@@ -44,3 +44,8 @@ export function isVictory(song: Song, foundKeys: ReadonlySet<string>): boolean {
 export function songWordKeys(song: Song): ReadonlySet<string> {
   return analyzeSong(song).wordKeys;
 }
+
+/** Every number in the song, each once (title + all lyric lines). */
+export function songNumberKeys(song: Song): readonly string[] {
+  return analyzeSong(song).numberKeys;
+}

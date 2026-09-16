@@ -121,33 +121,39 @@ Keep a `docs/LEARNINGS.md` file (create it if it doesn't exist) as a running log
 ## Domain-Specific Rules
 
 - **Anti-cheat is a hard requirement**, even in the MVP: the Worker is the only thing that knows the actual lyrics. It receives a guessed word and returns which positions match — it never returns, and the client never receives, the full text before the round is won. The one narrow exception is the `DEV_REVEAL_LYRICS` Worker flag (`worker/src/index.ts`): when set, `buildTitleView`/`buildSectionsView` (`src/game/mask.ts`) attach every still-hidden word's real text to the round view as `DisplayToken.devHint`, so the frontend (`WordToken.tsx`) can show it at low opacity for local debugging of the game and the close-word mechanic — a found word or a close guess still always takes priority over it. Wired into the `dev:worker` npm script exactly like `SIMILARITY_SAMPLE` (so `npm run dev:all` and `npm run test:e2e` both carry it), never present in `wrangler.toml` or a production secret, so a production response is unaffected.
-- **French text matching**: normalize both the guess and the stored lyrics before comparing (case-insensitive, accent-insensitive) and account for French elisions ("j'aime" vs "je aime", "qu'il", "l'amour") so a correct guess isn't missed due to punctuation attached to the word.
+- **French text matching**: normalize both the guess and the stored lyrics before comparing (case-insensitive, accent-insensitive, with the œ and æ ligatures spelled out) and account for French elisions ("j'aime" vs "je aime", "qu'il", "l'amour") so a correct guess isn't missed due to punctuation attached to the word. The tokenizer's letters (`LETTER_CLASS` in `src/game/tokenize.ts`) must cover every letter French lyrics use: it once stopped at Latin-1, and "cœur" could never be found. A run of digits is a word too, hidden and guessed like any other.
 - **LRCLIB data isn't guaranteed clean**: handle missing lyrics, instrumental sections, and inconsistent formatting gracefully rather than assuming every response is well-formed.
 
 ## Semantic Proximity Scoring
 
-Cemantix-style hinting: every guess that is *not* in the lyrics comes back with a 0-100 proximity score, so the player can tell "wrong, but you're circling it" from "wrong, and nowhere near". Pedantix-style on top of that: a guess that is close to hidden words is shown in their place in the lyrics (and the title), coloured by how close it is, until a closer guess — or the word itself — takes the slot back.
+Cemantix-style hinting: every guess that is *not* in the lyrics comes back with a 0-100 proximity score, so the player can tell "wrong, but you're circling it" from "wrong, and nowhere near". Pedantix-style on top of that: a guess that is close to hidden words is shown in their place in the lyrics (and the title), shaded by how close it is, until a closer guess — or the word itself — takes the slot back.
 
-**The scoring never happens at request time.** Embeddings are heavy and a Worker has milliseconds; instead, a table is precomputed offline per song and the Worker does one KV read plus a couple of property lookups per guess. Do not add runtime inference (including Workers AI) to the guess path.
+**A score is a rank, not a cosine.** For each hidden word, the 50,000 most frequent words are ranked by closeness, and a guess scores `100 − 20·log10(rank)` (`scoreFromRank` in `src/game/similarity.ts`): 80 as one of the hidden word's 10 nearest neighbours, 60 in its top 100, 40 in its top 1000. A guess's overall score is its best against any word of the song.
+
+**The scoring never happens at request time.** Embeddings are heavy and a Worker has milliseconds; instead, a table is precomputed offline per song and the Worker does one KV read plus a couple of property lookups per guess. Do not add runtime inference (including Workers AI) to the guess path. The one exception is numbers, which the model has no vector for: a guessed number is compared by value with the song's own numbers (`numberProximityScore`), plain arithmetic over a list worked out once per song.
 
 ### Pipeline
 
-1. **Model** — [frWac2Vec](https://fauconnier.github.io/#data) by Jean-Philippe Fauconnier, variant `frWac_no_postag_no_phrase_200_cut100` (200 dimensions, skip-gram, no POS tagging, frequency cutoff 100). No POS tagging means a word maps straight to a vector, with no tagging step before the lookup. It is **not** committed to this repo and not downloaded automatically — see "Model licensing" below.
-2. **Convert** — `npm run similarity:convert` rewrites the model into the compact `.vecbin` format (`scripts/lib/embeddings.ts`): L2-normalized rows, one indexable vocabulary block, `--max-words` to drop the rare tail. Scoring is then a plain dot product.
-3. **Build** — `npm run similarity:build` resolves a song's lyrics (LRCLIB, same path the Worker uses), tokenizes and normalizes them with `src/game/tokenize.ts` + `src/game/normalize.ts`, and scores every reference word by its **maximum** cosine similarity against any word of the song (`scores`). The same pass keeps, for each reference word, the song words it scores at least `NEAR_SCORE` against — closest first, at most `MAX_NEAR_TARGETS` (`scripts/lib/similarityTable.ts`) — as `near`. Output: one `data/similarity/<songId>.json` per song. The build log prints each table's size: the Worker parses a whole table on every guess, so watch it when tuning `MAX_NEAR_TARGETS`.
-4. **Upload** — `wrangler kv bulk put` into the `SIMILARITY` namespace, keyed by song id.
-5. **Serve** — `worker/src/similarity.ts` reads the table for the song in play and answers with the guess's score plus `near`: the positions of the still-hidden words it is close to, each with its own score. The frontend then shows every hidden word's closest guess so far in its place (`src/game/slots.ts`).
+1. **Model** — [frWac2Vec](https://fauconnier.github.io/#data) by Jean-Philippe Fauconnier, file `frWac_non_lem_no_postag_no_phrase_200_skip_cut100.bin` (120 MB: 200 dimensions, skip-gram, not lemmatized, no POS tagging, frequency cutoff 100). Not lemmatized matters: a lemmatized model has no "eaux" and no conjugated verbs, which lyrics are full of. The model is lowercased, keeps accents, spells "coeur", and has no digit tokens at all. It is **not** committed to this repo and not downloaded automatically — see "Model licensing" below.
+2. **Convert** — `npm run similarity:convert` rewrites the model into the compact `.vecbin` format (`scripts/lib/embeddings.ts`): L2-normalized rows, one indexable vocabulary block, `--max-words` to drop the rare tail. Scoring is then a plain dot product. Optional: the build reads the `.bin` directly too.
+3. **Build** — `npm run similarity:build` resolves a song's lyrics (LRCLIB, same path the Worker uses) and tokenizes and normalizes them with `src/game/tokenize.ts` + `src/game/normalize.ts`. For every song word worth pointing at — not a function word, not a number, known to the model — it ranks the `RANK_VOCABULARY_SIZE` (50,000) most frequent reference words by cosine, and scores every reference word against that song word from where it falls (`scripts/lib/similarityTable.ts`). A word's `scores` entry is its best score against any song word; `near` keeps the song words it scores at least `NEAR_SCORE` against, closest first, at most `MAX_NEAR_TARGETS` (16), as `[targetIndex, score, …]` pairs into `targets`. A pair under `MIN_NEAR_COSINE` (0.2) is never placed, whatever its rank. Output: one `data/similarity/<songId>.json` per song. The build log prints each table's size (about 1.3 MB for a song): the Worker parses a whole table once per isolate, so watch it when tuning `MAX_NEAR_TARGETS` or `NEAR_SCORE`.
+4. **Check** — `npm run similarity:inspect -- --song <id> <guess…>` prints what a built table answers for a few guesses: each one's score and the song words it would be shown on. It is how to judge a table, or a change to the scoring, against real data.
+5. **Upload** — `wrangler kv bulk put` into the `SIMILARITY` namespace, keyed by song id.
+6. **Serve** — `worker/src/similarity.ts` reads the table for the song in play and answers with the guess's score plus `near`: the positions of the still-hidden words it is close to, each with its own score. A guessed number is answered from the song's numbers instead. The frontend then shows every hidden word's closest guess so far in its place (`src/game/slots.ts`), shaded along a cold-to-hot colour ramp (`proximityHeat`).
 
 ### Commands
 
 ```bash
 # one-off: compact the downloaded model
-npm run similarity:convert -- --input data/models/frWac_no_postag_no_phrase_200_cut100.bin \
+npm run similarity:convert -- --input data/models/frWac_non_lem_no_postag_no_phrase_200_skip_cut100.bin \
                               --output data/models/frwac.vecbin --max-words 200000
 
 # whenever a song joins the catalog (or for the whole catalog)
 npm run similarity:build -- --model data/models/frwac.vecbin --song papaoutai
 npm run similarity:build -- --model data/models/frwac.vecbin --all --bulk
+
+# what a built table answers, hidden words included
+npm run similarity:inspect -- --song papaoutai amour papa
 
 # upload (after creating the namespace, see worker/wrangler.toml)
 npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote --config worker/wrangler.toml
@@ -158,6 +164,7 @@ npm run dev:similarity
 ```
 
 `npm run similarity:build -- --help` lists the rest (`--vocabulary` for a Lexique383-style common-word list, `--max-vocabulary`, `--lyrics` to build from a local file without calling LRCLIB), and `npm run dev:similarity -- --help` its own (`--model`, `--table` to play a table already built, `--reveal` to show the hidden words faintly).
+`npm run similarity:build -- --help` lists the rest (`--vocabulary` for a Lexique383-style common-word list, most frequent first, `--max-vocabulary`, `--lyrics` to build from a local file without calling LRCLIB).
 
 ### Rules
 
@@ -169,20 +176,29 @@ npm run dev:similarity
 - **Reference vocabulary**: the model's vocabulary intersected with a common-word list (default: the model's own frequency order, capped at 50 000), proper nouns excluded, plus the song's own words forced in however rare they are.
 - **Normalization must stay in step.** Table keys go through the same `normalize()` as a player's guess (lowercase, accents stripped), so one key can cover several model forms — the best-scoring one wins. Changing `normalize.ts` invalidates every stored table; rebuild them.
 - **Local development uses placeholder scores, and one command swaps them for real ones.** `npm run dev:worker` passes `--var SIMILARITY_SAMPLE:1`, which serves the hand-written table in `worker/src/sampleSimilarity.ts` so the UI and the e2e suite work without the model or a KV namespace. That flag is never set in production, and a real KV table always wins over it. The table only covers a few dozen words, so the Worker prints the whole list to its log the first time it serves one — keep it that way, or the only way to test the feature is to read the source. Its placements are arbitrary but stable: each sample word scoring `NEAR_SCORE` or more lands on one or two words of the day's song, picked by hashing it — so e2e tests assert on *how* a close word shows up, never on *where*. `npm run dev:similarity` (`scripts/dev-similarity.ts`) is the other half: it builds the day's table, loads it with `wrangler kv bulk put --local` into the namespace bound by `worker/wrangler.similarity.toml`, and plays against it — deliberately *without* `SIMILARITY_SAMPLE`, so a table that failed to load reads as no scores rather than as placeholder ones. Whatever the loader and the Worker have to agree on (configuration, binding, state directory) lives in `scripts/lib/localSimilarity.ts`: they are two separate wrangler runs, and a table written where the Worker doesn't look is silent.
-
 - **A bound namespace with nothing usable in it says so.** Every guess coming back unscored looks exactly like a Worker with the feature switched off, so `worker/src/similarity.ts` logs which it is — once per song per isolate — when the namespace holds no table for the song in play, or one from an older format. A stale table is never quietly replaced by the placeholder: a wrong score is worse than none.
-
 - **The deployed Worker never gains a local-only binding.** The deploy job passes `worker/wrangler.toml`, which binds no namespace at all; the local binding lives in `worker/wrangler.similarity.toml`, which nothing deploys — so a made-up namespace id can't fail a deploy, and an `[env.…]` section can't have wrangler warn on every one. The two files are otherwise identical, and `tests/unit/ci/localSimilarity.test.ts` fails on any other difference: a Worker played locally under a different compatibility date is not the Worker being shipped. `npm run deploy:check` builds the deployed configuration on every CI run, so a broken one is caught before a merge rather than after.
+- **Ranks, not cosines.** A fixed cosine cut-off means something different for every hidden word (a word's 1000th neighbour sits anywhere between 0.29 and 0.46 in frWac2Vec), so it is always too loose for some and too strict for others. Scores come from ranks, counted among a fixed number of the most frequent words (`RANK_VOCABULARY_SIZE`), so `--max-vocabulary` changes which guesses get a score, never what a score means. Don't bring back a cosine threshold beyond the `MIN_NEAR_COSINE` safety floor.
+- **`NEAR_SCORE` is pegged to the warm tier** (40: a hidden word's 1000 nearest neighbours), so a guess whose chip is warm or hot always lands somewhere, unless everything it is close to is already revealed. The build drops pairs below it, so lowering it means rebuilding the tables; the Worker checks it again on every read, so raising it doesn't. Any change to the table's shape, or to what its scores mean, bumps `SIMILARITY_TABLE_VERSION` (currently 3): older tables are then ignored rather than half-read, and have to be rebuilt.
+- **Function words never count.** Articles, pronouns, prepositions, conjunctions, être and avoir, and interjections (`src/game/functionWords.ts`) sit close to nearly every word in an embedding model; left in, they took the placements of most guesses. The build never points at them and gives them no score; guessing one still reveals it. Keep the list short of adverbs that mean something in a song ("toujours", "jamais", "rien") and of homographs whose other reading is a real word ("ete", summer).
+- **Numbers are compared by value.** `tokenize()` makes a word of a run of digits, so numbers are hidden like any word, but the model has no vector for one: `numberHint` (`worker/src/similarity.ts`) scores a guessed number against the song's numbers with `numberProximityScore`, where a 10% gap sits right on `NEAR_SCORE`, and only when a table, real or sample, is available.
+- **The feature is optional at runtime.** With no `SIMILARITY` namespace bound, every score is `null` (numbers included), nothing is placed, and the game behaves exactly as it did before scoring existed. Keep it that way: a missing table is never an error.
+- **Reference vocabulary**: the model's vocabulary intersected with a common-word list (default: the model's own frequency order, capped at 50 000), proper nouns included ("france" is a fine hint for "allemagne"), function words and digits left out, plus the song's own words forced in however rare they are.
+- **Normalization must stay in step.** Table keys go through the same `normalize()` as a player's guess (lowercase, accents stripped, œ and æ spelled out), so one key can cover several model forms — the best-scoring one wins. Changing `normalize.ts`, or the letters `tokenize.ts` accepts, invalidates every stored table; rebuild them.
+- **Calibrate against the real model, never against the placeholder.** Everything seen in dev comes from the sample table below, and it once hid that no real table had ever been built (see `docs/LEARNINGS.md`, 2026-09-15). Before tuning a threshold, build a table with the model and read it with `similarity:inspect`.
+- **Local development uses placeholder scores.** `npm run dev:worker` passes `--var SIMILARITY_SAMPLE:1`, which serves the hand-written table in `worker/src/sampleSimilarity.ts` so the UI and the e2e suite work without the model or a KV namespace. That flag is never set in production, and a real KV table always wins over it. The table only covers a few dozen words, so the Worker prints the whole list to its log the first time it serves one — keep it that way, or the only way to test the feature is to read the source. Its placements are arbitrary but stable: each sample word scoring `NEAR_SCORE` or more lands on up to four words of the day's song that aren't function words, picked by hashing it, eight points lower each time — so e2e tests assert on *how* a close word shows up, never on *where*.
 
-### Model licensing — unresolved, read before shipping
+### Model licensing
 
-frWac2Vec's reuse terms were never checked, and nothing in this repository resolves them. What the code does today:
+frWac2Vec is published by its author under **CC BY 3.0** ([fauconnier.github.io](https://fauconnier.github.io/#data)): free to copy, redistribute and adapt for any purpose, with attribution. Deriving tables from it and uploading them to KV is therefore allowed, on the one condition the code already meets: the game credits the model (name, author, licence, link) under the tried-word list whenever a score is shown (`TriedWords.tsx`, checked by the e2e suite). Keep that credit if the display changes, and change it if the model is swapped.
+
+Still true either way:
 
 - the model is **not** committed, **not** vendored, and **never** downloaded automatically — someone has to fetch it by hand;
 - `data/models/` and `data/similarity/` are gitignored, so neither the model nor tables derived from it enter git;
-- only derived numbers (word → score) would ever reach Cloudflare KV, never the vectors themselves.
+- only derived numbers (word → score) ever reach Cloudflare KV, never the vectors themselves.
 
-That keeps the repository clean either way, but **uploading a derived table to production is still a redistribution question**. Check frWac2Vec's licence (and that of any word list used with `--vocabulary`, e.g. Lexique383) before enabling the KV namespace. If the terms don't allow it, the pipeline takes any word2vec-format model — swap in a permissively licensed one and rebuild; nothing outside `--model` changes.
+A word list passed with `--vocabulary` (e.g. Lexique383) comes with its own licence, which nobody has checked: check it before building production tables with one.
 
 ## Out of Scope (do not implement without an explicit request)
 
@@ -208,10 +224,12 @@ That keeps the repository clean either way, but **uploading a derived table to p
                     # hidden word's closest guess onto the round (slots.ts) before rendering it
     TitleGuess.tsx  # masked title, victory banner ("come back tomorrow" note once solved)
     LyricsBody.tsx  # masked lyrics, grouped by section
-    WordToken.tsx   # one title/lyrics token: punctuation, found word, blank, blank holding a close guess,
-                    # or (dev-only) blank showing its real text at low opacity
+    WordToken.tsx   # one title/lyrics token: punctuation, found word, blank, blank holding a close guess
+                    # (shaded by its score), or (dev-only) blank showing its real text at low opacity
+    heatStyle.ts    # the inline --heat a scored word is shaded with, along game.css's cold-to-hot ramp
     GuessForm.tsx   # word-guess input
-    TriedWords.tsx  # past guesses: found vs. missed, proximity colour + score, sorted by score
+    TriedWords.tsx  # past guesses: found vs. missed, proximity shade + score, sorted by score; credits
+                    # the embedding model (CC BY 3.0) whenever anything is scored
     SideCard.tsx    # collapsible card shell, used for both side panels
     HowToPlay.tsx   # static rules text
   /hooks
@@ -223,15 +241,19 @@ That keeps the repository clean either way, but **uploading a derived table to p
   /game             # masking, matching, normalization — framework-agnostic, unit-tested,
                     # imported by BOTH the frontend (src) and the Worker (worker/src)
     types.ts        # Song (server-only) + the RoundView/GuessResult wire contract, NearSlot included
-    tokenize.ts     # splits text into word/non-word runs (keeps elisions like "l'amour" guessable)
-    normalize.ts    # case/accent-insensitive key used for matching
+    tokenize.ts     # splits text into word/non-word runs (keeps elisions like "l'amour" guessable; a run
+                    # of digits is a word too). LETTER_CLASS is shared with the offline vocabulary
+    normalize.ts    # case/accent-insensitive key used for matching, œ and æ spelled out
     analyze.ts      # one tokenize+normalize pass per song (tokens, their keys, their blanks, word keys,
-                    # word positions), memoized against the Song object. mask.ts and slots.ts read it
-                    # instead of walking the song themselves - see "Performance" below
+                    # word positions, number keys), memoized against the Song object. mask.ts and slots.ts
+                    # read it instead of walking the song themselves - see "Performance" below
     mask.ts         # builds masked DisplayToken views from a Song + found keys, checks victory; optionally
                     # attaches each hidden word's real text as devHint (DEV_REVEAL_LYRICS, dev-only)
-    similarity.ts   # the 0-100 proximity scale: cosine -> score, score -> colour tier, tried-word
-                    # sorting, NEAR_SCORE. No embedding maths — that only ever runs offline, in /scripts
+    similarity.ts   # the 0-100 proximity scale: rank -> score, number closeness, score -> colour tier and
+                    # shade, tried-word sorting, NEAR_SCORE. No embedding maths — that only ever runs
+                    # offline, in /scripts
+    functionWords.ts # French function words, never pointed at nor scored by the similarity tables (read by
+                    # the offline build and the sample table, never by the frontend)
     slots.ts        # addressing hidden words by position: wordPositions (Worker side), the closest
                     # guess per hidden word, and placeNearGuesses (frontend side)
   /styles           # tokens.css (design tokens), global.css (reset/fonts), game.css
@@ -253,12 +275,13 @@ That keeps the repository clean either way, but **uploading a derived table to p
                   # a fallback chain across the catalog, and a hardcoded emergency song for a
                   # total LRCLIB outage
     similarity.ts # reads the precomputed table for a song from Workers KV and answers each guess
-                  # with its score plus the positions of the hidden words it is close to; degrades
-                  # to "no score, no placement" when unbound or broken. The parsed table is memoized
-                  # per isolate (resetSimilarityMemo for tests) - parsing it per guess was the most
-                  # expensive thing in the request path
-    sampleSimilarity.ts # hand-written placeholder scores (and hash-picked placements) for dev/e2e,
-                  # gated on SIMILARITY_SAMPLE
+                  # with its score plus the positions of the hidden words it is close to (a guessed
+                  # number is compared with the song's numbers instead); degrades to "no score, no
+                  # placement" when unbound or broken. The parsed table is memoized per isolate
+                  # (resetSimilarityMemo for tests) - parsing it per guess was the most expensive
+                  # thing in the request path
+    sampleSimilarity.ts # hand-written placeholder scores (and hash-picked placements, a few per word)
+                  # for dev/e2e, gated on SIMILARITY_SAMPLE
     state.ts      # HMAC-signed round state (songId + foundKeys) via Web Crypto, so the
                   # stateless Worker can't be tricked into trusting client-forged progress
   wrangler.toml   # Worker config; STATE_SECRET dev default lives here, prod uses `wrangler secret put`;
@@ -273,20 +296,21 @@ That keeps the repository clean either way, but **uploading a derived table to p
   build-similarity-table.ts  # song(s) + model -> data/similarity/<songId>.json, ready for KV
   dev-similarity.ts          # one command to play today's song on a real table: build it, load it
                              # into the local-only KV namespace, start Vite and the Worker on it
+  inspect-similarity-table.ts # what a built table answers for a few guesses: scores and song words
   /lib
     devVars.ts         # copy-if-absent helper behind ensure-dev-vars.ts
     localSimilarity.ts # what the loader and the Worker must agree on (configuration, binding,
                        # state directory), plus model discovery and table validation
     embeddings.ts      # word2vec/compact readers + writers, L2 normalization, dot product
-    vocabulary.ts      # normalized key index, proper-noun filtering, reference-word selection
-    similarityTable.ts # pure scoring: reference word -> max cosine against the song's words, plus
-                       # the song words it is close to
+    vocabulary.ts      # normalized key index and reference-word selection
+    similarityTable.ts # pure scoring: each song word's neighbours ranked, every reference word scored
+                       # from its rank, plus the song words it is close to
 /tests
-  /unit/game    # Vitest: tokenize/normalize/mask/similarity/slots
+  /unit/game    # Vitest: tokenize/normalize/mask/similarity/slots/function words
   /unit/worker  # Vitest: catalog rotation, LRCLIB parsing, lyrics parsing, Hono routes
                 # (exercised via app.request() against a mocked fetch), state signing,
                 # similarity-table lookup against a fake KV namespace
-  /unit/scripts # Vitest: the offline pipeline, against a 3-dimension fixture model (no real model in CI)
+  /unit/scripts # Vitest: the offline pipeline, against hand-written fixture models (no real model in CI)
   /unit/storage # Vitest: roundStorage save/load against a fake Storage, deferred writes under fake timers
   /unit/components # Vitest + jsdom + @testing-library/react: what the player feels between keystrokes —
                 # counts how many lyrics tokens React re-renders, and the round's storage round trip
