@@ -8,6 +8,7 @@
     "predev:worker": "tsx scripts/ensure-dev-vars.ts",
     "dev:worker": "wrangler dev --config worker/wrangler.toml --var SIMILARITY_SAMPLE:1 --var DEV_REVEAL_LYRICS:1",
     "dev:all": "concurrently -k -s first -n web,api \"npm:dev\" \"npm:dev:worker\"",
+    "dev:similarity": "tsx scripts/dev-similarity.ts",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json --noEmit",
     "lint": "eslint .",
@@ -15,6 +16,7 @@
     "test:e2e": "playwright test",
     "deploy": "vite build && wrangler pages deploy dist",
     "deploy:worker": "wrangler deploy --config worker/wrangler.toml",
+    "deploy:check": "wrangler deploy --dry-run --config worker/wrangler.toml",
     "similarity:convert": "tsx scripts/convert-embeddings.ts",
     "similarity:build": "tsx scripts/build-similarity-table.ts"
   },

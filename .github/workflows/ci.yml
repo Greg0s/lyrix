@@ -16,6 +16,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # The deploy job below only runs once a change is on main, so a
+      # wrangler.toml it can no longer deploy would be found after the merge
+      # rather than before it. This builds the very same configuration.
+      - run: npm run deploy:check
       # worker/.dev.vars is created by the predev:worker hook that runs when
       # Playwright starts the Worker, the same path a contributor goes through.
       - run: npx playwright install --with-deps chromium

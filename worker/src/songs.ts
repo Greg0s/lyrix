@@ -1,5 +1,5 @@
 import type { Song } from "../../src/game/types";
-import { catalog, catalogRotation } from "./catalog";
+import { catalog, catalogRotation, FALLBACK_SONG_ID } from "./catalog";
 import { getCachedSong, putCachedSong } from "./cache";
 import { resolveFromLrclib } from "./resolveSong";
 
@@ -14,7 +14,7 @@ const MAX_FALLBACK_ATTEMPTS = 5;
 // directly in getSongById so a round already in progress on this song can
 // still have its guesses verified.
 const EMERGENCY_FALLBACK_SONG: Song = {
-  id: "le-refuge-de-novembre",
+  id: FALLBACK_SONG_ID,
   title: "Le refuge de novembre",
   artist: "Anaïs Verger",
   sections: [

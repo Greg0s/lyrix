@@ -39,9 +39,11 @@ function fakeKv(entries: Record<string, string>): SimilarityKv {
 // Sample mode announces its vocabulary on stdout; silence it here so the
 // suite's output stays readable.
 let logged: ReturnType<typeof vi.spyOn>;
+let warned: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   logged = vi.spyOn(console, "log").mockImplementation(() => {});
+  warned = vi.spyOn(console, "warn").mockImplementation(() => {});
   // Each test starts from a cold isolate: a parsed table is memoized for the
   // isolate's lifetime (see loadSimilarityTable), so a test counting KV reads
   // would otherwise be answered from the previous test's table.
@@ -50,6 +52,7 @@ beforeEach(() => {
 
 afterEach(() => {
   logged.mockRestore();
+  warned.mockRestore();
 });
 
 describe("parseSimilarityTable", () => {
@@ -376,5 +379,52 @@ describe("the dev placeholder table", () => {
     await fresh.loadSimilarityTable({}, song);
 
     expect(logged).not.toHaveBeenCalled();
+  });
+});
+
+// A namespace bound with nothing usable in it for the song in play answers
+// every guess without a score - which is exactly what an unbound namespace
+// does, and what a Worker with the feature switched off does. Nothing on the
+// page can tell them apart, so the Worker says which it is.
+describe("a table that isn't there", () => {
+  it("names the song it has none for, and how to load one", async () => {
+    expect(await loadSimilarityTable({ SIMILARITY: fakeKv({}) }, song)).toBeNull();
+
+    const message = String(warned.mock.calls[0][0]);
+    expect(message).toContain(song.id);
+    expect(message).toContain("npm run dev:similarity");
+  });
+
+  it("says a stale table is being ignored, rather than half-reading it", async () => {
+    const stale = JSON.stringify({ version: SIMILARITY_TABLE_VERSION - 1, songId: song.id, scores: { orage: 42 }, near: {} });
+    const env: SimilarityEnv = { SIMILARITY: fakeKv({ [song.id]: stale }), SIMILARITY_SAMPLE: "1" };
+
+    // Not even the placeholder stands in for it: a wrong score is worse than
+    // no score, and the player would have no way of knowing which they got.
+    expect(await loadSimilarityTable(env, song)).toBeNull();
+    expect(String(warned.mock.calls[0][0])).toContain(`version ${SIMILARITY_TABLE_VERSION}`);
+  });
+
+  it("says it once, not once per guess", async () => {
+    vi.useFakeTimers();
+    try {
+      const env: SimilarityEnv = { SIMILARITY: fakeKv({}) };
+      await loadSimilarityTable(env, song);
+      // Past the point where the miss stops being remembered, so the namespace
+      // is read again - the guess after that must not complain a second time.
+      vi.advanceTimersByTime(10 * 60 * 1000);
+      await loadSimilarityTable(env, song);
+
+      expect(warned).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stays quiet when there is no namespace to complain about", async () => {
+    await loadSimilarityTable({ SIMILARITY_SAMPLE: "1" }, song);
+    await loadSimilarityTable({}, song);
+
+    expect(warned).not.toHaveBeenCalled();
   });
 });

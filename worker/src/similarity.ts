@@ -88,6 +88,24 @@ function announceSampleMode(): void {
 }
 
 /**
+ * A bound namespace with nothing usable in it for the song in play is the one
+ * failure this feature cannot show: every guess simply comes back unscored,
+ * exactly as if scoring were switched off. So it says so itself, once per song
+ * per isolate, rather than leaving it to be guessed from silence.
+ */
+const announcedTables = new Set<string>();
+
+function announceTableProblem(songId: string, problem: string): void {
+  if (announcedTables.has(songId)) return;
+  announcedTables.add(songId);
+  console.warn(
+    `similarity: ${problem} Guesses for it come back without a score. ` +
+      "Locally, npm run dev:similarity builds today's table and loads it; " +
+      "for production, npm run similarity:build then wrangler kv bulk put --remote (see CLAUDE.md)."
+  );
+}
+
+/**
  * How long KV may answer a read from the colo's cache instead of going to a
  * central store. Tables are rebuilt only when a song joins the catalog, so an
  * hour costs nothing and spares a cold isolate the slow path.
@@ -128,9 +146,10 @@ interface MemoizedTable {
 // on to tables nobody is going to ask for again.
 let memoized: MemoizedTable | null = null;
 
-/** Drops the isolate's parsed table. For tests; production relies on the TTLs above. */
+/** Drops the isolate's parsed table, and what it has already said about it. For tests; production relies on the TTLs above. */
 export function resetSimilarityMemo(): void {
   memoized = null;
+  announcedTables.clear();
 }
 
 function memoizedFor(env: SimilarityEnv, song: Song, now: number): MemoizedTable | null {
@@ -149,12 +168,23 @@ async function readTable(env: SimilarityEnv, song: Song): Promise<SimilarityTabl
     } catch {
       return null;
     }
-    if (raw !== null) {
+    if (raw === null) {
+      announceTableProblem(song.id, `the SIMILARITY namespace holds no table for "${song.id}".`);
+    } else {
+      let stored: SimilarityTable | null;
       try {
-        return parseSimilarityTable(JSON.parse(raw) as unknown);
+        stored = parseSimilarityTable(JSON.parse(raw) as unknown);
       } catch {
-        return null;
+        stored = null;
       }
+      if (stored) return stored;
+      // A table that can't be read is not a reason to serve the placeholder in
+      // its place: a wrong score is worse than none, and the log says which.
+      announceTableProblem(
+        song.id,
+        `the table stored for "${song.id}" isn't a readable version ${SIMILARITY_TABLE_VERSION} table, so it is ignored.`
+      );
+      return null;
     }
   }
 
