@@ -74,6 +74,18 @@ npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote
 
 Without that namespace the game runs exactly as before, with no scores and no close words in the lyrics. Local development doesn't need any of it: `npm run dev:worker` serves hand-written placeholder scores so the coloured chips, and the close words shown in the lyrics, are visible right away. Only a few dozen words carry one — the API log lists them all on the first guess (any other word scores nothing, and a word that is in the lyrics is revealed instead of scored). Where a placeholder word lands in the lyrics is arbitrary: real neighbours only come from the embedding model, and `npm run similarity:inspect` is how to see them.
 
+### Playing today's song with real scores
+
+The placeholder is enough to see the interface, and no use at all for judging whether the hints feel right — that takes the real thing. With a model on disk (step 1 above), one command builds the day's table, loads it into a KV namespace that exists only on this machine, and starts the game against it:
+
+```bash
+npm run dev:similarity
+```
+
+It stands in for `npm run dev:all` for that session: same address, same API, real scores and real close words. The table is rebuilt on each start (a few seconds), so a change to the scoring shows up on the next run, and it is kept in `worker/.wrangler/similarity-state` — delete that directory to forget every table loaded there. `npm run dev:similarity -- --help` lists the options: `--model` to name a model, `--table` to play one you already built, `--reveal` to show the hidden words faintly the way `npm run dev:all` does.
+
+Without a model it says so, names where it looked, and stops; `npm run dev:all` still plays the same game on placeholder scores. Nothing about this mode can reach production: the binding lives in `worker/wrangler.similarity.toml`, a configuration `wrangler deploy` never reads (CI dry-runs the one it does read, on every pull request). `npm run dev:all` and the test suites are untouched, and go on serving the placeholder.
+
 > **Licence.** [frWac2Vec](https://fauconnier.github.io/#data), by Jean-Philippe Fauconnier, is published under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/): it can be reused, and tables derived from it uploaded, with attribution — the game credits it under the tried-word list whenever a score is shown. It is still never committed or downloaded automatically (`data/` is gitignored). Any word2vec-format model works — see the "Semantic Proximity Scoring" section of [CLAUDE.md](CLAUDE.md).
 
 ## Project Structure

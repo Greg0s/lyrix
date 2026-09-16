@@ -85,7 +85,7 @@ Never test manually when it can be scripted instead — this applies to the deve
   React change does to the player's experience — above all how much of the page a keystroke re-renders.
   Assert on counted work (renders, reads, writes), never on timings, which would be flaky.
 - **End-to-end tests**: Playwright, for the actual player flow (load game, type a guess, see it revealed, win the round). Assert against the DOM/game state, not visual/pixel output.
-- **E2E runs against its own servers**: `npm run test:e2e` starts a fresh Vite dev server on port 15173 and Worker on 18787 (inspector 19229) — Vite's `/api` proxy follows it there through `API_PROXY_TARGET` — and never reuses a server that is already running, so it always tests this checkout's code while `npm run dev:all` (5173/8787) stays up here or in any other clone or worktree. Keep it that way: Playwright's readiness check only proves that *something* answers on a port, not which checkout started it. If a run stops with "… is already used", stop whatever holds the port instead of turning `reuseExistingServer` back on. Guarded by `tests/unit/ci/e2e-servers.test.ts`.
+- **E2E runs against its own servers**: `npm run test:e2e` starts a fresh Vite dev server on port 15173 and Worker on 18787 (inspector 19229) — Vite's `/api` proxy follows it there through `API_PROXY_TARGET` — plus a second Worker on 18788 (inspector 19230) serving a fixture table out of a local KV namespace, started by the very command a developer plays with (`npm run dev:similarity`). Each Worker gets its own `--persist-to` state directory, so a table loaded for local play can never turn up under the suite's placeholder assertions. It never reuses a server that is already running, so it always tests this checkout's code while `npm run dev:all` (5173/8787) stays up here or in any other clone or worktree. Keep it that way: Playwright's readiness check only proves that *something* answers on a port, not which checkout started it. If a run stops with "… is already used", stop whatever holds the port instead of turning `reuseExistingServer` back on. Guarded by `tests/unit/ci/e2e-servers.test.ts`.
 - **Before marking a task done**: run the relevant test script(s) yourself (`npm test`, `npm run test:e2e`) and report the result. If verifying the task requires a check that isn't yet scripted, write that script first, then run it — don't verify by hand and move on.
 - **Every bug fix** must add a regression test that would have caught it, in the same commit as the fix.
 - **CI**: GitHub Actions runs the full test suite on every push/PR, before deployment.
@@ -157,8 +157,13 @@ npm run similarity:inspect -- --song papaoutai amour papa
 
 # upload (after creating the namespace, see worker/wrangler.toml)
 npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote --config worker/wrangler.toml
+
+# play today's song against a real table, here: builds it, loads it into a KV
+# namespace that exists only on this machine, starts Vite and the Worker on it
+npm run dev:similarity
 ```
 
+`npm run similarity:build -- --help` lists the rest (`--vocabulary` for a Lexique383-style common-word list, `--max-vocabulary`, `--lyrics` to build from a local file without calling LRCLIB), and `npm run dev:similarity -- --help` its own (`--model`, `--table` to play a table already built, `--reveal` to show the hidden words faintly).
 `npm run similarity:build -- --help` lists the rest (`--vocabulary` for a Lexique383-style common-word list, most frequent first, `--max-vocabulary`, `--lyrics` to build from a local file without calling LRCLIB).
 
 ### Rules
@@ -166,6 +171,13 @@ npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote
 - **Only numbers cross the wire.** A missed guess gets its own score, plus the positions of the hidden words it is close to with a score each — never the text of the word at a position, a vector, a rank, or any slice of the table beyond the typed word's own entry. A guess that *is* in the lyrics scores 100 without a lookup and is placed nowhere, which leaks nothing the existing `found` flag didn't already.
 - **Hidden words are addressed by position, never by an id.** `src/game/slots.ts` counts every word of the round, the title's first, then the lyrics' in reading order. `wordPositions` (Worker side) and `placeNearGuesses` (frontend side) must keep counting the same way, and a unit test runs them against each other. Don't stamp an id on every masked token instead: it would tell the player which blanks hide the same word before they have come close to any of them.
 - **Placement is display, not progress.** Which guess sits on which hidden word is derived on the client from the tried-word list — the closest guess wins, a tie keeps the earlier one, a revealed word always shows itself — and saved with that list by `roundStorage.ts`. It never enters the signed round state: a forged placement only fools the player who forged it.
+- **`NEAR_SCORE` is pegged to the warm tier**, so a guess whose chip is warm or hot always lands somewhere, unless everything it is close to is already revealed. The build drops pairs below it, so lowering it means rebuilding the tables; the Worker checks it again on every read, so raising it doesn't. Any change to the table's shape bumps `SIMILARITY_TABLE_VERSION` (currently 2): older tables are then ignored rather than half-read, and have to be rebuilt.
+- **The feature is optional at runtime.** With no `SIMILARITY` namespace bound, every score is `null`, nothing is placed, and the game behaves exactly as it did before scoring existed. Keep it that way: a missing table is never an error.
+- **Reference vocabulary**: the model's vocabulary intersected with a common-word list (default: the model's own frequency order, capped at 50 000), proper nouns excluded, plus the song's own words forced in however rare they are.
+- **Normalization must stay in step.** Table keys go through the same `normalize()` as a player's guess (lowercase, accents stripped), so one key can cover several model forms — the best-scoring one wins. Changing `normalize.ts` invalidates every stored table; rebuild them.
+- **Local development uses placeholder scores, and one command swaps them for real ones.** `npm run dev:worker` passes `--var SIMILARITY_SAMPLE:1`, which serves the hand-written table in `worker/src/sampleSimilarity.ts` so the UI and the e2e suite work without the model or a KV namespace. That flag is never set in production, and a real KV table always wins over it. The table only covers a few dozen words, so the Worker prints the whole list to its log the first time it serves one — keep it that way, or the only way to test the feature is to read the source. Its placements are arbitrary but stable: each sample word scoring `NEAR_SCORE` or more lands on one or two words of the day's song, picked by hashing it — so e2e tests assert on *how* a close word shows up, never on *where*. `npm run dev:similarity` (`scripts/dev-similarity.ts`) is the other half: it builds the day's table, loads it with `wrangler kv bulk put --local` into the namespace bound by `worker/wrangler.similarity.toml`, and plays against it — deliberately *without* `SIMILARITY_SAMPLE`, so a table that failed to load reads as no scores rather than as placeholder ones. Whatever the loader and the Worker have to agree on (configuration, binding, state directory) lives in `scripts/lib/localSimilarity.ts`: they are two separate wrangler runs, and a table written where the Worker doesn't look is silent.
+- **A bound namespace with nothing usable in it says so.** Every guess coming back unscored looks exactly like a Worker with the feature switched off, so `worker/src/similarity.ts` logs which it is — once per song per isolate — when the namespace holds no table for the song in play, or one from an older format. A stale table is never quietly replaced by the placeholder: a wrong score is worse than none.
+- **The deployed Worker never gains a local-only binding.** The deploy job passes `worker/wrangler.toml`, which binds no namespace at all; the local binding lives in `worker/wrangler.similarity.toml`, which nothing deploys — so a made-up namespace id can't fail a deploy, and an `[env.…]` section can't have wrangler warn on every one. The two files are otherwise identical, and `tests/unit/ci/localSimilarity.test.ts` fails on any other difference: a Worker played locally under a different compatibility date is not the Worker being shipped. `npm run deploy:check` builds the deployed configuration on every CI run, so a broken one is caught before a merge rather than after.
 - **Ranks, not cosines.** A fixed cosine cut-off means something different for every hidden word (a word's 1000th neighbour sits anywhere between 0.29 and 0.46 in frWac2Vec), so it is always too loose for some and too strict for others. Scores come from ranks, counted among a fixed number of the most frequent words (`RANK_VOCABULARY_SIZE`), so `--max-vocabulary` changes which guesses get a score, never what a score means. Don't bring back a cosine threshold beyond the `MIN_NEAR_COSINE` safety floor.
 - **`NEAR_SCORE` is pegged to the warm tier** (40: a hidden word's 1000 nearest neighbours), so a guess whose chip is warm or hot always lands somewhere, unless everything it is close to is already revealed. The build drops pairs below it, so lowering it means rebuilding the tables; the Worker checks it again on every read, so raising it doesn't. Any change to the table's shape, or to what its scores mean, bumps `SIMILARITY_TABLE_VERSION` (currently 3): older tables are then ignored rather than half-read, and have to be rebuilt.
 - **Function words never count.** Articles, pronouns, prepositions, conjunctions, être and avoir, and interjections (`src/game/functionWords.ts`) sit close to nearly every word in an embedding model; left in, they took the placements of most guesses. The build never points at them and gives them no score; guessing one still reveals it. Keep the list short of adverbs that mean something in a song ("toujours", "jamais", "rien") and of homographs whose other reading is a real word ("ete", summer).
@@ -274,14 +286,21 @@ A word list passed with `--vocabulary` (e.g. Lexique383) comes with its own lice
                   # stateless Worker can't be tricked into trusting client-forged progress
   wrangler.toml   # Worker config; STATE_SECRET dev default lives here, prod uses `wrangler secret put`;
                   # also holds the commented-out SIMILARITY KV binding and how to enable it
+  wrangler.similarity.toml # the same Worker plus a SIMILARITY namespace that exists only on this
+                  # machine, for `npm run dev:similarity`. `wrangler deploy` never reads it, and a
+                  # unit test fails on any difference from wrangler.toml other than that binding
   tsconfig.json   # Worker's own compiler options (Workers lib/types), separate from the root tsconfig
 /scripts          # Node tooling run through tsx — never bundled into the Worker
   ensure-dev-vars.ts         # creates worker/.dev.vars from its example; npm's predev:worker hook
   convert-embeddings.ts      # word2vec (text or binary) -> the compact .vecbin format
   build-similarity-table.ts  # song(s) + model -> data/similarity/<songId>.json, ready for KV
+  dev-similarity.ts          # one command to play today's song on a real table: build it, load it
+                             # into the local-only KV namespace, start Vite and the Worker on it
   inspect-similarity-table.ts # what a built table answers for a few guesses: scores and song words
   /lib
     devVars.ts         # copy-if-absent helper behind ensure-dev-vars.ts
+    localSimilarity.ts # what the loader and the Worker must agree on (configuration, binding,
+                       # state directory), plus model discovery and table validation
     embeddings.ts      # word2vec/compact readers + writers, L2 normalization, dot product
     vocabulary.ts      # normalized key index and reference-word selection
     similarityTable.ts # pure scoring: each song word's neighbours ranked, every reference word scored
@@ -295,9 +314,12 @@ A word list passed with `--vocabulary` (e.g. Lexique383) comes with its own lice
   /unit/storage # Vitest: roundStorage save/load against a fake Storage, deferred writes under fake timers
   /unit/components # Vitest + jsdom + @testing-library/react: what the player feels between keystrokes —
                 # counts how many lyrics tokens React re-renders, and the round's storage round trip
-  /unit/ci      # Vitest: tooling config — deploy-job env, e2e server ports/reuse/proxy wiring,
+  /unit/ci      # Vitest: tooling config — deploy-job env and dry run, e2e server ports/reuse/proxy
+                # and state-directory wiring, the two wrangler configurations against each other,
                 # how the web fonts are loaded
-  /e2e          # Playwright: real player flow through the browser, including a real LRCLIB call
+  /e2e          # Playwright: real player flow through the browser, including a real LRCLIB call.
+                # fixtures/similarity-table.json stands in for a built table, since no CI machine
+                # has the model: localSimilarity.spec.ts plays a Worker against it
 /docs
   LEARNINGS.md
 .github/workflows/ci.yml  # lint + typecheck + unit + e2e on push/PR; deploys on merge to main
@@ -317,6 +339,8 @@ Two standing rules, both learned the hard way — a missing `worker/.dev.vars` h
 
 - **A gitignored config file is never a manual setup step.** Script its creation and hang the script off the command that needs it (`predev:worker` runs `scripts/ensure-dev-vars.ts`). A step documented in the README is a step someone will skip, and CI — which only ever sees what is committed — skips it every time.
 - **Missing configuration must name itself.** Anything read from `env` gets checked where it is read, with an error that says which variable is missing and how to set it in both dev and production. Never let it surface as a failure from whatever library happens to touch it three frames later.
+
+The local KV binding follows both rules: `worker/wrangler.similarity.toml` is committed rather than left to a `wrangler kv namespace create` someone has to remember, `npm run dev:similarity` creates `worker/.dev.vars` itself (it starts wrangler without going through the `predev:worker` hook), and it stops with the directories it searched named when there is no embedding model to build today's table from.
 
 ## Deployment
 
