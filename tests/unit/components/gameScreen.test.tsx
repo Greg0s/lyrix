@@ -144,6 +144,61 @@ describe("a round in progress", () => {
   });
 });
 
+describe("reveal all lyrics (post-victory checkbox)", () => {
+  function wonRound(): RoundView {
+    return {
+      ...round("state-victory"),
+      title: { tokens: tokens("Novembre", true) },
+      sections: [
+        {
+          label: "Couplet 1",
+          lines: [
+            {
+              tokens: [
+                { text: "____", isWord: true, revealed: false, revealHint: "vent" },
+                { text: " ", isWord: false, revealed: true },
+                { text: "referme", isWord: true, revealed: true },
+              ],
+            },
+          ],
+        },
+      ],
+      victory: true,
+      artist: "Fixture Artist",
+    };
+  }
+
+  it("shows the checkbox only once the round is won", async () => {
+    await mountGame();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  it("reveals every still-hidden word once checked, and hides it again once unchecked", async () => {
+    fetchRound.mockResolvedValue(wonRound());
+    await mountGame();
+
+    const checkbox = screen.getByRole("checkbox", { name: "Afficher tous les lyrics" }) as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+    expect(screen.queryByText("vent", { selector: ".token-word-revealed" })).toBeNull();
+
+    fireEvent.click(checkbox);
+    expect(checkbox.checked).toBe(true);
+    expect(screen.getByText("vent", { selector: ".token-word-revealed" })).toBeTruthy();
+
+    fireEvent.click(checkbox);
+    expect(checkbox.checked).toBe(false);
+    expect(screen.queryByText("vent", { selector: ".token-word-revealed" })).toBeNull();
+  });
+
+  it("does not affect an already-found word", async () => {
+    fetchRound.mockResolvedValue(wonRound());
+    await mountGame();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Afficher tous les lyrics" }));
+    expect(screen.getByText("referme", { selector: ".token-word-found" })).toBeTruthy();
+  });
+});
+
 describe("submitting a guess", () => {
   it("re-renders the lyrics, since that is what changed", async () => {
     const revealed: GuessResult = {

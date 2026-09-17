@@ -121,6 +121,7 @@ Keep a `docs/LEARNINGS.md` file (create it if it doesn't exist) as a running log
 ## Domain-Specific Rules
 
 - **Anti-cheat is a hard requirement**, even in the MVP: the Worker is the only thing that knows the actual lyrics. It receives a guessed word and returns which positions match — it never returns, and the client never receives, the full text before the round is won. The one narrow exception is the `DEV_REVEAL_LYRICS` Worker flag (`worker/src/index.ts`): when set, `buildTitleView`/`buildSectionsView` (`src/game/mask.ts`) attach every still-hidden word's real text to the round view as `DisplayToken.devHint`, so the frontend (`WordToken.tsx`) can show it at low opacity for local debugging of the game and the close-word mechanic — a found word or a close guess still always takes priority over it. Wired into the `dev:worker` npm script exactly like `SIMILARITY_SAMPLE` (so `npm run dev:all` and `npm run test:e2e` both carry it), never present in `wrangler.toml` or a production secret, so a production response is unaffected.
+- **The "show all lyrics" checkbox is the same mechanism, gated on `victory` instead of a dev flag.** Once `RoundView.victory` is true — recomputed by the Worker itself from signed state on every request, so a player can't reach it without having actually found the title — `buildRoundView` passes that same `victory` value as `buildTitleView`/`buildSectionsView`'s `revealAll` argument, attaching every still-hidden lyrics word's real text as `DisplayToken.revealHint`. This rides along on the normal round/guess response; no extra endpoint or round trip. The checkbox itself is local, unsigned UI state owned by `GameScreen` (`revealAllLyrics`) and only ever rendered once won (`TitleGuess`); `WordToken` shows `revealHint` in place of a blank only while it is checked, ahead of a close-guess placement and the dev hint — see CLAUDE.md's "Semantic proximity scoring" for why a near-guess placement exists at all, and note that checking this box is meant to override it, unlike `devHint`.
 - **French text matching**: normalize both the guess and the stored lyrics before comparing (case-insensitive, accent-insensitive, with the œ and æ ligatures spelled out) and account for French elisions ("j'aime" vs "je aime", "qu'il", "l'amour") so a correct guess isn't missed due to punctuation attached to the word. The tokenizer's letters (`LETTER_CLASS` in `src/game/tokenize.ts`) must cover every letter French lyrics use: it once stopped at Latin-1, and "cœur" could never be found. A run of digits is a word too, hidden and guessed like any other.
 - **LRCLIB data isn't guaranteed clean**: handle missing lyrics, instrumental sections, and inconsistent formatting gracefully rather than assuming every response is well-formed.
 
@@ -220,12 +221,16 @@ A word list passed with `--vocabulary` (e.g. Lexique383) comes with its own lice
   /api
     client.ts       # fetch wrapper the frontend uses to call the Worker (fetchRound, submitGuess)
   /components       # presentational React components
-    GameScreen.tsx  # top-level layout; wires useGame()/useIsMobile() into the rest, and lays each
-                    # hidden word's closest guess onto the round (slots.ts) before rendering it
-    TitleGuess.tsx  # masked title, victory banner ("come back tomorrow" note once solved)
-    LyricsBody.tsx  # masked lyrics, grouped by section
+    GameScreen.tsx  # top-level layout; wires useGame()/useIsMobile() into the rest, lays each
+                    # hidden word's closest guess onto the round (slots.ts) before rendering it, and
+                    # owns the "show all lyrics" checkbox's local, unsigned reveal-all toggle
+    TitleGuess.tsx  # masked title, victory banner ("come back tomorrow" note once solved), and the
+                    # "show all lyrics" checkbox once won (RoundView.victory), controlled by GameScreen
+    LyricsBody.tsx  # masked lyrics, grouped by section; takes GameScreen's reveal-all toggle
     WordToken.tsx   # one title/lyrics token: punctuation, found word, blank, blank holding a close guess
-                    # (shaded by its score), or (dev-only) blank showing its real text at low opacity
+                    # (shaded by its score), the real word once "show all lyrics" is checked
+                    # (DisplayToken.revealHint, sent only once won), or (dev-only) blank showing its
+                    # real text at low opacity
     heatStyle.ts    # the inline --heat a scored word is shaded with, along game.css's cold-to-hot ramp
     GuessForm.tsx   # word-guess input
     TriedWords.tsx  # past guesses: found vs. missed, proximity shade + score, sorted by score; credits
