@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { normalize } from "../../src/game/normalize";
 import { tokenize } from "../../src/game/tokenize";
 import type { RoundView } from "../../src/game/types";
 import { catalog } from "../../worker/src/catalog";
@@ -37,11 +38,18 @@ test("reveals every still-hidden lyrics word once checked, and hides it again on
   const round = (await (await roundResponsePromise).json()) as RoundView;
   const song = findCatalogEntry(round.songId);
 
+  // Excludes a lyrics word that also happens to be a title word: guessing the
+  // title to win reveals every occurrence of that key, lyrics included, which
+  // would leave nothing for the checkbox to add - a correct outcome (a found
+  // word always wins over the reveal-all display), but not what this test means
+  // to check.
+  const titleKeys = new Set(tokenize(song.title).filter((t) => t.isWord).map((t) => normalize(t.text)));
   const lyricsWord = round.sections
     .flatMap((section) => section.lines)
     .flatMap((line) => line.tokens)
-    .find((token) => token.isWord && typeof token.devHint === "string")?.devHint;
-  if (!lyricsWord) test.skip(true, "this song's lyrics have no hidden word to check against");
+    .find((token) => token.isWord && typeof token.devHint === "string" && !titleKeys.has(normalize(token.devHint)))
+    ?.devHint;
+  if (!lyricsWord) test.skip(true, "this song's lyrics have no hidden word outside the title to check against");
 
   const input = page.getByPlaceholder("Propose un mot…");
   const titleWords = [...new Set(tokenize(song.title).filter((t) => t.isWord).map((t) => t.text))];
