@@ -33,7 +33,17 @@ function similarityKv({ scores = {}, near = {}, songId }: KvTable): SimilarityKv
   };
 }
 
-const FIXTURE_LYRICS = "Premiere ligne du couplet\nDeuxieme ligne du couplet\n\nRefrain une ligne\nRefrain deux lignes";
+// Long enough to clear resolveSong.ts's MIN_LYRIC_WORDS floor, which a real
+// song always does and an LRCLIB stub never does.
+const FIXTURE_LYRICS = [
+  "Premiere ligne du couplet",
+  "Deuxieme ligne du couplet",
+  "Troisieme ligne pour finir le couplet",
+  "",
+  "Refrain une ligne",
+  "Refrain deux lignes",
+  "Encore un refrain avant la fin",
+].join("\n");
 
 function requestUrl(input: string | URL | Request): URL {
   if (typeof input === "string") return new URL(input);
@@ -391,9 +401,13 @@ describe("POST /api/guess — close words", () => {
   });
 });
 
+// The shared fixture plus the two dated lines these tests need: a blob of its
+// own would have to clear the MIN_LYRIC_WORDS floor all over again.
+const NUMBER_LYRICS = `${FIXTURE_LYRICS}\n\nNee en 1975\nRevenue en 2015`;
+
 describe("POST /api/guess — numbers", () => {
   beforeEach(() => {
-    mockLrclibFetch("Nee en 1975\nRevenue en 2015");
+    mockLrclibFetch(NUMBER_LYRICS);
   });
 
   it("hides a number in the lyrics until it is guessed", async () => {

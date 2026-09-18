@@ -19,7 +19,7 @@ Plain, functional UI — no 3D, no fancy animations. Do not add 3D dependencies 
 - **Frontend**: Vite + React, TypeScript strict mode.
 - **Backend**: Cloudflare Workers + Hono. Keeps the target lyrics secret server-side — never expose the full lyrics text to the client, even hidden or obfuscated in the bundle or a response.
 - **Hosting**: Cloudflare Pages (frontend) + Cloudflare Workers (API).
-- **Lyrics source**: LRCLIB (lrclib.net), queried server-side via `/api/search` (not `/api/get` — see `docs/LEARNINGS.md`), cached per catalog id with the Workers Cache API (`worker/src/cache.ts`).
+- **Lyrics source**: LRCLIB (lrclib.net), queried server-side via `/api/search` (not `/api/get` — see `docs/LEARNINGS.md`), cleaned before it is ever masked (`worker/src/lyrics.ts`), cached per catalog id with the Workers Cache API (`worker/src/cache.ts`).
 - **Database**: none. Cloudflare D1 is reserved for a later phase (accounts, leaderboard) — do not add it now. Workers KV holds only the precomputed similarity tables (see below), not application data.
 - **Semantic proximity scoring**: French word embeddings, precomputed offline into a per-song score table — see `docs/SIMILARITY.md`.
 - **Planned, not yet in scope**: `@react-three/fiber`/`@react-three/drei` for in-game 3D; team mode; word-usage counter.
@@ -95,7 +95,7 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 - **Anti-cheat is a hard requirement**, even in the MVP: the Worker is the only thing that knows the actual lyrics. It receives a guessed word and returns which positions match — never the full text before the round is won. The one exception is `DEV_REVEAL_LYRICS` (`worker/src/index.ts`), which attaches each hidden word's real text as `devHint` for local debugging (`WordToken.tsx`); wired only into `dev:worker`/`dev:all`/`test:e2e`, never in `wrangler.toml` or production.
 - **The "show all lyrics" checkbox reuses that same mechanism, gated on `victory` instead of a dev flag.** Once `RoundView.victory` is true — recomputed by the Worker itself from signed state, never client-supplied — `buildRoundView` attaches every still-hidden lyrics word's real text as `DisplayToken.revealHint`, riding along on the normal round/guess response (no extra endpoint or round trip). The checkbox itself is local, unsigned UI state owned by `GameScreen`, rendered only once won (`TitleGuess`); `WordToken` shows `revealHint` in place of a blank only while checked, ahead of a close-guess placement and the dev hint.
 - **French text matching**: normalize both the guess and the stored lyrics before comparing (case/accent-insensitive, œ/æ spelled out) and account for elisions ("j'aime" vs "je aime", "qu'il", "l'amour"). `LETTER_CLASS` (`src/game/tokenize.ts`) must cover every letter French lyrics use. A run of digits is a word too.
-- **LRCLIB data isn't guaranteed clean**: handle missing lyrics, instrumental sections, and inconsistent formatting gracefully.
+- **LRCLIB data isn't guaranteed clean**: `plainLyrics`/`syncedLyrics` are LRC-format text, not prose. Everything unsung is dropped before masking (`cleanLyrics`) — a player must never be asked to guess `[Refrain]`, `♪`, or the artist out of an `[ar:…]` tag — and a result too thin to be a puzzle is refused (`MIN_LYRIC_WORDS`) so the day's pick falls through to the next catalog entry. The catalog is only as good as LRCLIB's copy of it and the suite mocks the network on purpose, so run `npm run catalog:check` after editing `worker/src/catalog.ts`, and whenever a day's round looks wrong.
 
 ## Semantic Proximity Scoring
 
@@ -146,19 +146,20 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
 /worker/src
   index.ts                  # Hono app: GET /api/round, POST /api/guess
   catalog.ts                  # curated {id, artist, title} list + deterministic daily pick
-  lrclib.ts, lyrics.ts          # LRCLIB /api/search client; plain-text/section parsing
+  lrclib.ts, lyrics.ts          # LRCLIB /api/search client; cleanLyrics (drops LRC markup: timestamps,
+                                 # id tags, section headers, instrumental filler) + section parsing
   cache.ts                       # Workers Cache API wrapper, no-ops under plain-Node Vitest
-  resolveSong.ts, songs.ts         # catalog entry -> playable Song; isolate memo, fallback chain,
-                                    # hardcoded emergency song for a total LRCLIB outage
+  resolveSong.ts, songs.ts         # catalog entry -> playable Song (null below MIN_LYRIC_WORDS);
+                                    # isolate memo, fallback chain, emergency song for a full outage
   similarity.ts, sampleSimilarity.ts # reads the precomputed KV table per guess; dev/e2e placeholder
   state.ts                            # HMAC-signed round state (songId + foundKeys) via Web Crypto
 /worker
   wrangler.toml              # Worker config; STATE_SECRET dev default, SIMILARITY binding (commented)
   wrangler.debug.toml         # same Worker + a local-only SIMILARITY namespace (npm run dev:debug)
 /scripts                     # Node tooling via tsx, never bundled into the Worker
-  ensure-dev-vars.ts, convert-embeddings.ts, build-similarity-table.ts,
+  ensure-dev-vars.ts, check-catalog.ts, convert-embeddings.ts, build-similarity-table.ts,
   dev-debug.ts, inspect-similarity-table.ts
-  /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, debugMode.ts, devVars.ts
+  /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, debugMode.ts, devVars.ts, catalogAudit.ts
 /tests
   /unit/game, /unit/worker, /unit/scripts, /unit/storage, /unit/components, /unit/ci
   /e2e                        # Playwright; fixtures/similarity-table.json stands in for a built table

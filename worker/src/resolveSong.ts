@@ -1,7 +1,31 @@
+import { tokenize } from "../../src/game/tokenize";
 import type { Section, Song } from "../../src/game/types";
 import type { CatalogEntry } from "./catalog";
 import { bestMatch, searchTrack } from "./lrclib";
 import { parseSections, plainLyricsFrom } from "./lyrics";
+
+/**
+ * A resolved song still has to be worth playing. LRCLIB is crowd-sourced, and
+ * an entry that isn't marked instrumental can still come back as a stub: a
+ * "paroles non disponibles" note, a single chorus line, a tag-only file whose
+ * every line the cleanup dropped. Below this many words there is no puzzle
+ * left, so the caller moves on to the next catalog candidate instead of
+ * serving a round that is over in three guesses.
+ */
+export const MIN_LYRIC_WORDS = 20;
+
+// Deliberately not analyzeSong(): that counts the title's words too, and the
+// floor is about how much there is to play. This runs once per candidate, at
+// resolution time, never on the per-guess path.
+function wordCount(sections: Section[]): number {
+  let total = 0;
+  for (const section of sections) {
+    for (const line of section.lines) {
+      total += tokenize(line).filter((token) => token.isWord).length;
+    }
+  }
+  return total;
+}
 
 /**
  * Turning one catalog entry into a playable song, straight from LRCLIB.
@@ -20,7 +44,7 @@ export async function resolveFromLrclib(entry: CatalogEntry): Promise<Song | nul
   if (!lyrics) return null;
 
   const sections: Section[] = parseSections(lyrics);
-  if (sections.length === 0) return null;
+  if (wordCount(sections) < MIN_LYRIC_WORDS) return null;
 
   return { id: entry.id, title: entry.title, artist: entry.artist, sections };
 }
