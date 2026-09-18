@@ -159,3 +159,18 @@ test("disables the form while a guess is in flight, so a fast double submit can'
   expect(guessRequests).toBe(1);
   await expect(input).toHaveValue("");
 });
+
+test("keeps the guess input focused after submitting, whether by Enter or by clicking Valider", async ({ page }) => {
+  await page.goto("/");
+  const input = page.getByPlaceholder("Propose un mot…");
+
+  await input.fill("xylophoneinexistant");
+  await input.press("Enter");
+  await expect(input).toBeFocused();
+
+  // Regression test: clicking "Valider" moved focus to the button, leaving
+  // the player to reclick the input before typing their next guess.
+  await input.fill("xylophoneautre");
+  await page.getByRole("button", { name: "Valider" }).click();
+  await expect(input).toBeFocused();
+});

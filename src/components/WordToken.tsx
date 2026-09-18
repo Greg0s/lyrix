@@ -1,28 +1,61 @@
 import { proximityTier } from "../game/similarity";
 import type { SlotToken } from "../game/slots";
+import { heatStyle } from "./heatStyle";
 
 interface WordTokenProps {
   token: SlotToken;
+  /** True once the player has checked "show all lyrics" on a won round - see TitleGuess and GameScreen. */
+  revealAll?: boolean;
 }
 
-/** One token of the title or the lyrics: punctuation as is, or a word that is revealed, masked, or holding the closest guess so far. */
-export function WordToken({ token }: WordTokenProps) {
+/**
+ * One token of the title or the lyrics: punctuation as is, or a word that is
+ * revealed, holding the closest guess so far, shown by the post-victory
+ * "reveal all" checkbox, holding the dev-only low-opacity hint (see CLAUDE.md's
+ * anti-cheat section), or plain masked.
+ *
+ * Order matters: a found word is normal gameplay progress and always takes
+ * over from every other rendering. A checked "reveal all" is the player asking
+ * to read the actual song, so it takes over from a close-guess placement and
+ * the dev hint, never the other way round.
+ */
+export function WordToken({ token, revealAll = false }: WordTokenProps) {
   if (!token.isWord) return <span>{token.text}</span>;
   if (token.revealed) return <span className="token-word-found">{token.text}</span>;
-  if (!token.near) return <span className="token-word-hidden">{token.text}</span>;
 
-  const { text, score } = token.near;
-  const letters = token.text.length;
-  return (
-    <span
-      className={`token-word-near tier-${proximityTier({ found: false, score })}`}
-      title={`« ${text} » est proche de ce mot (${score}/100) — ${letters} lettre${letters === 1 ? "" : "s"}`}
-    >
-      {/* The word's own blank stays in the layout, invisible, so the slot is never narrower than the word it hides. */}
-      <span className="token-near-blank" aria-hidden="true">
-        {token.text}
+  if (revealAll && token.revealHint) {
+    return (
+      <span className="token-word-revealed" title="Affiché via « Afficher tous les lyrics »">
+        {token.revealHint}
       </span>
-      <span className="token-near-guess">{text}</span>
-    </span>
-  );
+    );
+  }
+
+  if (token.near) {
+    const { text, score } = token.near;
+    const letters = token.text.length;
+    return (
+      <span
+        className={`token-word-near tier-${proximityTier({ found: false, score })}`}
+        style={heatStyle(score)}
+        title={`« ${text} » est proche de ce mot (${score}/100) — ${letters} lettre${letters === 1 ? "" : "s"}`}
+      >
+        {/* The word's own blank stays in the layout, invisible, so the slot is never narrower than the word it hides. */}
+        <span className="token-near-blank" aria-hidden="true">
+          {token.text}
+        </span>
+        <span className="token-near-guess">{text}</span>
+      </span>
+    );
+  }
+
+  if (token.devHint) {
+    return (
+      <span className="token-word-devhint" title="Indice de dev (DEV_REVEAL_LYRICS) : mot pas encore trouvé">
+        {token.devHint}
+      </span>
+    );
+  }
+
+  return <span className="token-word-hidden">{token.text}</span>;
 }

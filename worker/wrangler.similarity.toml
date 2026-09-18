@@ -1,0 +1,33 @@
+# Local-only twin of wrangler.toml: the same Worker, plus a SIMILARITY KV
+# namespace that exists nowhere but this machine, so `npm run dev:similarity`
+# can serve a real precomputed table (scripts/build-similarity-table.ts)
+# instead of the hand-written placeholder one.
+#
+# `wrangler deploy` never reads this file. The CI deploy job passes
+# `--config worker/wrangler.toml` (see .github/workflows/ci.yml), which binds
+# no namespace at all — that is why the binding cannot simply live there: a
+# made-up namespace id fails the whole deploy, and the real one has to exist on
+# the account first (see the note in wrangler.toml). Keeping the local binding
+# in its own file leaves production exactly as it was, warnings included: a
+# `[env.…]` section in wrangler.toml would have made every deploy log one.
+#
+# Everything else here has to stay in step with wrangler.toml — a Worker run
+# locally under a different compatibility date is not the Worker being shipped.
+# tests/unit/ci/localSimilarity.test.ts compares the two files and fails on any
+# difference other than the binding below.
+#
+# STATE_SECRET comes from worker/.dev.vars, exactly as it does for wrangler.toml:
+# wrangler looks for it next to the configuration file it was given.
+
+name = "lyrix-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+[[kv_namespaces]]
+binding = "SIMILARITY"
+# Local dev only. `wrangler dev` (and `wrangler kv … --local`) use this id as a
+# directory name under --persist-to and never as an account resource, so it is
+# deliberately not the 32 hex characters a real namespace id has: should this
+# configuration ever be handed to `wrangler deploy` by accident, Cloudflare
+# rejects it instead of publishing a Worker bound to something unexpected.
+id = "local-similarity-dev-only"

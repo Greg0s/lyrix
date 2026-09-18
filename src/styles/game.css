@@ -80,6 +80,18 @@
   letter-spacing: 0.03em;
 }
 
+/* Dev-only (DEV_REVEAL_LYRICS, never on in production): the real word underneath a still-hidden blank, faint on purpose. */
+.token-word-devhint {
+  color: var(--color-ink);
+  opacity: 0.32;
+}
+
+/* Shown by the post-victory "reveal all lyrics" checkbox - not something the player found, styled distinctly from .token-word-found. */
+.token-word-revealed {
+  color: var(--color-ink-muted);
+  font-style: italic;
+}
+
 .token-word-found {
   color: var(--color-ink);
   background: var(--accent-tint);
@@ -117,6 +129,7 @@
   justify-self: center;
 }
 
+/* One colour per tier; where the browser can mix colours, the ramp further down shades every score between them. */
 .token-word-near.tier-hot {
   background: var(--proximity-hot-bg);
   border-color: var(--proximity-hot-border);
@@ -164,6 +177,16 @@
   margin: 0 0 10px;
   font-size: 0.95rem;
   color: var(--color-ink-muted);
+}
+
+.lyrix-reveal-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  color: var(--color-ink-muted);
+  cursor: pointer;
 }
 
 .lyrix-victory-note {
@@ -412,6 +435,40 @@
   color: var(--proximity-cold-ink);
 }
 
+/*
+ * Every score its own shade: --heat (0 to 1, set inline from the score by
+ * proximityHeat in src/game/similarity.ts) slides along the cold -> warm -> hot
+ * tokens, so a 41 and a 58 no longer look alike. Guarded, because a colour
+ * built from custom properties that the browser can't mix would fall back to
+ * nothing rather than to the tier colours above.
+ */
+@supports (color: color-mix(in oklch, red, blue)) {
+  .token-word-near.tier-hot,
+  .token-word-near.tier-warm,
+  .token-word-near.tier-cold,
+  .lyrix-chip.tier-hot,
+  .lyrix-chip.tier-warm,
+  .lyrix-chip.tier-cold {
+    --to-warm: clamp(0%, calc(var(--heat, 0.5) * 200%), 100%);
+    --to-hot: clamp(0%, calc((var(--heat, 0.5) - 0.5) * 200%), 100%);
+    background: color-mix(
+      in oklch,
+      var(--proximity-hot-bg) var(--to-hot),
+      color-mix(in oklch, var(--proximity-warm-bg) var(--to-warm), var(--proximity-cold-bg))
+    );
+    border-color: color-mix(
+      in oklch,
+      var(--proximity-hot-border) var(--to-hot),
+      color-mix(in oklch, var(--proximity-warm-border) var(--to-warm), var(--proximity-cold-border))
+    );
+    color: color-mix(
+      in oklch,
+      var(--proximity-hot-ink) var(--to-hot),
+      color-mix(in oklch, var(--proximity-warm-ink) var(--to-warm), var(--proximity-cold-ink))
+    );
+  }
+}
+
 .lyrix-chip-score {
   font-size: 0.76rem;
   font-weight: 700;
@@ -428,6 +485,17 @@
 
 .lyrix-legend + .lyrix-tried-list {
   margin-top: 8px;
+}
+
+.lyrix-credit {
+  margin: 12px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--color-ink-faint);
+}
+
+.lyrix-credit a {
+  color: inherit;
 }
 
 .lyrix-empty {

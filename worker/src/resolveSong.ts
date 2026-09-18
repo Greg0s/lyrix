@@ -14,6 +14,9 @@ import { parseSections, plainLyricsFrom } from "./lyrics";
  */
 export const MIN_LYRIC_WORDS = 20;
 
+// Deliberately not analyzeSong(): that counts the title's words too, and the
+// floor is about how much there is to play. This runs once per candidate, at
+// resolution time, never on the per-guess path.
 function wordCount(sections: Section[]): number {
   let total = 0;
   for (const section of sections) {

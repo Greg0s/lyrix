@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { closestGuessBySlot, placeNearGuesses } from "../game/slots";
 import { useGame } from "../hooks/useGame";
 import { useIsMobile } from "../hooks/useIsMobile";
@@ -22,8 +22,32 @@ export function GameScreen() {
   const isMobile = useIsMobile();
   const [triedOpen, setTriedOpen] = useState(false);
   const [explainOpen, setExplainOpen] = useState(false);
+  const [revealAllLyrics, setRevealAllLyrics] = useState(false);
+  const toggleTried = useCallback(() => setTriedOpen((open) => !open), []);
+  const toggleExplain = useCallback(() => setExplainOpen((open) => !open), []);
+  const toggleRevealAllLyrics = useCallback(() => setRevealAllLyrics((reveal) => !reveal), []);
+  const { submit } = game;
+  const onSubmit = useCallback(() => void submit(), [submit]);
 
-  if (game.error && !game.round) {
+  // Derived above the early returns below, so the hooks run on every render.
+  // Both walk the whole round, and both are memoized on what they read rather
+  // than recomputed per render: that is what keeps a keystroke from
+  // re-rendering the lyrics, which have nothing to do with the word being typed.
+  const { round, triedWords } = game;
+  // Every hidden word shows the closest miss so far; a revealed word always shows itself.
+  const slots = useMemo(
+    () => (round ? placeNearGuesses(round, closestGuessBySlot(triedWords)) : null),
+    [round, triedWords]
+  );
+  const statsText = useMemo(() => {
+    const foundCount = triedWords.filter((word) => word.found).length;
+    const triedCount = triedWords.length;
+    return triedCount === 0
+      ? "À toi de jouer"
+      : `${foundCount} trouvé${foundCount === 1 ? "" : "s"} sur ${triedCount} essayé${triedCount === 1 ? "" : "s"}`;
+  }, [triedWords]);
+
+  if (game.error && !round) {
     return (
       <div className="lyrix-page">
         <p role="alert">Impossible de charger la partie.</p>
@@ -34,7 +58,7 @@ export function GameScreen() {
     );
   }
 
-  if (!game.round) {
+  if (!round || !slots) {
     return (
       <div className="lyrix-page">
         <p>Chargement de la partie…</p>
@@ -42,15 +66,6 @@ export function GameScreen() {
     );
   }
 
-  const { round } = game;
-  // Every hidden word shows the closest miss so far; a revealed word always shows itself.
-  const slots = placeNearGuesses(round, closestGuessBySlot(game.triedWords));
-  const foundCount = game.triedWords.filter((word) => word.found).length;
-  const triedCount = game.triedWords.length;
-  const statsText =
-    triedCount === 0
-      ? "À toi de jouer"
-      : `${foundCount} trouvé${foundCount === 1 ? "" : "s"} sur ${triedCount} essayé${triedCount === 1 ? "" : "s"}`;
   const feedbackText = game.feedback
     ? feedbackMessage(game.feedback.word, game.feedback.found, game.feedback.nearCount)
     : null;
@@ -64,12 +79,18 @@ export function GameScreen() {
 
       <div className={`lyrix-grid${isMobile ? " is-mobile" : ""}`}>
         <div className="lyrix-center-col">
-          <TitleGuess titleTokens={slots.title} victory={round.victory} artist={round.artist} />
+          <TitleGuess
+            titleTokens={slots.title}
+            victory={round.victory}
+            artist={round.artist}
+            revealAllLyrics={revealAllLyrics}
+            onToggleRevealAllLyrics={toggleRevealAllLyrics}
+          />
 
           <GuessForm
             value={game.inputValue}
             onChange={game.setInputValue}
-            onSubmit={() => void game.submit()}
+            onSubmit={onSubmit}
             disabled={game.submitting}
           />
 
@@ -81,7 +102,7 @@ export function GameScreen() {
             <p className={`lyrix-feedback ${game.feedback?.found ? "is-found" : "is-missed"}`}>{feedbackText}</p>
           ) : null}
 
-          <LyricsBody sections={slots.sections} />
+          <LyricsBody sections={slots.sections} revealAll={revealAllLyrics} />
         </div>
 
         <SideCard
@@ -89,10 +110,10 @@ export function GameScreen() {
           tiltClass="tilt-left"
           isMobile={isMobile}
           open={triedOpen}
-          onToggle={() => setTriedOpen((open) => !open)}
+          onToggle={toggleTried}
           subtitle={<p className="lyrix-stats">{statsText}</p>}
         >
-          <TriedWords triedWords={game.triedWords} />
+          <TriedWords triedWords={triedWords} />
         </SideCard>
 
         <SideCard
@@ -100,7 +121,7 @@ export function GameScreen() {
           tiltClass="tilt-right"
           isMobile={isMobile}
           open={explainOpen}
-          onToggle={() => setExplainOpen((open) => !open)}
+          onToggle={toggleExplain}
         >
           <HowToPlay />
         </SideCard>

@@ -3,20 +3,49 @@ import { cors } from "hono/cors";
 import { buildSectionsView, buildTitleView, isVictory, songWordKeys } from "../../src/game/mask";
 import { normalize } from "../../src/game/normalize";
 import { MAX_PROXIMITY_SCORE } from "../../src/game/similarity";
-import type { GuessResult, RoundView } from "../../src/game/types";
+import type { GuessResult, RoundView, Song } from "../../src/game/types";
 import { proximityHint, type ProximityHint, type SimilarityEnv } from "./similarity";
 import { getSongById, getTodaysSong } from "./songs";
 import { signState, verifyState } from "./state";
 
 interface Env extends SimilarityEnv {
   STATE_SECRET: string;
+  /**
+   * Dev/e2e only, never set in production: makes every still-hidden word's
+   * real text ride along as `devHint`, so the game can be played and the
+   * close-word mechanic debugged without guessing blind. See CLAUDE.md's
+   * anti-cheat section and DisplayToken.devHint.
+   */
+  DEV_REVEAL_LYRICS?: string;
 }
 
 const MAX_WORD_LENGTH = 64;
 
 const app = new Hono<{ Bindings: Env }>();
 
-app.use("/api/*", cors());
+// Dev-only, once per isolate: a quiet flag would otherwise look like a CSS bug
+// the first time someone notices faint lyrics behind the blanks.
+let devRevealAnnounced = false;
+
+function announceDevReveal(): void {
+  if (devRevealAnnounced) return;
+  devRevealAnnounced = true;
+  console.log(
+    "round: DEV_REVEAL_LYRICS is on - every still-hidden word's real text is attached as devHint. " +
+      "Dev/e2e only, never set in production."
+  );
+}
+
+// Pages and the Worker sit on different origins (see the deploy job in
+// .github/workflows/ci.yml), so POST /api/guess is a cross-origin request with
+// a JSON content type: the browser preflights it. Hono sends no
+// Access-Control-Max-Age by default, which leaves browsers on their own
+// default of a few seconds — near enough one extra round trip per guess, on
+// the path the player is waiting on. A day (browsers clamp it to their own
+// maximum, 2h in Chromium) makes it one preflight per session instead.
+const PREFLIGHT_MAX_AGE_SECONDS = 86_400;
+
+app.use("/api/*", cors({ maxAge: PREFLIGHT_MAX_AGE_SECONDS }));
 
 // Without this, a missing STATE_SECRET surfaces as an opaque Web Crypto
 // "Imported HMAC key length (0)" DataError from signState, several frames
@@ -35,29 +64,38 @@ app.use("/api/*", async (c, next) => {
   return next();
 });
 
-async function buildRoundView(songId: string, foundKeys: string[], secret: string): Promise<RoundView | null> {
-  const song = await getSongById(songId);
-  if (!song) return null;
-
+// Takes the resolved Song rather than an id: both routes have already resolved
+// it by the time they get here, and looking it up again would repeat a Cache
+// API read and a full JSON parse of the lyrics for nothing.
+async function buildRoundView(
+  song: Song,
+  foundKeys: string[],
+  secret: string,
+  devReveal: boolean
+): Promise<RoundView> {
   const foundSet = new Set(foundKeys);
   const victory = isVictory(song, foundSet);
-  const state = await signState({ songId, foundKeys: [...foundSet] }, secret);
+  const state = await signState({ songId: song.id, foundKeys: [...foundSet] }, secret);
 
   return {
     songId: song.id,
     state,
-    title: { tokens: buildTitleView(song, foundSet) },
-    sections: buildSectionsView(song, foundSet),
+    // Once the round is won, every still-hidden word's real text rides along
+    // as `revealHint` (see DisplayToken and CLAUDE.md's anti-cheat section):
+    // `victory` is recomputed here from signed state, so a player can't reach
+    // this branch without having actually found the title.
+    title: { tokens: buildTitleView(song, foundSet, devReveal, victory) },
+    sections: buildSectionsView(song, foundSet, devReveal, victory),
     victory,
     ...(victory ? { artist: song.artist } : {}),
   };
 }
 
 app.get("/api/round", async (c) => {
+  const devReveal = c.env.DEV_REVEAL_LYRICS === "1";
+  if (devReveal) announceDevReveal();
   const song = await getTodaysSong();
-  const view = await buildRoundView(song.id, [], c.env.STATE_SECRET);
-  if (!view) return c.json({ error: "no songs available" }, 500);
-  return c.json(view);
+  return c.json(await buildRoundView(song, [], c.env.STATE_SECRET, devReveal));
 });
 
 app.post("/api/guess", async (c) => {
@@ -95,8 +133,9 @@ app.post("/api/guess", async (c) => {
   const found = songWordKeys(song).has(key);
   const newFoundKeys = found ? [...new Set([...payload.foundKeys, key])] : payload.foundKeys;
 
-  const view = await buildRoundView(song.id, newFoundKeys, c.env.STATE_SECRET);
-  if (!view) return c.json({ error: "invalid or expired round state" }, 400);
+  const devReveal = c.env.DEV_REVEAL_LYRICS === "1";
+  if (devReveal) announceDevReveal();
+  const view = await buildRoundView(song, newFoundKeys, c.env.STATE_SECRET, devReveal);
 
   // A found word is its own closest match and reveals itself, so it needs no
   // table lookup. A missed one gets its score plus the positions of the hidden

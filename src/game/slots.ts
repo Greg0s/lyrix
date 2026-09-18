@@ -1,6 +1,5 @@
-import { normalize } from "./normalize";
+import { analyzeSong } from "./analyze";
 import { clampScore } from "./similarity";
-import { tokenize } from "./tokenize";
 import type { DisplayToken, NearSlot, RoundView, Song } from "./types";
 
 /**
@@ -11,33 +10,23 @@ import type { DisplayToken, NearSlot, RoundView, Song } from "./types";
  * of the round, the title's first, then the lyrics' in reading order. Both
  * halves of that contract live in this file, because they only agree if they
  * count in exactly the same order:
- *  - wordPositions() is the Worker's half, walking the secret Song;
+ *  - wordPositions() is the Worker's half, reading the secret Song's analysis;
  *  - placeNearGuesses() is the frontend's, walking the masked RoundView that
- *    mask.ts builds from the same tokenize() runs, in the same order.
+ *    mask.ts builds from that same analysis, in the same order.
  *
  * Positions rather than an id stamped on every blank, on purpose: an id on each
  * masked word would tell the player which blanks hide the same word before
  * they have come close to any of them.
  */
 
-/** Normalized word -> every position it holds in the round. Worker-side: it reads the unmasked song. */
-export function wordPositions(song: Song): Map<string, number[]> {
-  const positions = new Map<string, number[]>();
-  let position = 0;
-  const visit = (text: string) => {
-    for (const token of tokenize(text)) {
-      if (!token.isWord) continue;
-      const key = normalize(token.text);
-      const existing = positions.get(key);
-      if (existing) existing.push(position);
-      else positions.set(key, [position]);
-      position += 1;
-    }
-  };
-
-  visit(song.title);
-  song.sections.forEach((section) => section.lines.forEach((line) => visit(line)));
-  return positions;
+/**
+ * Normalized word -> every position it holds in the round. Worker-side: it
+ * reads the unmasked song. Comes straight from the song's single tokenization
+ * pass (see analyze.ts), so asking for it again on a later guess costs nothing.
+ * Treat the result as read-only: it is shared with every other caller.
+ */
+export function wordPositions(song: Song): ReadonlyMap<string, readonly number[]> {
+  return analyzeSong(song).positions;
 }
 
 /** Slots coming from the network or from storage aren't trusted: a malformed entry is dropped, never thrown on. */

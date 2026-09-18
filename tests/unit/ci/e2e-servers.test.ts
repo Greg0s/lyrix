@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import type { PlaywrightTestConfig } from "@playwright/test";
 import type { UserConfig } from "vite";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { similarityTableFixture } from "../../../playwright.config";
+import { LOCAL_SIMILARITY_PERSIST_DIR } from "../../../scripts/lib/localSimilarity";
 
 // Regression test for e2e runs passing against another checkout's code. The
 // Playwright webServer entries polled the ports `npm run dev:all` binds (5173
@@ -15,6 +17,14 @@ const DEV_WEB_PORT = 5173; // Vite's default, which .claude/launch.json expects
 const DEV_WORKER_PORT = 8787; // wrangler dev's default, which vite.config.ts proxies to
 const DEV_WORKER_INSPECTOR_PORT = 9229; // wrangler dev's default inspector port
 const DEV_PORTS = [DEV_WEB_PORT, DEV_WORKER_PORT, DEV_WORKER_INSPECTOR_PORT];
+
+// Where wrangler keeps local state when it isn't told otherwise: the cached
+// songs of every `npm run dev:all` in this checkout, and the tables
+// `npm run dev:similarity` loads, live under worker/.wrangler.
+const WRANGLER_DEFAULT_STATE_DIR = "worker/.wrangler/state";
+
+// The Workers the suite starts, by the npm script each one comes up through.
+const WORKER_SCRIPTS = ["dev:worker", "dev:similarity"];
 
 type WebServer = Exclude<NonNullable<PlaywrightTestConfig["webServer"]>, readonly unknown[]>;
 
@@ -102,10 +112,13 @@ describe("Playwright e2e web servers", () => {
     const config = await loadPlaywrightConfig();
     const web = serverStartedBy(config, "dev");
     const worker = serverStartedBy(config, "dev:worker");
+    const similarity = serverStartedBy(config, "dev:similarity");
     const e2ePorts = [
       requestedPort(web.command, "--port", DEV_WEB_PORT),
       requestedPort(worker.command, "--port", DEV_WORKER_PORT),
       requestedPort(worker.command, "--inspector-port", DEV_WORKER_INSPECTOR_PORT),
+      requestedPort(similarity.command, "--port", DEV_WORKER_PORT),
+      requestedPort(similarity.command, "--inspector-port", DEV_WORKER_INSPECTOR_PORT),
     ];
 
     for (const port of e2ePorts) expect(DEV_PORTS).not.toContain(port);
@@ -115,14 +128,16 @@ describe("Playwright e2e web servers", () => {
   it("wait on the same ports the servers are started on", async () => {
     const config = await loadPlaywrightConfig();
     const web = serverStartedBy(config, "dev");
-    const worker = serverStartedBy(config, "dev:worker");
 
     expect(requestedPort(web.command, "--port", DEV_WEB_PORT)).toBe(Number(readinessUrl(web).port));
     // Without it, Vite moves to the next free port when its own is taken,
     // while Playwright keeps polling whatever holds the original one.
     expect(forwardedArgs(web.command)).toContain("--strictPort");
     expect(config.use?.baseURL).toBe(readinessUrl(web).origin);
-    expect(requestedPort(worker.command, "--port", DEV_WORKER_PORT)).toBe(Number(readinessUrl(worker).port));
+    for (const script of WORKER_SCRIPTS) {
+      const server = serverStartedBy(config, script);
+      expect(requestedPort(server.command, "--port", DEV_WORKER_PORT), script).toBe(Number(readinessUrl(server).port));
+    }
   });
 
   it("proxy the e2e frontend's /api calls to the e2e Worker", async () => {
@@ -148,5 +163,42 @@ describe("npm run dev:all", () => {
     const viteConfig = await loadViteConfig({});
 
     expect(apiProxyTarget(viteConfig)).toBe(`http://localhost:${DEV_WORKER_PORT}`);
+  });
+});
+
+// A second Worker joined the suite with `npm run dev:similarity`: the command a
+// developer runs to play today's song against a real similarity table. It has a
+// KV namespace bound, so what it serves must never reach the Worker the rest of
+// the suite plays against, which asserts on the placeholder table's scores.
+describe("the Workers the e2e suite starts", () => {
+  it("keep their local state to themselves", async () => {
+    const config = await loadPlaywrightConfig();
+    const directories = WORKER_SCRIPTS.map((script) =>
+      forwardedFlag(serverStartedBy(config, script).command, "--persist-to")
+    );
+
+    for (const [index, directory] of directories.entries()) {
+      const script = WORKER_SCRIPTS[index];
+      expect(directory, `\`npm run ${script}\` must be given its own --persist-to`).toBeDefined();
+      // Shared with every dev:all in this checkout, and with the tables
+      // dev:similarity loads for local play.
+      expect(directory, script).not.toBe(WRANGLER_DEFAULT_STATE_DIR);
+      expect(directory, script).not.toBe(LOCAL_SIMILARITY_PERSIST_DIR);
+    }
+    expect(new Set(directories).size, "two Workers sharing one state directory").toBe(directories.length);
+  });
+
+  it("play a fixture table rather than building one from whatever model is on the machine", async () => {
+    const { command } = serverStartedBy(await loadPlaywrightConfig(), "dev:similarity");
+
+    // Without --table the command builds today's table from a model: CI has
+    // none, and a developer machine has the real one — neither belongs in a run
+    // that asserts on fixed scores.
+    expect(forwardedFlag(command, "--table")).toBe(similarityTableFixture);
+    // Which song today is depends on the day and on LRCLIB, so the table goes
+    // in under every song id the Worker could put in play.
+    expect(forwardedArgs(command)).toContain("--every-song");
+    // Vite is already started by its own entry, on its own port.
+    expect(forwardedArgs(command)).toContain("--worker-only");
   });
 });

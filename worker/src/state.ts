@@ -20,11 +20,26 @@ function fromBase64Url(value: string): Uint8Array {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
+// Importing the key is the only non-trivial work signing does, and the secret
+// never changes within an isolate - so it is imported once and the CryptoKey
+// reused, rather than re-derived twice per guess (once to sign the new state,
+// once to verify the one the client echoed back). Keyed by secret so a test or
+// a rotated binding gets its own key; a failed import is not kept, so a
+// misconfigured secret still reports itself on every request.
+const keyCache = new Map<string, Promise<CryptoKey>>();
+
 function hmacKey(secret: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
-    "sign",
-    "verify",
-  ]);
+  const cached = keyCache.get(secret);
+  if (cached) return cached;
+
+  const key = crypto.subtle
+    .importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"])
+    .catch((error: unknown) => {
+      keyCache.delete(secret);
+      throw error;
+    });
+  keyCache.set(secret, key);
+  return key;
 }
 
 function isStatePayload(value: unknown): value is StatePayload {

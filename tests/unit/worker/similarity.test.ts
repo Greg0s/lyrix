@@ -1,19 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HOT_SCORE, NEAR_SCORE, WARM_SCORE } from "../../../src/game/similarity";
+import { isFunctionWord } from "../../../src/game/functionWords";
+import { HOT_SCORE, NEAR_SCORE, numberProximityScore, WARM_SCORE } from "../../../src/game/similarity";
 import { wordPositions } from "../../../src/game/slots";
 import type { Song } from "../../../src/game/types";
 import { SAMPLE_SIMILARITY_SCORES, sampleNearTable } from "../../../worker/src/sampleSimilarity";
 import {
   loadSimilarityTable,
   nearSlotsFromTable,
+  nearTargetsFromTable,
+  numberHint,
   parseSimilarityTable,
   proximityHint,
+  resetSimilarityMemo,
   scoreFromTable,
   SIMILARITY_TABLE_VERSION,
   type SimilarityEnv,
   type SimilarityKv,
   type SimilarityTable,
 } from "../../../worker/src/similarity";
+import { encodeNear, type ReadableNear } from "./similarityTableFixture";
 
 // Word positions: Orage (0) | La (1) pluie (2) et (3) l (4) orage (5) | Encore (6) la (7) pluie (8)
 const song: Song = {
@@ -23,12 +28,32 @@ const song: Song = {
   sections: [{ label: "Couplet 1", lines: ["La pluie et l'orage", "Encore la pluie"] }],
 };
 
-function table(scores: Record<string, number>, near: Record<string, Record<string, number>> = {}): string {
-  return JSON.stringify({ version: SIMILARITY_TABLE_VERSION, songId: song.id, model: "test-model", scores, near });
+// Word positions: En (0) 2015 (1) | Et (2) en (3) 2000 (4) puis (5) 2015 (6)
+const counted: Song = {
+  id: "annees-fixture",
+  title: "En 2015",
+  artist: "Fixture",
+  sections: [{ label: "Couplet 1", lines: ["Et en 2000 puis 2015"] }],
+};
+
+function table(scores: Record<string, number>, near: ReadableNear = {}, target: Song = song): string {
+  return JSON.stringify({
+    version: SIMILARITY_TABLE_VERSION,
+    songId: target.id,
+    model: "test-model",
+    scores,
+    ...encodeNear(near),
+  });
 }
 
-function parsed(scores: Record<string, number>, near: Record<string, unknown> = {}): SimilarityTable | null {
-  return parseSimilarityTable({ version: SIMILARITY_TABLE_VERSION, songId: song.id, model: "test-model", scores, near });
+function parsed(scores: Record<string, number>, near: ReadableNear = {}): SimilarityTable | null {
+  return parseSimilarityTable({
+    version: SIMILARITY_TABLE_VERSION,
+    songId: song.id,
+    model: "test-model",
+    scores,
+    ...encodeNear(near),
+  });
 }
 
 function fakeKv(entries: Record<string, string>): SimilarityKv {
@@ -38,13 +63,20 @@ function fakeKv(entries: Record<string, string>): SimilarityKv {
 // Sample mode announces its vocabulary on stdout; silence it here so the
 // suite's output stays readable.
 let logged: ReturnType<typeof vi.spyOn>;
+let warned: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   logged = vi.spyOn(console, "log").mockImplementation(() => {});
+  warned = vi.spyOn(console, "warn").mockImplementation(() => {});
+  // Each test starts from a cold isolate: a parsed table is memoized for the
+  // isolate's lifetime (see loadSimilarityTable), so a test counting KV reads
+  // would otherwise be answered from the previous test's table.
+  resetSimilarityMemo();
 });
 
 afterEach(() => {
   logged.mockRestore();
+  warned.mockRestore();
 });
 
 describe("parseSimilarityTable", () => {
@@ -52,11 +84,12 @@ describe("parseSimilarityTable", () => {
     const loaded = parsed({ orage: 42 }, { averse: { pluie: 72 } });
     expect(loaded?.songId).toBe(song.id);
     expect(loaded?.scores.orage).toBe(42);
-    expect(loaded?.near.averse).toEqual({ pluie: 72 });
+    expect(loaded?.targets).toEqual(["pluie"]);
+    expect(loaded?.near.averse).toEqual([0, 72]);
   });
 
   it("rejects a table built for another format version", () => {
-    expect(parseSimilarityTable({ version: 99, songId: "x", scores: {}, near: {} })).toBeNull();
+    expect(parseSimilarityTable({ version: 99, songId: "x", scores: {}, targets: [], near: {} })).toBeNull();
   });
 
   // Version 1 tables carry scores but no placements: they are stale, and
@@ -65,20 +98,31 @@ describe("parseSimilarityTable", () => {
     expect(parseSimilarityTable({ version: 1, songId: "x", model: "m", scores: { orage: 42 } })).toBeNull();
   });
 
+  // Version 2 scores were cosines, and its placements included function words:
+  // read against today's thresholds they would mean something else entirely.
+  it("ignores a table whose scores were cosines", () => {
+    const v2 = { version: 2, songId: "x", model: "m", scores: { orage: 42 }, near: { averse: { pluie: 72 } } };
+    expect(parseSimilarityTable(v2)).toBeNull();
+  });
+
   it("rejects malformed shapes instead of trusting them", () => {
+    const valid = { version: SIMILARITY_TABLE_VERSION, songId: "x", scores: {}, targets: [], near: {} };
+    expect(parseSimilarityTable(valid)).not.toBeNull();
     expect(parseSimilarityTable(null)).toBeNull();
     expect(parseSimilarityTable("nope")).toBeNull();
-    expect(parseSimilarityTable({ version: SIMILARITY_TABLE_VERSION, songId: 12, scores: {}, near: {} })).toBeNull();
-    expect(parseSimilarityTable({ version: SIMILARITY_TABLE_VERSION, songId: "x", near: {} })).toBeNull();
-    expect(parseSimilarityTable({ version: SIMILARITY_TABLE_VERSION, songId: "x", scores: [], near: {} })).toBeNull();
-    expect(parseSimilarityTable({ version: SIMILARITY_TABLE_VERSION, songId: "x", scores: {} })).toBeNull();
-    expect(parseSimilarityTable({ version: SIMILARITY_TABLE_VERSION, songId: "x", scores: {}, near: [] })).toBeNull();
+    expect(parseSimilarityTable({ ...valid, songId: 12 })).toBeNull();
+    expect(parseSimilarityTable({ ...valid, scores: undefined })).toBeNull();
+    expect(parseSimilarityTable({ ...valid, scores: [] })).toBeNull();
+    expect(parseSimilarityTable({ ...valid, near: undefined })).toBeNull();
+    expect(parseSimilarityTable({ ...valid, near: [] })).toBeNull();
+    expect(parseSimilarityTable({ ...valid, targets: undefined })).toBeNull();
+    expect(parseSimilarityTable({ ...valid, targets: { 0: "pluie" } })).toBeNull();
+    expect(parseSimilarityTable({ ...valid, targets: ["pluie", 3] })).toBeNull();
   });
 
   it("falls back to an unknown model name rather than rejecting the table", () => {
-    expect(parseSimilarityTable({ version: SIMILARITY_TABLE_VERSION, songId: "x", scores: {}, near: {} })?.model).toBe(
-      "unknown"
-    );
+    const unnamed = { version: SIMILARITY_TABLE_VERSION, songId: "x", scores: {}, targets: [], near: {} };
+    expect(parseSimilarityTable(unnamed)?.model).toBe("unknown");
   });
 });
 
@@ -108,6 +152,20 @@ describe("scoreFromTable", () => {
     expect(scoreFromTable(scored, "constructor")).toBeNull();
     expect(scoreFromTable(scored, "tostring")).toBeNull();
     expect(scoreFromTable(scored, "__proto__")).toBeNull();
+  });
+});
+
+describe("nearTargetsFromTable", () => {
+  it("names the song words a word is close to, in the table's order", () => {
+    expect(nearTargetsFromTable(parsed({}, { averse: { pluie: 72, orage: 41 } }), "averse")).toEqual([
+      { target: "pluie", score: 72 },
+      { target: "orage", score: 41 },
+    ]);
+  });
+
+  it("has nothing for a word without placements, or without a table", () => {
+    expect(nearTargetsFromTable(parsed({ tracteur: 9 }), "tracteur")).toEqual([]);
+    expect(nearTargetsFromTable(null, "averse")).toEqual([]);
   });
 });
 
@@ -152,8 +210,24 @@ describe("nearSlotsFromTable", () => {
   });
 
   it("survives malformed placements", () => {
-    const close = parsed({}, { liste: ["pluie"], texte: "pluie", chaine: { pluie: "72" }, nan: { pluie: Number.NaN } });
-    for (const key of ["liste", "texte", "chaine", "nan"]) {
+    const close = parseSimilarityTable({
+      version: SIMILARITY_TABLE_VERSION,
+      songId: song.id,
+      model: "test-model",
+      scores: {},
+      targets: ["pluie"],
+      near: {
+        objet: { pluie: 72 },
+        texte: "pluie",
+        chaine: [0, "72"],
+        nan: [0, Number.NaN],
+        horsliste: [5, 72],
+        negatif: [-1, 72],
+        virgule: [0.5, 72],
+        orphelin: [0],
+      },
+    });
+    for (const key of ["objet", "texte", "chaine", "nan", "horsliste", "negatif", "virgule", "orphelin"]) {
       expect(nearSlotsFromTable(close, key, song, nothingFound)).toEqual([]);
     }
   });
@@ -168,6 +242,35 @@ describe("nearSlotsFromTable", () => {
     expect(nearSlotsFromTable(close, "constructor", song, nothingFound)).toEqual([]);
     expect(nearSlotsFromTable(close, "tostring", song, nothingFound)).toEqual([]);
     expect(nearSlotsFromTable(close, "__proto__", song, nothingFound)).toEqual([]);
+  });
+});
+
+describe("numberHint", () => {
+  const nothingFound = new Set<string>();
+
+  it("scores a guessed number by the closest number of the song", () => {
+    expect(numberHint(counted, "2010", nothingFound).score).toBe(numberProximityScore("2010", "2015"));
+  });
+
+  it("points at every hidden number close enough, each at its own score", () => {
+    expect(numberHint(counted, "2010", nothingFound).near).toEqual([
+      { position: 1, score: numberProximityScore("2010", "2015") },
+      { position: 4, score: numberProximityScore("2010", "2000") },
+      { position: 6, score: numberProximityScore("2010", "2015") },
+    ]);
+  });
+
+  it("leaves out the numbers already found, and the ones too far off to count", () => {
+    expect(numberHint(counted, "2010", new Set(["2015"])).near).toEqual([
+      { position: 4, score: numberProximityScore("2010", "2000") },
+    ]);
+    const farOff = numberHint(counted, "30", nothingFound);
+    expect(farOff.score).toBeLessThan(NEAR_SCORE);
+    expect(farOff.near).toEqual([]);
+  });
+
+  it("has no score to give when the song has no number", () => {
+    expect(numberHint(song, "2015", nothingFound)).toEqual({ score: null, near: [] });
   });
 });
 
@@ -229,7 +332,59 @@ describe("proximityHint", () => {
       ],
     });
     expect(get).toHaveBeenCalledTimes(1);
-    expect(get).toHaveBeenCalledWith(song.id);
+    // The read asks KV to serve from the colo cache when it can; the table
+    // changes only when a song is rebuilt.
+    expect(get).toHaveBeenCalledWith(song.id, { cacheTtl: expect.any(Number) });
+  });
+
+  // A production table holds tens of thousands of entries, and it used to be
+  // read from KV and JSON.parsed again on every single guess of the day.
+  it("parses the table once, then answers later guesses from the isolate", async () => {
+    const get = vi.fn(async () => table({ averse: 72, orage: 40 }, { averse: { pluie: 72 } }));
+    const env: SimilarityEnv = { SIMILARITY: { get } };
+
+    const first = await proximityHint(env, song, "averse", new Set());
+    const second = await proximityHint(env, song, "orage", new Set());
+
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(first.score).toBe(72);
+    expect(second.score).toBe(40);
+  });
+
+  it("re-reads the table once the memo is dropped", async () => {
+    const first = vi.fn(async () => table({ averse: 72 }));
+    const second = vi.fn(async () => table({ averse: 11 }));
+
+    expect((await proximityHint({ SIMILARITY: { get: first } }, song, "averse", new Set())).score).toBe(72);
+    resetSimilarityMemo();
+    expect((await proximityHint({ SIMILARITY: { get: second } }, song, "averse", new Set())).score).toBe(11);
+  });
+
+  it("never answers an unbound request from a table read through a binding", async () => {
+    const get = vi.fn(async () => table({ averse: 72 }));
+
+    expect((await proximityHint({ SIMILARITY: { get } }, song, "averse", new Set())).score).toBe(72);
+    // No namespace and no sample table: the feature is simply off, and a
+    // memoized table must not bring it back.
+    expect(await proximityHint({}, song, "averse", new Set())).toEqual({ score: null, near: [] });
+  });
+
+  it("does not answer one song's guess from another song's table", async () => {
+    const get = vi.fn(async (key: string) => (key === song.id ? table({ averse: 72 }) : table({ averse: 3 })));
+    const env: SimilarityEnv = { SIMILARITY: { get } };
+    const other: Song = { ...song, id: "another-song" };
+
+    expect((await proximityHint(env, song, "averse", new Set())).score).toBe(72);
+    expect((await proximityHint(env, other, "averse", new Set())).score).toBe(3);
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
+  it("compares a guessed number with the song's numbers rather than looking it up", async () => {
+    // Whatever a table might say about "2010", a number is judged by value.
+    const get = vi.fn(async () => table({ "2010": 5 }, {}, counted));
+    const hint = await proximityHint({ SIMILARITY: { get } }, counted, "2010", new Set());
+    expect(hint.score).toBe(numberProximityScore("2010", "2015"));
+    expect(hint.near.map((slot) => slot.position)).toEqual([1, 4, 6]);
   });
 
   it("scores and places a word from the dev placeholder table", async () => {
@@ -239,8 +394,9 @@ describe("proximityHint", () => {
     expect(Math.max(...hint.near.map((slot) => slot.score))).toBe(SAMPLE_SIMILARITY_SCORES.clavecin);
   });
 
-  it("returns neither a score nor a placement when scoring is unavailable", async () => {
+  it("returns neither a score nor a placement when scoring is unavailable, for words and numbers alike", async () => {
     expect(await proximityHint({}, song, "averse", new Set())).toEqual({ score: null, near: [] });
+    expect(await proximityHint({}, counted, "2010", new Set())).toEqual({ score: null, near: [] });
   });
 });
 
@@ -270,37 +426,53 @@ describe("the dev placeholder table", () => {
   });
 
   describe("placements", () => {
-    const placements = sampleNearTable(song);
+    const { targets, near } = sampleNearTable(song);
     const songWords = new Set(wordPositions(song).keys());
 
-    it("places every word close enough on words of the song, at its own score first", () => {
+    it("places every word close enough on distinct words of the song, at its own score first", () => {
       for (const [word, score] of Object.entries(SAMPLE_SIMILARITY_SCORES)) {
         if (score < NEAR_SCORE) {
-          expect(placements[word]).toBeUndefined();
+          expect(near[word]).toBeUndefined();
           continue;
         }
-        const targets = placements[word];
-        expect(Object.keys(targets).every((target) => songWords.has(target))).toBe(true);
-        expect(Math.max(...Object.values(targets))).toBe(score);
-        expect(Object.values(targets).every((value) => value >= NEAR_SCORE)).toBe(true);
+        const indices = near[word].filter((_, i) => i % 2 === 0);
+        const scores = near[word].filter((_, i) => i % 2 === 1);
+        expect(indices.every((i) => songWords.has(targets[i]))).toBe(true);
+        expect(new Set(indices).size).toBe(indices.length);
+        expect(scores[0]).toBe(score);
+        expect(scores.every((value) => value >= NEAR_SCORE)).toBe(true);
       }
     });
 
-    it("gives a song the same placements every time", () => {
-      expect(sampleNearTable(song)).toEqual(placements);
+    it("spreads a word over several song words, each a shade further off", () => {
+      const richer: Song = {
+        ...song,
+        sections: [{ label: "Couplet 1", lines: ["La pluie, le vent, la grêle", "Un ciel de tempête"] }],
+      };
+      const scores = sampleNearTable(richer).near.clavecin.filter((_, i) => i % 2 === 1);
+      expect(scores.length).toBeGreaterThan(2);
+      scores.slice(1).forEach((value, i) => expect(value).toBeLessThan(scores[i]));
     });
 
-    it("prefers words of three letters or more, and makes do with shorter ones", () => {
-      const targets = Object.values(placements).flatMap((entry) => Object.keys(entry));
-      expect(targets.every((target) => target.length >= 3)).toBe(true);
+    it("gives a song the same placements every time", () => {
+      expect(sampleNearTable(song)).toEqual({ targets, near });
+    });
 
-      const shortWords: Song = { ...song, title: "Ah", sections: [{ label: "Refrain", lines: ["Oh la la, on y va"] }] };
-      expect(Object.keys(sampleNearTable(shortWords)).length).toBeGreaterThan(0);
+    it("points at words that mean something, and makes do with the others in a song without any", () => {
+      expect(targets.some((target) => isFunctionWord(target))).toBe(false);
+
+      const grammarOnly: Song = { ...song, title: "Oh", sections: [{ label: "Refrain", lines: ["Oh la la, on y est"] }] };
+      expect(Object.keys(sampleNearTable(grammarOnly).near).length).toBeGreaterThan(0);
+    });
+
+    it("never points at a number when the song has words", () => {
+      const numbered: Song = { ...song, title: "Pluie de 2015", sections: [{ label: "Couplet 1", lines: ["En 2000 déjà"] }] };
+      expect(sampleNearTable(numbered).targets).toEqual(["pluie"]);
     });
 
     it("places nothing on a song without a single word", () => {
       const wordless: Song = { ...song, title: "...", sections: [{ label: "Pont", lines: ["!!!"] }] };
-      expect(sampleNearTable(wordless)).toEqual({});
+      expect(sampleNearTable(wordless)).toEqual({ targets: [], near: {} });
     });
   });
 
@@ -327,5 +499,52 @@ describe("the dev placeholder table", () => {
     await fresh.loadSimilarityTable({}, song);
 
     expect(logged).not.toHaveBeenCalled();
+  });
+});
+
+// A namespace bound with nothing usable in it for the song in play answers
+// every guess without a score - which is exactly what an unbound namespace
+// does, and what a Worker with the feature switched off does. Nothing on the
+// page can tell them apart, so the Worker says which it is.
+describe("a table that isn't there", () => {
+  it("names the song it has none for, and how to load one", async () => {
+    expect(await loadSimilarityTable({ SIMILARITY: fakeKv({}) }, song)).toBeNull();
+
+    const message = String(warned.mock.calls[0][0]);
+    expect(message).toContain(song.id);
+    expect(message).toContain("npm run dev:similarity");
+  });
+
+  it("says a stale table is being ignored, rather than half-reading it", async () => {
+    const stale = JSON.stringify({ version: SIMILARITY_TABLE_VERSION - 1, songId: song.id, scores: { orage: 42 }, near: {} });
+    const env: SimilarityEnv = { SIMILARITY: fakeKv({ [song.id]: stale }), SIMILARITY_SAMPLE: "1" };
+
+    // Not even the placeholder stands in for it: a wrong score is worse than
+    // no score, and the player would have no way of knowing which they got.
+    expect(await loadSimilarityTable(env, song)).toBeNull();
+    expect(String(warned.mock.calls[0][0])).toContain(`version ${SIMILARITY_TABLE_VERSION}`);
+  });
+
+  it("says it once, not once per guess", async () => {
+    vi.useFakeTimers();
+    try {
+      const env: SimilarityEnv = { SIMILARITY: fakeKv({}) };
+      await loadSimilarityTable(env, song);
+      // Past the point where the miss stops being remembered, so the namespace
+      // is read again - the guess after that must not complain a second time.
+      vi.advanceTimersByTime(10 * 60 * 1000);
+      await loadSimilarityTable(env, song);
+
+      expect(warned).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stays quiet when there is no namespace to complain about", async () => {
+    await loadSimilarityTable({ SIMILARITY_SAMPLE: "1" }, song);
+    await loadSimilarityTable({}, song);
+
+    expect(warned).not.toHaveBeenCalled();
   });
 });

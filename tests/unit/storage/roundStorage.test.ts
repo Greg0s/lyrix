@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RoundView } from "../../../src/game/types";
 import type { TriedWord } from "../../../src/hooks/useGame";
-import { loadSavedRound, saveRound, todayKey } from "../../../src/roundStorage";
+import { flushSavedRound, loadSavedRound, saveRound, saveRoundSoon, todayKey } from "../../../src/roundStorage";
 
 // The module's own storage key isn't exported (it's a private implementation
 // detail), so tests that need to write a raw entry directly duplicate it here.
@@ -125,5 +125,76 @@ describe("roundStorage", () => {
 
   it("ignores a saved round holding a malformed tried word", () => {
     expect(loadSavedRound(savedToday([{ key: "le", display: "Le" }]))).toBeNull();
+  });
+});
+
+describe("saveRoundSoon", () => {
+  afterEach(() => {
+    flushSavedRound();
+    vi.useRealTimers();
+  });
+
+  it("writes nothing straight away", () => {
+    vi.useFakeTimers();
+    const storage = fakeStorage();
+
+    saveRoundSoon(round, triedWords, storage);
+
+    expect(storage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it("writes once the player has stopped, and loads back identically", () => {
+    vi.useFakeTimers();
+    const storage = fakeStorage();
+
+    saveRoundSoon(round, triedWords, storage);
+    vi.runAllTimers();
+
+    expect(loadSavedRound(storage)).toEqual({ round, triedWords });
+  });
+
+  it("collapses a burst of guesses into a single write", () => {
+    vi.useFakeTimers();
+    const storage = fakeStorage();
+    const setItem = vi.spyOn(storage, "setItem");
+
+    saveRoundSoon(round, [], storage);
+    saveRoundSoon(round, triedWords.slice(0, 1), storage);
+    saveRoundSoon(round, triedWords, storage);
+    vi.runAllTimers();
+
+    expect(setItem).toHaveBeenCalledTimes(1);
+    // The newest state wins - a collapsed write must never lose a guess.
+    expect(loadSavedRound(storage)?.triedWords).toEqual(triedWords);
+  });
+
+  it("can be forced out early, for a tab about to go away", () => {
+    vi.useFakeTimers();
+    const storage = fakeStorage();
+
+    saveRoundSoon(round, triedWords, storage);
+    flushSavedRound();
+
+    expect(loadSavedRound(storage)).toEqual({ round, triedWords });
+    // Nothing is left pending afterwards, so the timer can't write a second time.
+    const setItem = vi.spyOn(storage, "setItem");
+    vi.runAllTimers();
+    expect(setItem).not.toHaveBeenCalled();
+  });
+
+  it("schedules again after a flush", () => {
+    vi.useFakeTimers();
+    const storage = fakeStorage();
+
+    saveRoundSoon(round, [], storage);
+    flushSavedRound();
+    saveRoundSoon(round, triedWords, storage);
+    vi.runAllTimers();
+
+    expect(loadSavedRound(storage)?.triedWords).toEqual(triedWords);
+  });
+
+  it("does nothing at all without a storage", () => {
+    expect(() => saveRoundSoon(round, triedWords, undefined)).not.toThrow();
   });
 });

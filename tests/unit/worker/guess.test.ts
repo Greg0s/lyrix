@@ -1,17 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalize } from "../../../src/game/normalize";
-import { NEAR_SCORE } from "../../../src/game/similarity";
+import { NEAR_SCORE, numberProximityScore } from "../../../src/game/similarity";
 import { tokenize } from "../../../src/game/tokenize";
 import type { DisplayToken, GuessResult, RoundView, Song } from "../../../src/game/types";
 import app from "../../../worker/src/index";
-import { SIMILARITY_TABLE_VERSION, type SimilarityKv } from "../../../worker/src/similarity";
-import { getSongById } from "../../../worker/src/songs";
+import { resetSimilarityMemo, SIMILARITY_TABLE_VERSION, type SimilarityKv } from "../../../worker/src/similarity";
+import { getSongById, resetSongMemo } from "../../../worker/src/songs";
+import { encodeNear, type ReadableNear } from "./similarityTableFixture";
 
 const env = { STATE_SECRET: "test-secret" };
 
 interface KvTable {
   scores?: Record<string, number>;
-  near?: Record<string, Record<string, number>>;
+  near?: ReadableNear;
   /** When set, only this song has a table, which proves the right one is read. */
   songId?: string;
 }
@@ -22,7 +23,13 @@ function similarityKv({ scores = {}, near = {}, songId }: KvTable): SimilarityKv
     get: async (key: string) =>
       songId && key !== songId
         ? null
-        : JSON.stringify({ version: SIMILARITY_TABLE_VERSION, songId: key, model: "test-model", scores, near }),
+        : JSON.stringify({
+            version: SIMILARITY_TABLE_VERSION,
+            songId: key,
+            model: "test-model",
+            scores,
+            ...encodeNear(near),
+          }),
   };
 }
 
@@ -45,21 +52,27 @@ function requestUrl(input: string | URL | Request): URL {
 }
 
 /** Stubs the LRCLIB search call the Worker makes, so route tests never hit the real network. Echoes the requested artist back so `bestMatch` finds an exact hit for whichever song is active today. */
-function mockLrclibFetch(): void {
+function mockLrclibFetch(plainLyrics: string = FIXTURE_LYRICS): void {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string | URL | Request) => {
       const artistName = requestUrl(input).searchParams.get("artist_name") ?? "Unknown";
-      return new Response(
-        JSON.stringify([{ artistName, instrumental: false, plainLyrics: FIXTURE_LYRICS, syncedLyrics: null }]),
-        { status: 200, headers: { "content-type": "application/json" } }
-      );
+      return new Response(JSON.stringify([{ artistName, instrumental: false, plainLyrics, syncedLyrics: null }]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
     })
   );
 }
 
 beforeEach(() => {
   mockLrclibFetch();
+  // Each test starts from a cold isolate: getSongById memoizes a resolved song
+  // for the isolate's lifetime (see worker/src/songs.ts), so without this a
+  // test that counts LRCLIB calls would be answered from the previous test's
+  // song and count none.
+  resetSongMemo();
+  resetSimilarityMemo();
 });
 
 afterEach(() => {
@@ -238,6 +251,26 @@ describe("POST /api/guess — proximity score", () => {
     expect(get).not.toHaveBeenCalled();
   });
 
+  it("reads the table once for a whole round, not once per guess", async () => {
+    const round = await getRound();
+    const get = vi.fn(async (key: string) =>
+      JSON.stringify({
+        version: SIMILARITY_TABLE_VERSION,
+        songId: key,
+        model: "test-model",
+        scores: {},
+        targets: [],
+        near: {},
+      })
+    );
+    const scoring = { ...env, SIMILARITY: { get } };
+
+    const first = await guess(round.state, "xylophoneinexistant", scoring);
+    await guess(first.body.state, "betteraveimaginaire", scoring);
+
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
   it("reads the table of the song actually being played", async () => {
     const round = await getRound();
     const scoring = {
@@ -368,6 +401,147 @@ describe("POST /api/guess — close words", () => {
   });
 });
 
+// The shared fixture plus the two dated lines these tests need: a blob of its
+// own would have to clear the MIN_LYRIC_WORDS floor all over again.
+const NUMBER_LYRICS = `${FIXTURE_LYRICS}\n\nNee en 1975\nRevenue en 2015`;
+
+describe("POST /api/guess — numbers", () => {
+  beforeEach(() => {
+    mockLrclibFetch(NUMBER_LYRICS);
+  });
+
+  it("hides a number in the lyrics until it is guessed", async () => {
+    const round = await getRound();
+    expect(wordsInOrder(await playedSong(round))).toContain("2015");
+    expect(allTokens(round).some((t) => t.text.includes("2015"))).toBe(false);
+
+    const { body } = await guess(round.state, "2015");
+    expect(body.found).toBe(true);
+    expect(allTokens(body).some((t) => t.revealed && t.text === "2015")).toBe(true);
+  });
+
+  it("shows a close number in place of the hidden ones, once similarity is on", async () => {
+    const round = await getRound();
+    const words = wordsInOrder(await playedSong(round));
+
+    const { body } = await guess(round.state, "2010", { ...env, SIMILARITY: similarityKv({}) });
+    expect(body.found).toBe(false);
+    expect(body.score).toBe(numberProximityScore("2010", "2015"));
+    expect(body.near).toContainEqual({ position: words.indexOf("2015"), score: numberProximityScore("2010", "2015") });
+  });
+
+  it("gives a number nothing when similarity is off", async () => {
+    const round = await getRound();
+    const { body } = await guess(round.state, "2010");
+    expect(body.score).toBeNull();
+    expect(body.near).toEqual([]);
+  });
+});
+
+describe("DEV_REVEAL_LYRICS", () => {
+  it("never attaches devHint by default", async () => {
+    const round = await getRound();
+    expect(allTokens(round).every((t) => t.devHint === undefined)).toBe(true);
+
+    const { body } = await guess(round.state, "xylophoneinexistant");
+    expect(allTokens(body).every((t) => t.devHint === undefined)).toBe(true);
+  });
+
+  it("attaches every still-hidden word's real text when on, matching the actual song", async () => {
+    const devEnv = { ...env, DEV_REVEAL_LYRICS: "1" };
+    const res = await app.request("/api/round", {}, devEnv);
+    const round = (await res.json()) as RoundView;
+    const song = await getSongById(round.songId);
+    if (!song) throw new Error("round song not found");
+
+    const words = allTokens(round).filter((t) => t.isWord);
+    expect(words.length).toBeGreaterThan(0);
+    const realKeys = new Set(wordsInOrder(song));
+    // Nothing is found yet, so every word is still masked, and every one now
+    // carries its real text - checked against the song itself, not echoed back.
+    for (const token of words) {
+      expect(token.revealed).toBe(false);
+      expect(typeof token.devHint).toBe("string");
+      expect(realKeys.has(normalize(token.devHint as string))).toBe(true);
+    }
+  });
+
+  it("never sends devHint for a word that is already found", async () => {
+    const devEnv = { ...env, DEV_REVEAL_LYRICS: "1" };
+    const round = (await (await app.request("/api/round", {}, devEnv)).json()) as RoundView;
+    const song = await getSongById(round.songId);
+    if (!song) throw new Error("round song not found");
+    const titleWord = tokenize(song.title).find((t) => t.isWord);
+    if (!titleWord) throw new Error("song title has no word tokens");
+
+    const { body } = await guess(round.state, titleWord.text, devEnv);
+    const found = allTokens(body).find((t) => t.isWord && t.revealed && normalize(t.text) === normalize(titleWord.text));
+    expect(found).toBeDefined();
+    expect(found?.devHint).toBeUndefined();
+
+    const stillHidden = allTokens(body).filter((t) => t.isWord && !t.revealed);
+    expect(stillHidden.every((t) => typeof t.devHint === "string")).toBe(true);
+  });
+
+  it("treats any value other than the literal string \"1\" as off", async () => {
+    const round = (await (await app.request("/api/round", {}, { ...env, DEV_REVEAL_LYRICS: "true" })).json()) as RoundView;
+    expect(allTokens(round).every((t) => t.devHint === undefined)).toBe(true);
+  });
+});
+
+describe("reveal all lyrics (post-victory checkbox)", () => {
+  it("never attaches revealHint before the round is won", async () => {
+    const round = await getRound();
+    expect(allTokens(round).every((t) => t.revealHint === undefined)).toBe(true);
+
+    const { body } = await guess(round.state, "xylophoneinexistant");
+    expect(body.victory).toBe(false);
+    expect(allTokens(body).every((t) => t.revealHint === undefined)).toBe(true);
+  });
+
+  it("attaches every still-hidden word's real text once every title word is found, matching the actual song", async () => {
+    const round = await getRound();
+    const song = await playedSong(round);
+
+    const titleWords = tokenize(song.title).filter((t) => t.isWord);
+    let state = round.state;
+    let last: GuessResult | undefined;
+    for (const word of titleWords) {
+      const result = await guess(state, word.text);
+      state = result.body.state;
+      last = result.body;
+    }
+    if (!last) throw new Error("no guess was made");
+
+    expect(last.victory).toBe(true);
+    const realKeys = new Set(wordsInOrder(song));
+    const stillHidden = allTokens(last).filter((t) => t.isWord && !t.revealed);
+    expect(stillHidden.length).toBeGreaterThan(0);
+    for (const token of stillHidden) {
+      expect(typeof token.revealHint).toBe("string");
+      expect(realKeys.has(normalize(token.revealHint as string))).toBe(true);
+    }
+  });
+
+  it("never sends revealHint for a word that is already found", async () => {
+    const round = await getRound();
+    const song = await playedSong(round);
+    const titleWords = tokenize(song.title).filter((t) => t.isWord);
+
+    let state = round.state;
+    let last: GuessResult | undefined;
+    for (const word of titleWords) {
+      const result = await guess(state, word.text);
+      state = result.body.state;
+      last = result.body;
+    }
+    if (!last) throw new Error("no guess was made");
+
+    const found = allTokens(last).filter((t) => t.isWord && t.revealed);
+    expect(found.every((t) => t.revealHint === undefined)).toBe(true);
+  });
+});
+
 describe("a missing STATE_SECRET", () => {
   // Regression test: with no worker/.dev.vars on disk, env.STATE_SECRET is
   // undefined and every request used to blow up inside Web Crypto with
@@ -445,5 +619,40 @@ describe("malformed input", () => {
       env
     );
     expect(res.status).toBe(400);
+  });
+});
+
+describe("CORS preflight", () => {
+  // Pages and the Worker are on different origins in production, so a guess is
+  // preflighted. Without an explicit max-age the browser caches that preflight
+  // for its own default of a few seconds, and the player pays an extra round
+  // trip on most guesses.
+  it("tells the browser it can keep the preflight", async () => {
+    const res = await app.request(
+      "/api/guess",
+      {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://lyrix-eyg.pages.dev",
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "content-type",
+        },
+      },
+      env
+    );
+
+    expect(res.status).toBe(204);
+    expect(Number(res.headers.get("access-control-max-age"))).toBeGreaterThanOrEqual(3600);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    expect(res.headers.get("access-control-allow-methods")).toContain("POST");
+  });
+
+  it("answers a preflight without needing the signing secret", async () => {
+    const res = await app.request(
+      "/api/guess",
+      { method: "OPTIONS", headers: { Origin: "https://lyrix-eyg.pages.dev", "Access-Control-Request-Method": "POST" } },
+      {}
+    );
+    expect(res.status).toBe(204);
   });
 });
