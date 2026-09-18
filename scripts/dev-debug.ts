@@ -16,25 +16,25 @@ import {
   everySongId,
   findModel,
   kvBulkPutArgs,
-  LOCAL_SIMILARITY_PERSIST_DIR,
+  DEBUG_PERSIST_DIR,
   modelSearchDirs,
   readTableFile,
   tablePath,
   wranglerDevArgs,
   type LoadedTable,
-} from "./lib/localSimilarity";
+} from "./lib/debugMode";
 
 /**
  * Plays today's song locally against a real similarity table, in one command:
  * builds the table for the day's song, loads it into a KV namespace that only
  * exists on this machine, and starts Vite and the Worker against it.
  *
- *   npm run dev:similarity
- *   npm run dev:similarity -- --model data/models/frwac.vecbin
- *   npm run dev:similarity -- --table data/similarity/papaoutai.json --reveal
+ *   npm run dev:debug
+ *   npm run dev:debug -- --model data/models/frwac.vecbin
+ *   npm run dev:debug -- --table data/similarity/papaoutai.json --reveal
  *
  * None of it is ever deployed: the binding lives in its own wrangler
- * configuration (see scripts/lib/localSimilarity.ts). Without a model this
+ * configuration (see scripts/lib/debugMode.ts). Without a model this
  * command says so and stops - npm run dev:all is the one that needs nothing,
  * and plays the same game on placeholder scores.
  */
@@ -69,7 +69,7 @@ const DEFAULT_WORKER_PORT = 8787;
 const DEFAULT_INSPECTOR_PORT = 9229;
 
 const USAGE = [
-  "usage: dev-similarity [options]",
+  "usage: dev-debug [options]",
   "",
   "Builds today's similarity table, loads it into a local-only KV namespace, and",
   "starts the game against it. It needs an embedding model (see CLAUDE.md); without",
@@ -84,7 +84,7 @@ const USAGE = [
   `  --web-port <n>        Vite port (default ${DEFAULT_WEB_PORT})`,
   `  --port <n>            Worker port (default ${DEFAULT_WORKER_PORT})`,
   `  --inspector-port <n>  Worker inspector port (default ${DEFAULT_INSPECTOR_PORT})`,
-  `  --persist-to <dir>    local state directory (default ${LOCAL_SIMILARITY_PERSIST_DIR})`,
+  `  --persist-to <dir>    local state directory (default ${DEBUG_PERSIST_DIR})`,
 ].join("\n");
 
 function port(value: string | undefined, fallback: number, flag: string): number {
@@ -144,8 +144,8 @@ async function buildTodaysTable(songId: string, model: string | undefined): Prom
       [
         "no embedding model found, so today's table can't be built.",
         `  looked in: ${searched.join(", ")}`,
-        "  name one with:  npm run dev:similarity -- --model <model.vecbin|.bin>",
-        `  or play a table you already built:  npm run dev:similarity -- --table ${tablePath(songId)}`,
+        "  name one with:  npm run dev:debug -- --model <model.vecbin|.bin>",
+        `  or play a table you already built:  npm run dev:debug -- --table ${tablePath(songId)}`,
         '  a model is never downloaded automatically - see "Semantic Proximity Scoring" in CLAUDE.md.',
         "  npm run dev:all needs none of this: it plays the same game on placeholder scores.",
       ].join("\n")
@@ -282,7 +282,7 @@ async function main(): Promise<void> {
   const webPort = port(values["web-port"], DEFAULT_WEB_PORT, "--web-port");
   const workerPort = port(values.port, DEFAULT_WORKER_PORT, "--port");
   const inspectorPort = port(values["inspector-port"], DEFAULT_INSPECTOR_PORT, "--inspector-port");
-  const persistTo = values["persist-to"] ?? LOCAL_SIMILARITY_PERSIST_DIR;
+  const persistTo = values["persist-to"] ?? DEBUG_PERSIST_DIR;
   const workerOnly = values["worker-only"];
 
   const entry = pickDailyEntry();

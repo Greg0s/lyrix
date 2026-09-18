@@ -10,11 +10,11 @@ import {
   modelsIn,
   readTableFile,
   tablePath,
-} from "../../../scripts/lib/localSimilarity";
+} from "../../../scripts/lib/debugMode";
 import { catalog, FALLBACK_SONG_ID } from "../../../worker/src/catalog";
 import { SIMILARITY_TABLE_VERSION } from "../../../worker/src/similarity";
 
-/** The one table checked into the repository, kept current by tests/unit/ci/localSimilarity.test.ts. */
+/** The one table checked into the repository, kept current by tests/unit/ci/debugMode.test.ts. */
 const CURRENT_TABLE = "tests/e2e/fixtures/similarity-table.json";
 
 let dir = "";

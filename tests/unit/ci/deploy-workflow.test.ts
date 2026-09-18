@@ -20,7 +20,7 @@ describe("CI deploy workflow", () => {
     expect(buildStep?.[1]).toMatch(/VITE_API_BASE_URL:\s*https:\/\/\S+/);
   });
   // The Worker gained a second wrangler configuration, for local play against a
-  // real similarity table (worker/wrangler.similarity.toml). Only one of the two
+  // real similarity table (worker/wrangler.debug.toml). Only one of the two
   // is ever deployed, and the deploy job is only reached once a change is on
   // main - so the configuration it ships is built on every run instead, before
   // anything can be merged.

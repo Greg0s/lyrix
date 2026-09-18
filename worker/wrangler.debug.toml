@@ -1,5 +1,5 @@
 # Local-only twin of wrangler.toml: the same Worker, plus a SIMILARITY KV
-# namespace that exists nowhere but this machine, so `npm run dev:similarity`
+# namespace that exists nowhere but this machine, so `npm run dev:debug`
 # can serve a real precomputed table (scripts/build-similarity-table.ts)
 # instead of the hand-written placeholder one.
 #
@@ -13,7 +13,7 @@
 #
 # Everything else here has to stay in step with wrangler.toml — a Worker run
 # locally under a different compatibility date is not the Worker being shipped.
-# tests/unit/ci/localSimilarity.test.ts compares the two files and fails on any
+# tests/unit/ci/debugMode.test.ts compares the two files and fails on any
 # difference other than the binding below.
 #
 # STATE_SECRET comes from worker/.dev.vars, exactly as it does for wrangler.toml:
@@ -30,4 +30,4 @@ binding = "SIMILARITY"
 # deliberately not the 32 hex characters a real namespace id has: should this
 # configuration ever be handed to `wrangler deploy` by accident, Cloudflare
 # rejects it instead of publishing a Worker bound to something unexpected.
-id = "local-similarity-dev-only"
+id = "local-debug-dev-only"

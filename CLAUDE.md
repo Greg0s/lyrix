@@ -29,7 +29,7 @@ Plain, functional UI — no 3D, no fancy animations. Do not add 3D dependencies 
 - Install: `npm install`
 - Run: `npm run dev:all` (Vite + `wrangler dev` side by side; `/api/*` is proxied to the Worker)
 - Test: `npm test` (lint + typecheck + Vitest), `npm run test:e2e` (Playwright)
-- Play against real proximity scores instead of the dev placeholder: `npm run dev:similarity`
+- Debug mode — play against real proximity scores instead of the dev placeholder: `npm run dev:debug`
 
 ## TypeScript Rules
 
@@ -154,11 +154,11 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   state.ts                            # HMAC-signed round state (songId + foundKeys) via Web Crypto
 /worker
   wrangler.toml              # Worker config; STATE_SECRET dev default, SIMILARITY binding (commented)
-  wrangler.similarity.toml    # same Worker + a local-only SIMILARITY namespace (npm run dev:similarity)
+  wrangler.debug.toml         # same Worker + a local-only SIMILARITY namespace (npm run dev:debug)
 /scripts                     # Node tooling via tsx, never bundled into the Worker
   ensure-dev-vars.ts, convert-embeddings.ts, build-similarity-table.ts,
-  dev-similarity.ts, inspect-similarity-table.ts
-  /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, localSimilarity.ts, devVars.ts
+  dev-debug.ts, inspect-similarity-table.ts
+  /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, debugMode.ts, devVars.ts
 /tests
   /unit/game, /unit/worker, /unit/scripts, /unit/storage, /unit/components, /unit/ci
   /e2e                        # Playwright; fixtures/similarity-table.json stands in for a built table

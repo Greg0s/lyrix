@@ -3,7 +3,7 @@ import type { PlaywrightTestConfig } from "@playwright/test";
 import type { UserConfig } from "vite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { similarityTableFixture } from "../../../playwright.config";
-import { LOCAL_SIMILARITY_PERSIST_DIR } from "../../../scripts/lib/localSimilarity";
+import { DEBUG_PERSIST_DIR } from "../../../scripts/lib/debugMode";
 
 // Regression test for e2e runs passing against another checkout's code. The
 // Playwright webServer entries polled the ports `npm run dev:all` binds (5173
@@ -20,11 +20,11 @@ const DEV_PORTS = [DEV_WEB_PORT, DEV_WORKER_PORT, DEV_WORKER_INSPECTOR_PORT];
 
 // Where wrangler keeps local state when it isn't told otherwise: the cached
 // songs of every `npm run dev:all` in this checkout, and the tables
-// `npm run dev:similarity` loads, live under worker/.wrangler.
+// `npm run dev:debug` loads, live under worker/.wrangler.
 const WRANGLER_DEFAULT_STATE_DIR = "worker/.wrangler/state";
 
 // The Workers the suite starts, by the npm script each one comes up through.
-const WORKER_SCRIPTS = ["dev:worker", "dev:similarity"];
+const WORKER_SCRIPTS = ["dev:worker", "dev:debug"];
 
 type WebServer = Exclude<NonNullable<PlaywrightTestConfig["webServer"]>, readonly unknown[]>;
 
@@ -112,7 +112,7 @@ describe("Playwright e2e web servers", () => {
     const config = await loadPlaywrightConfig();
     const web = serverStartedBy(config, "dev");
     const worker = serverStartedBy(config, "dev:worker");
-    const similarity = serverStartedBy(config, "dev:similarity");
+    const similarity = serverStartedBy(config, "dev:debug");
     const e2ePorts = [
       requestedPort(web.command, "--port", DEV_WEB_PORT),
       requestedPort(worker.command, "--port", DEV_WORKER_PORT),
@@ -166,7 +166,7 @@ describe("npm run dev:all", () => {
   });
 });
 
-// A second Worker joined the suite with `npm run dev:similarity`: the command a
+// A second Worker joined the suite with `npm run dev:debug`: the command a
 // developer runs to play today's song against a real similarity table. It has a
 // KV namespace bound, so what it serves must never reach the Worker the rest of
 // the suite plays against, which asserts on the placeholder table's scores.
@@ -181,15 +181,15 @@ describe("the Workers the e2e suite starts", () => {
       const script = WORKER_SCRIPTS[index];
       expect(directory, `\`npm run ${script}\` must be given its own --persist-to`).toBeDefined();
       // Shared with every dev:all in this checkout, and with the tables
-      // dev:similarity loads for local play.
+      // dev:debug loads for local play.
       expect(directory, script).not.toBe(WRANGLER_DEFAULT_STATE_DIR);
-      expect(directory, script).not.toBe(LOCAL_SIMILARITY_PERSIST_DIR);
+      expect(directory, script).not.toBe(DEBUG_PERSIST_DIR);
     }
     expect(new Set(directories).size, "two Workers sharing one state directory").toBe(directories.length);
   });
 
   it("play a fixture table rather than building one from whatever model is on the machine", async () => {
-    const { command } = serverStartedBy(await loadPlaywrightConfig(), "dev:similarity");
+    const { command } = serverStartedBy(await loadPlaywrightConfig(), "dev:debug");
 
     // Without --table the command builds today's table from a model: CI has
     // none, and a developer machine has the real one — neither belongs in a run
