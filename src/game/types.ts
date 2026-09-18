@@ -26,6 +26,14 @@ export interface DisplayToken {
    * Set for a still-hidden word only; a revealed one already shows itself.
    */
   devHint?: string;
+  /**
+   * The real word for a still-hidden token, sent once `RoundView.victory` is
+   * true, so the "show all lyrics" checkbox can display the full song after a
+   * win. The Worker computes `victory` itself from signed state, so this can
+   * never reach a player who hasn't actually found the title. Set for a
+   * still-hidden word only; a revealed one already shows itself.
+   */
+  revealHint?: string;
 }
 
 export interface DisplayLine {

@@ -110,3 +110,30 @@ describe("devReveal", () => {
     expect(words.every((t) => typeof t.devHint === "string" && t.devHint.length > 0)).toBe(true);
   });
 });
+
+describe("revealAll (post-victory 'show all lyrics' checkbox)", () => {
+  it("attaches no revealHint by default", () => {
+    const title = buildTitleView(song, new Set());
+    const lyrics = buildSectionsView(song, new Set());
+    expect(title.every((t) => t.revealHint === undefined)).toBe(true);
+    expect(lyrics[0].lines[0].tokens.every((t) => t.revealHint === undefined)).toBe(true);
+  });
+
+  it("attaches the real text of every still-hidden lyrics word when on", () => {
+    const view = buildSectionsView(song, new Set(), false, true);
+    const words = view[0].lines[0].tokens.filter((t) => t.isWord);
+    expect(words.every((t) => typeof t.revealHint === "string" && t.revealHint.length > 0)).toBe(true);
+  });
+
+  it("never attaches revealHint to an already-revealed word or to punctuation", () => {
+    const view = buildSectionsView(song, new Set(["le", "ciel", "est", "bleu", "l", "ete", "chante"]), false, true);
+    expect(view[0].lines[0].tokens.every((t) => t.revealHint === undefined)).toBe(true);
+  });
+
+  it("is independent from devReveal - either flag, or both, can be on at once", () => {
+    const view = buildTitleView(song, new Set(["ete"]), true, true);
+    const words = view.filter((t) => t.isWord);
+    expect(words.map((t) => t.devHint)).toEqual(["L", undefined, "bleu"]);
+    expect(words.map((t) => t.revealHint)).toEqual(["L", undefined, "bleu"]);
+  });
+});

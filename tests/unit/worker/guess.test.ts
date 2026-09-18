@@ -475,6 +475,59 @@ describe("DEV_REVEAL_LYRICS", () => {
   });
 });
 
+describe("reveal all lyrics (post-victory checkbox)", () => {
+  it("never attaches revealHint before the round is won", async () => {
+    const round = await getRound();
+    expect(allTokens(round).every((t) => t.revealHint === undefined)).toBe(true);
+
+    const { body } = await guess(round.state, "xylophoneinexistant");
+    expect(body.victory).toBe(false);
+    expect(allTokens(body).every((t) => t.revealHint === undefined)).toBe(true);
+  });
+
+  it("attaches every still-hidden word's real text once every title word is found, matching the actual song", async () => {
+    const round = await getRound();
+    const song = await playedSong(round);
+
+    const titleWords = tokenize(song.title).filter((t) => t.isWord);
+    let state = round.state;
+    let last: GuessResult | undefined;
+    for (const word of titleWords) {
+      const result = await guess(state, word.text);
+      state = result.body.state;
+      last = result.body;
+    }
+    if (!last) throw new Error("no guess was made");
+
+    expect(last.victory).toBe(true);
+    const realKeys = new Set(wordsInOrder(song));
+    const stillHidden = allTokens(last).filter((t) => t.isWord && !t.revealed);
+    expect(stillHidden.length).toBeGreaterThan(0);
+    for (const token of stillHidden) {
+      expect(typeof token.revealHint).toBe("string");
+      expect(realKeys.has(normalize(token.revealHint as string))).toBe(true);
+    }
+  });
+
+  it("never sends revealHint for a word that is already found", async () => {
+    const round = await getRound();
+    const song = await playedSong(round);
+    const titleWords = tokenize(song.title).filter((t) => t.isWord);
+
+    let state = round.state;
+    let last: GuessResult | undefined;
+    for (const word of titleWords) {
+      const result = await guess(state, word.text);
+      state = result.body.state;
+      last = result.body;
+    }
+    if (!last) throw new Error("no guess was made");
+
+    const found = allTokens(last).filter((t) => t.isWord && t.revealed);
+    expect(found.every((t) => t.revealHint === undefined)).toBe(true);
+  });
+});
+
 describe("a missing STATE_SECRET", () => {
   // Regression test: with no worker/.dev.vars on disk, env.STATE_SECRET is
   // undefined and every request used to blow up inside Web Crypto with

@@ -22,8 +22,10 @@ export function GameScreen() {
   const isMobile = useIsMobile();
   const [triedOpen, setTriedOpen] = useState(false);
   const [explainOpen, setExplainOpen] = useState(false);
+  const [revealAllLyrics, setRevealAllLyrics] = useState(false);
   const toggleTried = useCallback(() => setTriedOpen((open) => !open), []);
   const toggleExplain = useCallback(() => setExplainOpen((open) => !open), []);
+  const toggleRevealAllLyrics = useCallback(() => setRevealAllLyrics((reveal) => !reveal), []);
   const { submit } = game;
   const onSubmit = useCallback(() => void submit(), [submit]);
 
@@ -77,7 +79,13 @@ export function GameScreen() {
 
       <div className={`lyrix-grid${isMobile ? " is-mobile" : ""}`}>
         <div className="lyrix-center-col">
-          <TitleGuess titleTokens={slots.title} victory={round.victory} artist={round.artist} />
+          <TitleGuess
+            titleTokens={slots.title}
+            victory={round.victory}
+            artist={round.artist}
+            revealAllLyrics={revealAllLyrics}
+            onToggleRevealAllLyrics={toggleRevealAllLyrics}
+          />
 
           <GuessForm
             value={game.inputValue}
@@ -94,7 +102,7 @@ export function GameScreen() {
             <p className={`lyrix-feedback ${game.feedback?.found ? "is-found" : "is-missed"}`}>{feedbackText}</p>
           ) : null}
 
-          <LyricsBody sections={slots.sections} />
+          <LyricsBody sections={slots.sections} revealAll={revealAllLyrics} />
         </div>
 
         <SideCard

@@ -93,6 +93,7 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 ## Domain-Specific Rules
 
 - **Anti-cheat is a hard requirement**, even in the MVP: the Worker is the only thing that knows the actual lyrics. It receives a guessed word and returns which positions match — never the full text before the round is won. The one exception is `DEV_REVEAL_LYRICS` (`worker/src/index.ts`), which attaches each hidden word's real text as `devHint` for local debugging (`WordToken.tsx`); wired only into `dev:worker`/`dev:all`/`test:e2e`, never in `wrangler.toml` or production.
+- **The "show all lyrics" checkbox reuses that same mechanism, gated on `victory` instead of a dev flag.** Once `RoundView.victory` is true — recomputed by the Worker itself from signed state, never client-supplied — `buildRoundView` attaches every still-hidden lyrics word's real text as `DisplayToken.revealHint`, riding along on the normal round/guess response (no extra endpoint or round trip). The checkbox itself is local, unsigned UI state owned by `GameScreen`, rendered only once won (`TitleGuess`); `WordToken` shows `revealHint` in place of a blank only while checked, ahead of a close-guess placement and the dev hint.
 - **French text matching**: normalize both the guess and the stored lyrics before comparing (case/accent-insensitive, œ/æ spelled out) and account for elisions ("j'aime" vs "je aime", "qu'il", "l'amour"). `LETTER_CLASS` (`src/game/tokenize.ts`) must cover every letter French lyrics use. A run of digits is a word too.
 - **LRCLIB data isn't guaranteed clean**: handle missing lyrics, instrumental sections, and inconsistent formatting gracefully.
 
@@ -119,10 +120,13 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   /api/client.ts         # fetch wrapper (fetchRound, submitGuess)
   /components             # presentational React components
     GameScreen.tsx        # top-level layout; wires useGame()/useIsMobile(), places close
-                           # guesses onto the round (slots.ts) before rendering
-    TitleGuess.tsx         # masked title, victory banner
-    LyricsBody.tsx          # masked lyrics, grouped by section
-    WordToken.tsx           # one token: punctuation, found word, blank, close-guess blank, dev hint
+                           # guesses onto the round (slots.ts), and owns the "show all
+                           # lyrics" checkbox's local, unsigned reveal-all toggle
+    TitleGuess.tsx         # masked title, victory banner, and the "show all lyrics"
+                           # checkbox once won (RoundView.victory), controlled by GameScreen
+    LyricsBody.tsx          # masked lyrics, grouped by section; takes the reveal-all toggle
+    WordToken.tsx           # one token: punctuation, found word, blank, close-guess blank,
+                            # revealed-via-checkbox text (DisplayToken.revealHint), dev hint
     heatStyle.ts             # inline --heat a scored word is shaded with
     GuessForm.tsx             # word-guess input
     TriedWords.tsx             # past guesses, sorted by score; credits the embedding model

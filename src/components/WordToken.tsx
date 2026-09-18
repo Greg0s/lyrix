@@ -4,19 +4,32 @@ import { heatStyle } from "./heatStyle";
 
 interface WordTokenProps {
   token: SlotToken;
+  /** True once the player has checked "show all lyrics" on a won round - see TitleGuess and GameScreen. */
+  revealAll?: boolean;
 }
 
 /**
  * One token of the title or the lyrics: punctuation as is, or a word that is
- * revealed, holding the closest guess so far, holding the dev-only low-opacity
- * hint (see CLAUDE.md's anti-cheat section), or plain masked.
+ * revealed, holding the closest guess so far, shown by the post-victory
+ * "reveal all" checkbox, holding the dev-only low-opacity hint (see CLAUDE.md's
+ * anti-cheat section), or plain masked.
  *
- * Order matters: a found word or a close guess is normal gameplay progress and
- * always takes over from the dev hint, never the other way round.
+ * Order matters: a found word is normal gameplay progress and always takes
+ * over from every other rendering. A checked "reveal all" is the player asking
+ * to read the actual song, so it takes over from a close-guess placement and
+ * the dev hint, never the other way round.
  */
-export function WordToken({ token }: WordTokenProps) {
+export function WordToken({ token, revealAll = false }: WordTokenProps) {
   if (!token.isWord) return <span>{token.text}</span>;
   if (token.revealed) return <span className="token-word-found">{token.text}</span>;
+
+  if (revealAll && token.revealHint) {
+    return (
+      <span className="token-word-revealed" title="Affiché via « Afficher tous les lyrics »">
+        {token.revealHint}
+      </span>
+    );
+  }
 
   if (token.near) {
     const { text, score } = token.near;

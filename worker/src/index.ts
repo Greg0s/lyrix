@@ -80,8 +80,12 @@ async function buildRoundView(
   return {
     songId: song.id,
     state,
-    title: { tokens: buildTitleView(song, foundSet, devReveal) },
-    sections: buildSectionsView(song, foundSet, devReveal),
+    // Once the round is won, every still-hidden word's real text rides along
+    // as `revealHint` (see DisplayToken and CLAUDE.md's anti-cheat section):
+    // `victory` is recomputed here from signed state, so a player can't reach
+    // this branch without having actually found the title.
+    title: { tokens: buildTitleView(song, foundSet, devReveal, victory) },
+    sections: buildSectionsView(song, foundSet, devReveal, victory),
     victory,
     ...(victory ? { artist: song.artist } : {}),
   };

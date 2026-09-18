@@ -86,6 +86,12 @@
   opacity: 0.32;
 }
 
+/* Shown by the post-victory "reveal all lyrics" checkbox - not something the player found, styled distinctly from .token-word-found. */
+.token-word-revealed {
+  color: var(--color-ink-muted);
+  font-style: italic;
+}
+
 .token-word-found {
   color: var(--color-ink);
   background: var(--accent-tint);
@@ -171,6 +177,16 @@
   margin: 0 0 10px;
   font-size: 0.95rem;
   color: var(--color-ink-muted);
+}
+
+.lyrix-reveal-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  color: var(--color-ink-muted);
+  cursor: pointer;
 }
 
 .lyrix-victory-note {
