@@ -118,7 +118,7 @@ function announceTableProblem(songId: string, problem: string): void {
   announcedTables.add(songId);
   console.warn(
     `similarity: ${problem} Guesses for it come back without a score. ` +
-      "Locally, npm run dev:similarity builds today's table and loads it; " +
+      "Locally, npm run dev:debug builds today's table and loads it; " +
       "for production, npm run similarity:build then wrangler kv bulk put --remote (see CLAUDE.md)."
   );
 }

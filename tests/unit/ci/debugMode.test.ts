@@ -3,15 +3,15 @@ import { describe, expect, it } from "vitest";
 import { unstable_readConfig, type Unstable_Config } from "wrangler";
 import {
   kvBulkPutArgs,
-  LOCAL_SIMILARITY_CONFIG,
-  LOCAL_SIMILARITY_PERSIST_DIR,
+  DEBUG_CONFIG,
+  DEBUG_PERSIST_DIR,
   SIMILARITY_BINDING,
   wranglerDevArgs,
-} from "../../../scripts/lib/localSimilarity";
+} from "../../../scripts/lib/debugMode";
 import { parseSimilarityTable, SIMILARITY_TABLE_VERSION } from "../../../worker/src/similarity";
 
 /**
- * The configuration behind `npm run dev:similarity`: a KV namespace bound for
+ * The configuration behind `npm run dev:debug`: a KV namespace bound for
  * local play only.
  *
  * Two things have to stay true at once, and neither shows up in a diff. The
@@ -25,7 +25,7 @@ import { parseSimilarityTable, SIMILARITY_TABLE_VERSION } from "../../../worker/
 /** What .github/workflows/ci.yml deploys, and what `npm run dev:all` runs. */
 const DEPLOY_CONFIG = "worker/wrangler.toml";
 
-/** Wrangler's own default state directory, which dev:all and dev:similarity share. */
+/** Wrangler's own default state directory, which dev:all and dev:debug share. */
 const DEFAULT_STATE_DIR = "worker/.wrangler/state";
 
 const E2E_TABLE = "tests/e2e/fixtures/similarity-table.json";
@@ -57,12 +57,12 @@ describe("the Worker configuration that gets deployed", () => {
   });
 });
 
-describe("the local similarity configuration", () => {
+describe("the debug configuration", () => {
   const deployed = read(DEPLOY_CONFIG) as unknown as Record<string, unknown>;
-  const local = read(LOCAL_SIMILARITY_CONFIG) as unknown as Record<string, unknown>;
+  const local = read(DEBUG_CONFIG) as unknown as Record<string, unknown>;
 
   it("binds SIMILARITY to an id that could never be a real namespace", () => {
-    const namespaces = read(LOCAL_SIMILARITY_CONFIG).kv_namespaces;
+    const namespaces = read(DEBUG_CONFIG).kv_namespaces;
     expect(namespaces).toHaveLength(1);
     expect(namespaces[0].binding).toBe(SIMILARITY_BINDING);
     // A real namespace id is 32 hex characters. Anything else is rejected by
@@ -91,8 +91,8 @@ describe("loading a table and serving it", () => {
     const put = kvBulkPutArgs("bulk.json");
     const dev = wranglerDevArgs();
 
-    expect(flagValue(put, "--config")).toBe(LOCAL_SIMILARITY_CONFIG);
-    expect(flagValue(dev, "--config")).toBe(LOCAL_SIMILARITY_CONFIG);
+    expect(flagValue(put, "--config")).toBe(DEBUG_CONFIG);
+    expect(flagValue(dev, "--config")).toBe(DEBUG_CONFIG);
     expect(flagValue(put, "--persist-to")).toBe(flagValue(dev, "--persist-to"));
     expect(flagValue(put, "--binding")).toBe(SIMILARITY_BINDING);
   });
@@ -109,7 +109,7 @@ describe("loading a table and serving it", () => {
   });
 
   it("keeps loaded tables out of the state directory npm run dev:all writes to", () => {
-    expect(LOCAL_SIMILARITY_PERSIST_DIR).not.toBe(DEFAULT_STATE_DIR);
+    expect(DEBUG_PERSIST_DIR).not.toBe(DEFAULT_STATE_DIR);
   });
 });
 
@@ -120,7 +120,7 @@ describe("npm run dev:all", () => {
     const devWorker = packageScripts()["dev:worker"];
     expect(devWorker).toContain(`--config ${DEPLOY_CONFIG}`);
     expect(devWorker).toContain("SIMILARITY_SAMPLE:1");
-    expect(devWorker).not.toContain(LOCAL_SIMILARITY_CONFIG);
+    expect(devWorker).not.toContain(DEBUG_CONFIG);
   });
 });
 

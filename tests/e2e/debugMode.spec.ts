@@ -7,7 +7,7 @@ import { parseSimilarityTable } from "../../worker/src/similarity";
 
 /**
  * Playing against a real table out of a local KV namespace, the way
- * `npm run dev:similarity` sets it up.
+ * `npm run dev:debug` sets it up.
  *
  * Playwright starts that very command for this (see playwright.config.ts),
  * pointed at tests/e2e/fixtures/similarity-table.json, since no CI machine has
