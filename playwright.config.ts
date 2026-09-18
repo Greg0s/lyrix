@@ -13,11 +13,11 @@ const SIMILARITY_WORKER_INSPECTOR_PORT = 19230;
 // Local state (cached songs, and KV for the Worker that has a namespace bound)
 // for each Worker the suite starts. Each gets its own, and neither gets
 // wrangler's default worker/.wrangler/state — which is where `npm run dev:all`
-// and `npm run dev:similarity` keep theirs in this same checkout. The suite
+// and `npm run dev:debug` keep theirs in this same checkout. The suite
 // asserts on the placeholder table's scores, so a real table loaded for local
 // play must not be able to reach it.
 const WORKER_STATE_DIR = "worker/.wrangler/e2e-state";
-const SIMILARITY_WORKER_STATE_DIR = "worker/.wrangler/e2e-similarity-state";
+const DEBUG_WORKER_STATE_DIR = "worker/.wrangler/e2e-debug-state";
 
 // Stands in for a table built from the real embedding model, which no CI
 // machine has: a handful of scores, deliberately unlike the placeholder's, so
@@ -27,7 +27,7 @@ export const similarityTableFixture = "tests/e2e/fixtures/similarity-table.json"
 const webUrl = `http://localhost:${WEB_PORT}`;
 /** The Worker the game is played against: placeholder scores, no KV namespace bound. */
 export const workerUrl = `http://localhost:${WORKER_PORT}`;
-/** The Worker serving a real table out of a local KV namespace, as `npm run dev:similarity` does. */
+/** The Worker serving a real table out of a local KV namespace, as `npm run dev:debug` does. */
 export const similarityWorkerUrl = `http://localhost:${SIMILARITY_WORKER_PORT}`;
 
 export default defineConfig({
@@ -73,9 +73,9 @@ export default defineConfig({
       // serves. Longer timeout than the others: it loads the table before the
       // Worker starts.
       command:
-        `npm run dev:similarity -- --worker-only --table ${similarityTableFixture} --every-song` +
+        `npm run dev:debug -- --worker-only --table ${similarityTableFixture} --every-song` +
         ` --port ${SIMILARITY_WORKER_PORT} --inspector-port ${SIMILARITY_WORKER_INSPECTOR_PORT}` +
-        ` --persist-to ${SIMILARITY_WORKER_STATE_DIR}`,
+        ` --persist-to ${DEBUG_WORKER_STATE_DIR}`,
       url: `${similarityWorkerUrl}/api/round`,
       reuseExistingServer: false,
       timeout: 60_000,

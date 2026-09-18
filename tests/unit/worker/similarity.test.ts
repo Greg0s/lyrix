@@ -512,7 +512,7 @@ describe("a table that isn't there", () => {
 
     const message = String(warned.mock.calls[0][0]);
     expect(message).toContain(song.id);
-    expect(message).toContain("npm run dev:similarity");
+    expect(message).toContain("npm run dev:debug");
   });
 
   it("says a stale table is being ignored, rather than half-reading it", async () => {

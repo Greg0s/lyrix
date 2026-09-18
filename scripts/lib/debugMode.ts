@@ -5,12 +5,12 @@ import { catalog, FALLBACK_SONG_ID } from "../../worker/src/catalog";
 import { parseSimilarityTable, SIMILARITY_TABLE_VERSION, type SimilarityTable } from "../../worker/src/similarity";
 
 /**
- * Playing today's song locally against a real similarity table.
+ * Debug mode: playing today's song locally against a real similarity table.
  *
  * The Worker reads its tables from a KV namespace, and the configuration this
  * repository deploys binds none (see worker/wrangler.toml): production and
  * `npm run dev:all` alike answer from the placeholder table, or not at all.
- * `npm run dev:similarity` (scripts/dev-similarity.ts) builds the day's table,
+ * `npm run dev:debug` (scripts/dev-debug.ts) builds the day's table,
  * loads it into a KV namespace that only exists on this machine, and starts
  * the game against it.
  *
@@ -21,7 +21,7 @@ import { parseSimilarityTable, SIMILARITY_TABLE_VERSION, type SimilarityTable } 
  */
 
 /** Wrangler configuration binding SIMILARITY locally. Never deployed — see its own header. */
-export const LOCAL_SIMILARITY_CONFIG = "worker/wrangler.similarity.toml";
+export const DEBUG_CONFIG = "worker/wrangler.debug.toml";
 
 /** The binding name in both wrangler configurations, and in the Worker's SimilarityEnv. */
 export const SIMILARITY_BINDING = "SIMILARITY";
@@ -34,7 +34,7 @@ export const SIMILARITY_BINDING = "SIMILARITY";
  * play must never be able to reach it. Delete this directory to forget every
  * table that was ever loaded.
  */
-export const LOCAL_SIMILARITY_PERSIST_DIR = "worker/.wrangler/similarity-state";
+export const DEBUG_PERSIST_DIR = "worker/.wrangler/debug-state";
 
 /** Where scripts/build-similarity-table.ts writes its tables. */
 export const TABLE_DIR = "data/similarity";
@@ -55,9 +55,9 @@ export function wranglerDevArgs(
   const args = [
     "dev",
     "--config",
-    LOCAL_SIMILARITY_CONFIG,
+    DEBUG_CONFIG,
     "--persist-to",
-    options.persistTo ?? LOCAL_SIMILARITY_PERSIST_DIR,
+    options.persistTo ?? DEBUG_PERSIST_DIR,
   ];
   if (options.port !== undefined) args.push("--port", String(options.port));
   if (options.inspectorPort !== undefined) args.push("--inspector-port", String(options.inspectorPort));
@@ -68,7 +68,7 @@ export function wranglerDevArgs(
 }
 
 /** `wrangler kv bulk put` into that same namespace: `--local`, never `--remote`. */
-export function kvBulkPutArgs(bulkFile: string, persistTo: string = LOCAL_SIMILARITY_PERSIST_DIR): string[] {
+export function kvBulkPutArgs(bulkFile: string, persistTo: string = DEBUG_PERSIST_DIR): string[] {
   return [
     "kv",
     "bulk",
@@ -80,7 +80,7 @@ export function kvBulkPutArgs(bulkFile: string, persistTo: string = LOCAL_SIMILA
     "--persist-to",
     persistTo,
     "--config",
-    LOCAL_SIMILARITY_CONFIG,
+    DEBUG_CONFIG,
   ];
 }
 
