@@ -13,9 +13,14 @@ export const TriedWords = memo(function TriedWords({ triedWords }: TriedWordsPro
   // typing the next guess doesn't re-sort and re-render every chip.
   const sorted = useMemo(() => sortByProximity(triedWords), [triedWords]);
   const anyScored = useMemo(() => triedWords.some((word) => word.score !== null), [triedWords]);
+  // The latest guess pops in wherever its score sorts it. Two identical
+  // animations, alternated, so it replays on every guess (see global.css).
+  const freshKey = triedWords[0]?.key;
+  const freshClass = triedWords.length % 2 ? " is-fresh-a" : " is-fresh-b";
 
   return (
-    <div>
+    <section className="lyrix-card lyrix-words" aria-label="Tes mots">
+      <h2 className="lyrix-card-title">Tes mots</h2>
       {anyScored ? (
         <p className="lyrix-legend">
           Plus le score est élevé, plus le mot est proche d'un mot caché&nbsp;: à 40, il fait partie de ses 1&nbsp;000
@@ -29,7 +34,7 @@ export const TriedWords = memo(function TriedWords({ triedWords }: TriedWordsPro
           return (
             <span
               key={word.key}
-              className={`lyrix-chip ${word.found ? "is-found" : "is-missed"} tier-${tier}`}
+              className={`lyrix-chip ${word.found ? "is-found" : "is-missed"} tier-${tier}${word.key === freshKey ? freshClass : ""}`}
               style={score !== null ? heatStyle(score) : undefined}
               title={word.found ? "Dans les paroles" : score !== null ? `Proximité : ${score}/100` : undefined}
             >
@@ -38,7 +43,7 @@ export const TriedWords = memo(function TriedWords({ triedWords }: TriedWordsPro
             </span>
           );
         })}
-        {sorted.length === 0 ? <p className="lyrix-empty">Rien pour l'instant…</p> : null}
+        {sorted.length === 0 ? <p className="lyrix-empty">Les mots que tu proposes s'afficheront ici.</p> : null}
       </div>
       {/* CC BY 3.0 asks for credit wherever the model's numbers are shown, which is exactly when a score is. */}
       {anyScored ? (
@@ -50,6 +55,6 @@ export const TriedWords = memo(function TriedWords({ triedWords }: TriedWordsPro
           de Jean-Philippe Fauconnier (licence CC BY 3.0).
         </p>
       ) : null}
-    </div>
+    </section>
   );
 });

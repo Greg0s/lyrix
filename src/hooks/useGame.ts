@@ -15,11 +15,21 @@ export interface TriedWord {
   near: NearSlot[];
 }
 
-interface Feedback {
+export interface Feedback {
   word: string;
+  /** The guess's normalized key: what a revealed word is compared against to highlight the last one found. */
+  key: string;
   found: boolean;
+  /** True when the word had already been tried: nothing was sent, the player is just told so. */
+  duplicate: boolean;
   /** How many hidden words the guess is close to, so a hint shown far down the lyrics doesn't go unnoticed. */
   nearCount: number;
+  /** Bumped on every new feedback, so the same message twice in a row still replays its animation. */
+  seq: number;
+}
+
+function nextSeq(previous: Feedback | null): number {
+  return (previous?.seq ?? 0) + 1;
 }
 
 interface GameState {
@@ -121,7 +131,12 @@ export function useGame() {
     // instant no-op instead of a round trip.
     const key = normalize(raw);
     if (triedWords.some((word) => word.key === key)) {
-      setState((prev) => ({ ...prev, inputValue: "" }));
+      setState((prev) => ({
+        ...prev,
+        inputValue: "",
+        error: null,
+        feedback: { word: raw, key, found: false, duplicate: true, nearCount: 0, seq: nextSeq(prev.feedback) },
+      }));
       return;
     }
 
@@ -143,7 +158,14 @@ export function useGame() {
         round: result,
         inputValue: "",
         submitting: false,
-        feedback: { word: raw, found: result.found, nearCount: near.length },
+        feedback: {
+          word: raw,
+          key: result.key,
+          found: result.found,
+          duplicate: false,
+          nearCount: near.length,
+          seq: nextSeq(prev.feedback),
+        },
         triedWords: newTriedWords,
       }));
     } catch (error) {
