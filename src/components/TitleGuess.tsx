@@ -7,6 +7,8 @@ import { TokenRun } from "./TokenRun";
 interface TitleGuessProps {
   titleTokens: SlotToken[];
   victory: boolean;
+  /** Playing in a room: the group found it, not the player alone. */
+  group: boolean;
   artist?: string;
   /** See WordToken: highlights every occurrence of the word the latest guess found. */
   lastFoundKey: string | null;
@@ -24,6 +26,7 @@ interface TitleGuessProps {
 export const TitleGuess = memo(function TitleGuess({
   titleTokens,
   victory,
+  group,
   artist,
   lastFoundKey,
   revealAllLyrics,
@@ -41,7 +44,9 @@ export const TitleGuess = memo(function TitleGuess({
       {victory ? (
         <div className="lyrix-victory">
           <div className="lyrix-victory-text">
-            <p className="lyrix-victory-eyebrow">Bravo, tu l'as trouvée&nbsp;!</p>
+            <p className="lyrix-victory-eyebrow">
+              {group ? "Bravo, le groupe l'a trouvée\u00a0!" : "Bravo, tu l'as trouvée\u00a0!"}
+            </p>
             <p className="lyrix-victory-song">
               {titleTokens.map((token) => token.text).join("")}
               {artist ? ` · ${artist}` : null}

@@ -9,10 +9,19 @@ import {
   sanitizePseudo,
   type RoomEntry,
   type RoomEvent,
+  type RoomGuess,
+  type RoomGuessResult,
   type RoomMember,
   type RoomMessage,
+  type RoomRound,
+  type RoomRoundMessage,
   type RoomSnapshot,
 } from "../../src/game/room";
+import { isVictory } from "../../src/game/mask";
+import type { RoundView, Song } from "../../src/game/types";
+import { buildRoundView, evaluateGuess, MAX_WORD_LENGTH, parseGuessWord, type RoundEnv } from "./round";
+import { getSongById, getTodaysSong } from "./songs";
+import { verifyState } from "./state";
 
 /**
  * One room ("salon", issue #29) per Durable Object, addressed by its code
@@ -23,6 +32,11 @@ import {
  * Members connect over WebSockets through the hibernation API, so an idle room
  * costs nothing: the object is evicted between messages, and rebuilds what it
  * needs from storage and from the sockets' attachments when it wakes.
+ *
+ * It also holds the room's round (issue #30): the day's song, pinned when the
+ * room first needs it, and every guess its members made. Found words live
+ * here and nowhere else - a member only ever sends a word - and every member
+ * is sent the same masked view, built from them.
  *
  * Retention: a pseudo is kept in this object's storage for as long as its
  * member is in the room, and nowhere else. Everything is deleted when the
@@ -45,6 +59,15 @@ interface RoomRecord {
   nextNumber: number;
   /** In arrival order. */
   members: MemberRecord[];
+}
+
+/** The room's round, stored apart from its members: a guess never rewrites the member list. */
+interface RoundRecord {
+  songId: string;
+  /** Newest first. */
+  guesses: RoomGuess[];
+  /** The guess that completed the title, once one has. */
+  winningKey?: string;
 }
 
 interface SocketAttachment {
@@ -76,6 +99,7 @@ export interface RoomContext {
 }
 
 const STORAGE_KEY = "room";
+const ROUND_STORAGE_KEY = "round";
 /** WebSocket.OPEN, which plain Node (the unit tests) has no global for. */
 const SOCKET_OPEN = 1;
 /** Close codes a server may not send itself; a close is answered with a plain 1000 instead. */
@@ -101,6 +125,10 @@ function attachedMemberId(ws: RoomSocket): string | null {
   return typeof attachment?.memberId === "string" ? attachment.memberId : null;
 }
 
+function foundKeys(round: RoundRecord): Set<string> {
+  return new Set(round.guesses.filter((guess) => guess.found).map((guess) => guess.key));
+}
+
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
@@ -113,8 +141,13 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 export class Room {
   // undefined until read from storage; null once known not to exist.
   #room: RoomRecord | null | undefined;
+  // undefined until read from storage; null when the room hasn't needed one yet.
+  #round: RoundRecord | null | undefined;
 
-  constructor(private readonly ctx: RoomContext) {
+  constructor(
+    private readonly ctx: RoomContext,
+    private readonly env: RoundEnv
+  ) {
     // Keep-alives are answered by the runtime without waking the object.
     // Only defined in the Workers runtime; the unit tests answer them in
     // webSocketMessage instead.
@@ -131,6 +164,8 @@ export class Room {
     if (route === "POST /create") return this.#create(await readBody(request));
     if (route === "POST /join") return this.#join(await readBody(request));
     if (route === "POST /leave") return this.#leave(await readBody(request));
+    if (route === "POST /guess") return this.#guess(await readBody(request));
+    if (route === "POST /alone") return this.#alone(await readBody(request));
     return json({ error: "not found" }, 404);
   }
 
@@ -138,6 +173,11 @@ export class Room {
     if (typeof code !== "string" || !isRoomCode(code)) return json({ error: "invalid room code" }, 400);
     // The Worker draws the code at random; on the rare collision it draws again.
     if (await this.#load()) return json({ error: "room code already in use" }, 409);
+
+    // Nothing left over from an earlier room with this code (a round written
+    // while that one was being deleted) may carry over into this one.
+    this.#round = null;
+    await this.ctx.storage.deleteAll();
 
     // The creator is there from the start: nobody is around to be told they arrived.
     const host = { ...newMember(1, pseudo), announced: true };
@@ -229,6 +269,123 @@ export class Room {
     // Everyone, the new socket included: a reconnecting member reappears in
     // the others' lists, and gets the room as it stands now.
     this.#broadcast(room, event);
+    // And the round as it stands, to the new socket alone: whatever it missed
+    // while away, a (re)connection catches up on in one message.
+    const message = await this.#roundMessage().catch(() => null);
+    if (message) {
+      try {
+        socket.send(JSON.stringify(message));
+      } catch {
+        // Closed while the song was being resolved: its close event follows.
+      }
+    }
+  }
+
+  /**
+   * A member's guess, for the whole room. Answered like the room doesn't exist
+   * for a token that isn't a member's (see admit). A word someone already
+   * proposed changes nothing and says so; any other is checked against the
+   * room's song, kept, and sent to every member with the room's new view.
+   */
+  async #guess({ token, word }: Record<string, unknown>): Promise<Response> {
+    const room = await this.#load();
+    const member = room && typeof token === "string" ? room.members.find((m) => m.token === token) : undefined;
+    if (!room || !member) return json({ error: "not a member of a live room" }, 404);
+    const trimmed = parseGuessWord(word);
+    if (trimmed === null) return json({ error: `word must be between 1 and ${MAX_WORD_LENGTH} characters` }, 400);
+
+    let loaded: { round: RoundRecord; song: Song };
+    try {
+      loaded = await this.#loadRound();
+    } catch {
+      return json({ error: "the song is unavailable, try again" }, 503);
+    }
+    const { round, song } = loaded;
+    const outcome = await evaluateGuess(this.env, song, foundKeys(round), trimmed);
+
+    // Checked only now, with nothing awaited between here and the write below:
+    // the song and the similarity table are awaited above, and another guess
+    // of the same word could have landed meanwhile.
+    const earlier = round.guesses.find((guess) => guess.key === outcome.key);
+    if (earlier) {
+      const result: RoomGuessResult = { ...(await this.#roundOf(round, song)), guess: earlier, duplicate: true };
+      return json(result, 200);
+    }
+
+    const guess: RoomGuess = { ...outcome, display: trimmed, by: publicMember(member) };
+    const wonBefore = isVictory(song, foundKeys(round));
+    round.guesses.unshift(guess);
+    if (!wonBefore && isVictory(song, foundKeys(round))) round.winningKey = guess.key;
+    await this.ctx.storage.put(ROUND_STORAGE_KEY, round);
+
+    const current = await this.#roundOf(round, song);
+    const message: RoomRoundMessage = { type: "round", ...current, latest: guess.key };
+    this.#send(JSON.stringify(message));
+    const result: RoomGuessResult = { ...current, guess, duplicate: false };
+    return json(result, 200);
+  }
+
+  /**
+   * Once the group has found the song, a member who didn't complete the title
+   * can keep looking on their own: this signs them a solo round holding
+   * everything the group found except the winning word, plus whatever their
+   * own solo round (`state`, verified here) had found. Refused before the
+   * group has won: until then, the room's own view is all there is.
+   */
+  async #alone({ token, state }: Record<string, unknown>): Promise<Response> {
+    const room = await this.#load();
+    const member = room && typeof token === "string" ? room.members.find((m) => m.token === token) : undefined;
+    if (!room || !member) return json({ error: "not a member of a live room" }, 404);
+
+    let loaded: { round: RoundRecord; song: Song };
+    try {
+      loaded = await this.#loadRound();
+    } catch {
+      return json({ error: "the song is unavailable, try again" }, 503);
+    }
+    const { round, song } = loaded;
+    const { winningKey } = round;
+    if (winningKey === undefined) return json({ error: "the room hasn't found the song yet" }, 409);
+
+    const keys = foundKeys(round);
+    keys.delete(winningKey);
+    const own = typeof state === "string" ? await verifyState(state, this.env.STATE_SECRET) : null;
+    // Only the player's own progress on this same song: a found word of theirs
+    // is theirs to keep, the winning one included.
+    if (own && own.songId === song.id) for (const key of own.foundKeys) keys.add(key);
+    const view: RoundView = await buildRoundView(song, keys, this.env);
+    return json(view, 200);
+  }
+
+  /** The room's round, pinned to today's song the first time it is needed. */
+  async #loadRound(): Promise<{ round: RoundRecord; song: Song }> {
+    if (this.#round === undefined) this.#round = (await this.ctx.storage.get<RoundRecord>(ROUND_STORAGE_KEY)) ?? null;
+    if (!this.#round) {
+      const today = await getTodaysSong();
+      // Another request may have pinned it while the song was being resolved.
+      if (!this.#round) {
+        this.#round = { songId: today.id, guesses: [] };
+        await this.ctx.storage.put(ROUND_STORAGE_KEY, this.#round);
+      }
+    }
+    const round: RoundRecord = this.#round;
+    // Memoized per isolate (songs.ts): after the first guess, this costs nothing.
+    const song = await getSongById(round.songId);
+    if (!song) throw new Error("the room's song can't be resolved");
+    return { round, song };
+  }
+
+  async #roundOf(round: RoundRecord, song: Song): Promise<RoomRound> {
+    return {
+      round: await buildRoundView(song, foundKeys(round), this.env),
+      guesses: round.guesses,
+      ...(round.winningKey !== undefined ? { winningKey: round.winningKey } : {}),
+    };
+  }
+
+  async #roundMessage(): Promise<RoomRoundMessage> {
+    const { round, song } = await this.#loadRound();
+    return { type: "round", ...(await this.#roundOf(round, song)) };
   }
 
   async webSocketMessage(ws: RoomSocket, message: string | ArrayBuffer): Promise<void> {
@@ -292,6 +449,7 @@ export class Room {
 
   async #destroy(): Promise<void> {
     this.#room = null;
+    this.#round = null;
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
   }
@@ -330,7 +488,10 @@ export class Room {
   #broadcast(room: RoomRecord, event?: RoomEvent, except?: RoomSocket): void {
     const message: RoomMessage = { type: "room", room: this.#snapshot(room, this.#online(except)) };
     if (event) message.event = event;
-    const text = JSON.stringify(message);
+    this.#send(JSON.stringify(message), except);
+  }
+
+  #send(text: string, except?: RoomSocket): void {
     for (const ws of this.#openSockets(except)) {
       try {
         ws.send(text);

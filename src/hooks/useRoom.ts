@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { createRoom, joinRoom, leaveRoom, roomSocketUrl, type RoomFailure } from "../api/rooms";
 import {
   memberName,
   parseRoomMessage,
+  parseRoomRoundMessage,
   ROOM_CLOSE_EXPIRED,
   ROOM_CLOSE_LEFT,
   ROOM_CLOSE_UNKNOWN,
@@ -11,7 +12,9 @@ import {
   sanitizePseudo,
   type RoomEntry,
   type RoomMember,
+  type RoomRoundMessage,
 } from "../game/room";
+import type { RoomSession } from "./useGame";
 import { clearSavedRoom, loadSavedRoom, saveRoom } from "../roomStorage";
 
 /** The room the player is in, as the interface draws it. */
@@ -37,15 +40,30 @@ export const KEEPALIVE_MS = 25_000;
  * Rooms (issue #29), client side: creating, joining and leaving one, and the
  * WebSocket that keeps its member list live. The room is saved (roomStorage),
  * so a reload reconnects. `announce` puts a line in the guess dock's feedback
- * ("X a rejoint le salon."); pass a stable function.
+ * ("X a rejoint le salon.").
+ *
+ * The room's round (issue #30) comes over the same socket: `onRound` gets
+ * each round message, and `onSession` is told which room the player is in
+ * (null for none) before the page paints, so the round shown always belongs
+ * to it. Pass stable functions (useGame's).
  */
-export function useRoom(announce: (text: string) => void) {
+export function useRoom(
+  announce: (text: string) => void,
+  onRound: (message: RoomRoundMessage) => void,
+  onSession: (session: RoomSession | null) => void
+) {
   const [entry, setEntry] = useState<RoomEntry | null>(() => loadSavedRoom());
   const [linkDown, setLinkDown] = useState(false);
 
   const code = entry?.room.code ?? null;
   const token = entry?.token ?? null;
   const you = entry?.you ?? null;
+
+  // Layout, not passive: the solo round must never flash on screen while the
+  // room's is on its way.
+  useLayoutEffect(() => {
+    onSession(code !== null && token !== null && you !== null ? { code, token, you } : null);
+  }, [code, token, you, onSession]);
 
   useEffect(() => {
     if (code === null || token === null || you === null) return;
@@ -79,6 +97,8 @@ export function useRoom(announce: (text: string) => void) {
         } catch {
           return;
         }
+        const round = parseRoomRoundMessage(data);
+        if (round) return onRound(round);
         const message = parseRoomMessage(data);
         if (!message) return;
         const next: RoomEntry = { you, token, room: message.room };
@@ -111,7 +131,7 @@ export function useRoom(announce: (text: string) => void) {
       window.clearInterval(keepaliveTimer);
       socket?.close(1000, "done");
     };
-  }, [code, token, you, announce]);
+  }, [code, token, you, announce, onRound]);
 
   const enter = useCallback((next: RoomEntry) => {
     saveRoom(next);

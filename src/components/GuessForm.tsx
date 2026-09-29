@@ -1,4 +1,4 @@
-import type { FormEvent, MouseEvent, RefObject } from "react";
+import type { CSSProperties, FormEvent, MouseEvent, RefObject } from "react";
 
 export interface GuessFeedback {
   text: string;
@@ -8,6 +8,8 @@ export interface GuessFeedback {
   seq: number;
   /** A guess of the player's own that missed: the input row shakes. */
   shake: boolean;
+  /** In a room: the colour of the player who proposed the word, shown as a dot before the text. */
+  color?: string;
 }
 
 interface GuessFormProps {
@@ -19,10 +21,12 @@ interface GuessFormProps {
   feedback: GuessFeedback | null;
   /** Owned by GameScreen, which puts focus back here when a dialog closes. */
   inputRef: RefObject<HTMLInputElement | null>;
+  /** "Propose un mot…", or "Propose un mot au groupe…" in a room. */
+  placeholder: string;
 }
 
 /** The dark dock pinned to the bottom of the game column: the guess input, "Valider", and the latest feedback. */
-export function GuessForm({ value, onChange, onSubmit, submitting, feedback, inputRef }: GuessFormProps) {
+export function GuessForm({ value, onChange, onSubmit, submitting, feedback, inputRef, placeholder }: GuessFormProps) {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!submitting) onSubmit();
@@ -49,7 +53,7 @@ export function GuessForm({ value, onChange, onSubmit, submitting, feedback, inp
             className="lyrix-input"
             value={value}
             onChange={(event) => onChange(event.target.value)}
-            placeholder="Propose un mot…"
+            placeholder={placeholder}
             autoComplete="off"
             spellCheck={false}
           />
@@ -71,6 +75,9 @@ export function GuessForm({ value, onChange, onSubmit, submitting, feedback, inp
             className={`lyrix-feedback is-${feedback.tone}`}
             role={feedback.tone === "error" ? "alert" : "status"}
           >
+            {feedback.color ? (
+              <span className="lyrix-player-dot" style={{ "--player": feedback.color } as CSSProperties} aria-hidden="true" />
+            ) : null}
             {feedback.text}
           </p>
         ) : null}

@@ -4,6 +4,8 @@ import { closestGuessBySlot, placeNearGuesses } from "../game/slots";
 import { useGame, type Feedback } from "../hooks/useGame";
 import { useRoom } from "../hooks/useRoom";
 import { AppHeader } from "./AppHeader";
+import { playerColor } from "./playerColor";
+import { GroupFoundBanner } from "./GroupFoundBanner";
 import { GuessForm, type GuessFeedback } from "./GuessForm";
 import { HowToPlay } from "./HowToPlay";
 import { LyricsBody } from "./LyricsBody";
@@ -27,8 +29,9 @@ type Dialog = "help" | "multiplayer" | null;
 
 export function GameScreen() {
   const game = useGame();
-  // Room events ("X a rejoint le salon.") go to the guess dock's feedback line.
-  const room = useRoom(game.announce);
+  // Room events ("X a rejoint le salon.", a teammate's guess) go to the guess
+  // dock's feedback line; the room's round replaces the solo one (#30).
+  const room = useRoom(game.announce, game.receiveRoomRound, game.setRoomSession);
   const inputRef = useRef<HTMLInputElement>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [revealAllLyrics, setRevealAllLyrics] = useState(false);
@@ -104,12 +107,23 @@ export function GameScreen() {
   }
 
   const { feedback, notice } = game;
-  const lastFoundKey = feedback?.found ? feedback.key : null;
+  // In a room, the dock's line carries the colour of whoever proposed the word.
+  const you = room.view?.you ?? null;
+  const group = game.playingRoom && you !== null ? { you } : null;
+  // A teammate's find is highlighted like the player's own, while it is the latest news.
+  const lastFoundKey = notice ? (notice.foundKey ?? null) : feedback?.found ? feedback.key : null;
   let guessFeedback: GuessFeedback | null = null;
   // Whatever happened last: a notice is cleared by the next guess's outcome
-  // (useGame), so while there is one, it is the newest thing to say.
+  // (useGame), so while there is one, it is the newest thing to say. Only the
+  // player's own misses shake the input: a teammate's is just news.
   if (notice) {
-    guessFeedback = { text: notice.text, tone: "info", seq: notice.seq, shake: false };
+    guessFeedback = {
+      text: notice.text,
+      tone: notice.outcome ?? "info",
+      seq: notice.seq,
+      shake: false,
+      color: notice.by ? playerColor(notice.by, you) : undefined,
+    };
   } else if (game.error) {
     guessFeedback = {
       text: "Le mot n'a pas pu être envoyé, réessaie.",
@@ -123,16 +137,21 @@ export function GameScreen() {
       tone: feedback.found ? "found" : "missed",
       seq: feedback.seq,
       shake: !feedback.found,
+      color: group && feedback.by ? playerColor(feedback.by, you) : undefined,
     };
   }
 
   return shell(
     <main className="lyrix-main">
       <div className="lyrix-game-col">
+        {game.aloneAfter && !round.victory ? (
+          <GroupFoundBanner winner={game.aloneAfter} you={you} onReveal={game.revealAnswer} />
+        ) : null}
         <article className="lyrix-card lyrix-song">
           <TitleGuess
             titleTokens={slots.title}
             victory={round.victory}
+            group={group !== null}
             artist={round.artist}
             lastFoundKey={lastFoundKey}
             revealAllLyrics={revealAllLyrics}
@@ -148,13 +167,14 @@ export function GameScreen() {
           submitting={game.submitting}
           feedback={guessFeedback}
           inputRef={inputRef}
+          placeholder={group ? "Propose un mot au groupe…" : "Propose un mot…"}
         />
       </div>
 
       <aside className="lyrix-aside">
         {room.view ? <RoomCard room={room.view} onLeave={room.leave} /> : null}
         <ProgressCard percent={percent} foundCount={foundCount} triedCount={triedWords.length} />
-        <TriedWords triedWords={triedWords} />
+        <TriedWords triedWords={triedWords} group={group} />
         {room.view ? null : <MultiplayerPromo onOpen={openMultiplayer} />}
       </aside>
     </main>

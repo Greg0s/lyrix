@@ -2,18 +2,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   isRoomCode,
   parseRoomEntry,
+  parseRoomGuessResult,
   parseRoomMessage,
+  parseRoomRoundMessage,
   ROOM_CLOSE_EXPIRED,
   ROOM_CLOSE_LEFT,
   ROOM_CLOSE_UNKNOWN,
   ROOM_PING,
   ROOM_PONG,
   type RoomEntry,
+  type RoomGuessResult,
   type RoomMessage,
+  type RoomRoundMessage,
 } from "../../../src/game/room";
+import type { DisplayToken, RoundView } from "../../../src/game/types";
 import app from "../../../worker/src/index";
 import { Room, type RoomContext, type RoomSocket } from "../../../worker/src/room";
 import type { RateLimiter, RoomNamespace } from "../../../worker/src/roomRoutes";
+import { resetSongMemo } from "../../../worker/src/songs";
+import { signState, verifyState } from "../../../worker/src/state";
 
 /**
  * Rooms, end to end under plain Node: the Worker's routes in front of real
@@ -21,6 +28,9 @@ import type { RateLimiter, RoomNamespace } from "../../../worker/src/roomRoutes"
  * Only the WebSocket upgrade itself can't run here (WebSocketPair and a 101
  * response exist in the Workers runtime alone), so connections go through
  * Room.admit with a fake socket, and the e2e suite covers the real thing.
+ *
+ * LRCLIB answers nothing here, so every room plays songs.ts's emergency song,
+ * "Le refuge de novembre": a real song, known in full, without a network.
  */
 
 const SOCKET_OPEN = 1;
@@ -50,6 +60,19 @@ class FakeSocket implements RoomSocket {
   }
   deserializeAttachment(): unknown {
     return this.#attachment;
+  }
+
+  /** Every round message received so far, parsed. */
+  rounds(): RoomRoundMessage[] {
+    return this.sent.flatMap((text) => {
+      const message = parseRoomRoundMessage(JSON.parse(text) as unknown);
+      return message ? [message] : [];
+    });
+  }
+  lastRound(): RoomRoundMessage {
+    const message = this.rounds().at(-1);
+    if (!message) throw new Error("no round message received");
+    return message;
   }
 
   /** Every room message received so far, parsed. */
@@ -129,7 +152,7 @@ class FakeRooms implements RoomNamespace {
    * knows, it has to have read back from storage and the sockets.
    */
   room(code: string): Room {
-    return new Room(this.state(code));
+    return new Room(this.state(code), env);
   }
 }
 
@@ -153,6 +176,9 @@ let env: {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(Date.UTC(2026, 8, 29, 20, 0));
+  // LRCLIB has nothing: every room falls back to the emergency song (see above).
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 404 })));
+  resetSongMemo();
   rooms = new FakeRooms();
   env = { STATE_SECRET: "test-secret", ROOMS: rooms, ROOM_CREATE_LIMIT: new FakeLimiter(), ROOM_JOIN_LIMIT: new FakeLimiter() };
 });
@@ -160,6 +186,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 async function post(path: string, body: unknown, headers: Record<string, string> = {}): Promise<Response> {
@@ -485,6 +512,270 @@ describe("GET /api/rooms/:code/ws", () => {
     expect(new URL(forwarded[0].url).pathname).toBe("/connect");
     expect(new URL(forwarded[0].url).searchParams.get("token")).toBe("secret token");
     expect(forwarded[0].headers.get("Upgrade")).toBe("websocket");
+  });
+});
+
+async function guessIn(entry: RoomEntry, word: string): Promise<RoomGuessResult> {
+  const response = await post(`/api/rooms/${entry.room.code}/guess`, { token: entry.token, word });
+  expect(response.status).toBe(200);
+  const result = parseRoomGuessResult(await response.json());
+  if (!result) throw new Error("malformed guess result");
+  return result;
+}
+
+function words(round: RoundView): DisplayToken[] {
+  return [...round.title.tokens, ...round.sections.flatMap((s) => s.lines.flatMap((l) => l.tokens))].filter(
+    (token) => token.isWord
+  );
+}
+
+function revealed(round: RoundView): string[] {
+  return words(round)
+    .filter((token) => token.revealed)
+    .map((token) => token.text);
+}
+
+describe("the room's round (#30)", () => {
+  it("is sent to a member as it stands when they connect", async () => {
+    const host = await createRoom("Camille");
+    const socket = await connect(host);
+
+    const { round, guesses } = socket.lastRound();
+    expect(guesses).toEqual([]);
+    expect(round.victory).toBe(false);
+    expect(revealed(round)).toEqual([]);
+    expect(round.title.tokens.map((token) => token.text).join("")).toBe("__ ______ __ ________");
+  });
+
+  it("reveals a word any member finds for every member, saying who found it", async () => {
+    const host = await createRoom("Camille");
+    const hostSocket = await connect(host);
+    const guest = await joinRoom(host.room.code, "Léo");
+    const guestSocket = await connect(guest);
+
+    const result = await guessIn(guest, "Refuge");
+
+    const leo = { id: guest.you, name: "Léo", number: 2 };
+    expect(result.duplicate).toBe(false);
+    expect(result.guess).toMatchObject({ key: "refuge", display: "Refuge", found: true, by: leo });
+    for (const socket of [hostSocket, guestSocket]) {
+      const heard = socket.lastRound();
+      expect(heard.latest).toBe("refuge");
+      expect(heard.guesses).toEqual([result.guess]);
+      expect(revealed(heard.round)).toEqual(["refuge", "refuge"]);
+    }
+  });
+
+  it("shares a miss too, and counts every guess in the room", async () => {
+    const host = await createRoom("Camille");
+    const hostSocket = await connect(host);
+    const guest = await joinRoom(host.room.code, "Léo");
+
+    await guessIn(guest, "Refuge");
+    const miss = await guessIn(host, "  guitare ");
+
+    expect(miss.guess).toMatchObject({ key: "guitare", display: "guitare", found: false, score: null, near: [] });
+    expect(hostSocket.lastRound().guesses.map((guess) => [guess.key, guess.by.name])).toEqual([
+      ["guitare", "Camille"],
+      ["refuge", "Léo"],
+    ]);
+  });
+
+  it("says so, and changes nothing, when someone in the room already proposed the word", async () => {
+    const host = await createRoom("Camille");
+    const hostSocket = await connect(host);
+    const guest = await joinRoom(host.room.code, "Léo");
+    const first = await guessIn(host, "guitare");
+    const heardBefore = hostSocket.sent.length;
+
+    const again = await guessIn(guest, "Guitaré");
+
+    expect(again.duplicate).toBe(true);
+    expect(again.guess).toEqual(first.guess);
+    expect(again.guesses).toHaveLength(1);
+    expect(hostSocket.sent).toHaveLength(heardBefore);
+  });
+
+  it("keeps the round across the object's eviction: a reconnection catches up", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await guessIn(host, "novembre");
+
+    // Every call builds a fresh Room on the same state, as a woken object would.
+    const late = await connect(guest);
+
+    expect(late.lastRound().guesses.map((guess) => guess.key)).toEqual(["novembre"]);
+    expect(revealed(late.lastRound().round)).toContain("novembre");
+  });
+
+  it("is won for every member at once, and only then shows the rest of the lyrics", async () => {
+    const host = await createRoom("Camille");
+    const hostSocket = await connect(host);
+    const guest = await joinRoom(host.room.code, "Léo");
+    const guestSocket = await connect(guest);
+
+    await guessIn(host, "le");
+    await guessIn(guest, "refuge");
+    await guessIn(host, "de");
+    expect(hostSocket.lastRound().round.victory).toBe(false);
+    expect(hostSocket.sent.join("")).not.toContain("jardin");
+
+    await guessIn(guest, "novembre");
+
+    for (const socket of [hostSocket, guestSocket]) {
+      const { round } = socket.lastRound();
+      expect(round.victory).toBe(true);
+      expect(round.artist).toBe("Anaïs Verger");
+      expect(words(round).some((token) => token.revealHint === "jardin")).toBe(true);
+    }
+  });
+
+  it("never sends a still-hidden word's text before the round is won", async () => {
+    const host = await createRoom("Camille");
+    const socket = await connect(host);
+    const result = await guessIn(host, "vent");
+
+    const everything = socket.sent.join("") + JSON.stringify(result);
+    for (const hidden of ["jardin", "feuilles", "lampe", "Verger"]) expect(everything).not.toContain(hidden);
+    expect(words(result.round).some((token) => token.revealHint !== undefined || token.devHint !== undefined)).toBe(
+      false
+    );
+  });
+
+  it("refuses a guess the same way for a wrong token, an unknown room, and a malformed code", async () => {
+    const host = await createRoom();
+
+    const answers = await Promise.all([
+      post(`/api/rooms/${host.room.code}/guess`, { token: "0".repeat(32), word: "refuge" }),
+      post("/api/rooms/ZZZZZZ/guess", { token: host.token, word: "refuge" }),
+      post("/api/rooms/abc/guess", { token: host.token, word: "refuge" }),
+    ]);
+
+    expect(answers.map((response) => response.status)).toEqual([404, 404, 404]);
+    const bodies = await Promise.all(answers.map((response) => response.json()));
+    expect(new Set(bodies.map((body) => JSON.stringify(body))).size).toBe(1);
+  });
+
+  it("refuses an empty or overlong word", async () => {
+    const host = await createRoom();
+    for (const word of ["   ", "a".repeat(65), 42]) {
+      expect((await post(`/api/rooms/${host.room.code}/guess`, { token: host.token, word })).status).toBe(400);
+    }
+  });
+
+  it("is deleted with the room", async () => {
+    const host = await createRoom("Camille");
+    await guessIn(host, "refuge");
+    const state = rooms.state(host.room.code);
+    expect(state.store.has("round")).toBe(true);
+
+    await post(`/api/rooms/${host.room.code}/leave`, { token: host.token });
+
+    expect(state.store.size).toBe(0);
+  });
+
+  it("never carries over into a later room drawn with the same code", async () => {
+    const state = rooms.state("ABC234");
+    state.store.set("round", { songId: "leftover", guesses: [{ key: "refuge" }] });
+
+    const response = await rooms.room("ABC234").fetch(
+      new Request("https://room/create", { method: "POST", body: JSON.stringify({ code: "ABC234", pseudo: "Zoé" }) })
+    );
+    const entry = await entryFrom(response);
+    const socket = await connect(entry);
+
+    expect(socket.lastRound().guesses).toEqual([]);
+  });
+});
+
+async function winTogether(host: RoomEntry, guest: RoomEntry): Promise<void> {
+  await guessIn(host, "le");
+  await guessIn(guest, "refuge");
+  await guessIn(host, "de");
+  await guessIn(guest, "novembre");
+}
+
+async function alone(entry: RoomEntry, state?: string): Promise<Response> {
+  return post(`/api/rooms/${entry.room.code}/alone`, { token: entry.token, state });
+}
+
+describe("keeping looking alone once the group has won", () => {
+  it("names the guess that completed the title, for everyone, and only from then on", async () => {
+    const host = await createRoom("Camille");
+    const hostSocket = await connect(host);
+    const guest = await joinRoom(host.room.code, "Léo");
+
+    await guessIn(host, "vent");
+    expect(hostSocket.lastRound().winningKey).toBeUndefined();
+    await winTogether(host, guest);
+    await guessIn(host, "jardin");
+
+    expect(hostSocket.lastRound().winningKey).toBe("novembre");
+    expect((await connect(guest)).lastRound().winningKey).toBe("novembre");
+  });
+
+  it("is refused before the group has won", async () => {
+    const host = await createRoom();
+    await guessIn(host, "refuge");
+
+    expect((await alone(host)).status).toBe(409);
+  });
+
+  it("is refused the same way as a guess for anyone who isn't a member", async () => {
+    const host = await createRoom();
+    const wrong = await post(`/api/rooms/${host.room.code}/alone`, { token: "0".repeat(32) });
+    const guess = await post(`/api/rooms/${host.room.code}/guess`, { token: "0".repeat(32), word: "x" });
+
+    expect(wrong.status).toBe(404);
+    expect(await wrong.json()).toEqual(await guess.json());
+  });
+
+  it("signs a solo round holding the group's finds but the winning word, without the answer", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await guessIn(host, "vent");
+    await winTogether(host, guest);
+
+    const response = await alone(host);
+    expect(response.status).toBe(200);
+    const view = (await response.json()) as RoundView;
+
+    expect(view.victory).toBe(false);
+    expect(view.artist).toBeUndefined();
+    expect(revealed(view)).not.toContain("novembre");
+    expect(revealed(view)).toEqual(expect.arrayContaining(["Le", "refuge", "de", "vent"]));
+    expect(words(view).some((token) => token.revealHint !== undefined)).toBe(false);
+    const payload = await verifyState(view.state, env.STATE_SECRET);
+    expect(new Set(payload?.foundKeys)).toEqual(new Set(["le", "refuge", "de", "vent"]));
+  });
+
+  it("keeps the player's own solo finds, and only a genuine state of the same song", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await winTogether(host, guest);
+    const songId = (await connect(host)).lastRound().round.songId;
+
+    const own = await signState({ songId, foundKeys: ["jardin"] }, env.STATE_SECRET);
+    const otherSong = await signState({ songId: "another-song", foundKeys: ["lampe"] }, env.STATE_SECRET);
+    const forged = await signState({ songId, foundKeys: ["maison"] }, "not-the-secret");
+
+    const keys = async (state: string) =>
+      (await verifyState(((await (await alone(guest, state)).json()) as RoundView).state, env.STATE_SECRET))
+        ?.foundKeys ?? [];
+    expect(await keys(own)).toContain("jardin");
+    expect(await keys(otherSong)).not.toContain("lampe");
+    expect(await keys(forged)).not.toContain("maison");
+  });
+
+  it("hands over a round the solo route plays on: finding the winning word wins it", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await winTogether(host, guest);
+    const view = (await (await alone(host)).json()) as RoundView;
+
+    const response = await post("/api/guess", { state: view.state, word: "novembre" });
+
+    expect(((await response.json()) as RoundView).victory).toBe(true);
   });
 });
 
