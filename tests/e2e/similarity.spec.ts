@@ -116,6 +116,31 @@ test("shades each close word by how close it is", async ({ page }) => {
   expect(await heatOf(chipOf(page, CLOSE_WORD))).toBe(Math.max(...heats));
 });
 
+test("keeps a margin between a close word and the ends of its bar", async ({ page }) => {
+  await page.goto("/");
+  await guess(page, CLOSE_WORD);
+
+  const placed = page.locator(".token-word-near", { hasText: CLOSE_WORD });
+  await expect(placed.first()).toBeVisible();
+  for (const slot of await placed.all()) {
+    // The guess is clipped to its overlay, so the overlay bounds where any letter can be painted.
+    const gaps = await slot.evaluate((bar) => {
+      const overlay = bar.querySelector(".token-near-guess");
+      if (!overlay) throw new Error("no .token-near-guess in a close-word bar");
+      const clip = overlay.getBoundingClientRect();
+      const box = bar.getBoundingClientRect();
+      return {
+        left: clip.left - box.left,
+        right: box.right - clip.right,
+        fontSize: parseFloat(getComputedStyle(bar).fontSize),
+      };
+    });
+    // At least a fifth of the text size of accent on each side, however much the guess was shrunk.
+    expect(gaps.left).toBeGreaterThanOrEqual(gaps.fontSize * 0.2);
+    expect(gaps.right).toBeGreaterThanOrEqual(gaps.fontSize * 0.2);
+  }
+});
+
 test("keeps proximity scores after reloading the page", async ({ page }) => {
   await page.goto("/");
   const input = page.getByPlaceholder("Propose un mot…");

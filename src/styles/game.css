@@ -463,10 +463,14 @@
  * the guess is written over it in white, the more opaque the closer it is
  * (--heat, 0 to 1, set inline from the score by proximityHeat in
  * src/game/similarity.ts). The word's own masked text stays underneath,
- * transparent, so the bar keeps the width of the word it hides.
+ * transparent, so the bar keeps the width of the word it hides, plus a margin
+ * at each end (--near-gutter): the guess is laid over the word's width only,
+ * so its first and last letters never touch the bar's edges and stay legible.
  */
 .token-blank.token-word-near {
+  --near-gutter: 0.3em;
   background: var(--accent-solid);
+  padding-inline: var(--near-gutter);
 }
 
 .token-near-blank {
@@ -475,7 +479,7 @@
 
 .token-near-guess {
   position: absolute;
-  inset: 0;
+  inset: 0 var(--near-gutter);
   display: flex;
   align-items: center;
   justify-content: center;
