@@ -31,6 +31,10 @@ test("reveals guesses live and lets the player win the round", async ({ page }) 
   for (const word of titleWords) {
     await input.fill(word);
     await input.press("Enter");
+    // The input empties once the guess has landed. Pressing Enter again before
+    // that is ignored by design (a guess is in flight), which dropped a title
+    // word now and then and left the round unwon.
+    await expect(input).toHaveValue("");
   }
 
   await expect(page.getByText("Bravo, tu l'as trouvée")).toBeVisible();
@@ -74,6 +78,10 @@ test("still shows the victory screen after reloading once the song is solved", a
   for (const word of titleWords) {
     await input.fill(word);
     await input.press("Enter");
+    // The input empties once the guess has landed. Pressing Enter again before
+    // that is ignored by design (a guess is in flight), which dropped a title
+    // word now and then and left the round unwon.
+    await expect(input).toHaveValue("");
   }
   await expect(page.getByText("Bravo, tu l'as trouvée")).toBeVisible();
 

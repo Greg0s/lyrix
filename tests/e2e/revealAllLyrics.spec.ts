@@ -56,6 +56,10 @@ test("reveals every still-hidden lyrics word once checked, and hides it again on
   for (const word of titleWords) {
     await input.fill(word);
     await input.press("Enter");
+    // The input empties once the guess has landed. Pressing Enter again before
+    // that is ignored by design (a guess is in flight), which dropped a title
+    // word now and then and left the round unwon.
+    await expect(input).toHaveValue("");
   }
   await expect(page.getByText("Bravo, tu l'as trouvée")).toBeVisible();
 
@@ -85,6 +89,10 @@ test("does not affect an already-found title word", async ({ page }) => {
   for (const word of titleWords) {
     await input.fill(word);
     await input.press("Enter");
+    // The input empties once the guess has landed. Pressing Enter again before
+    // that is ignored by design (a guess is in flight), which dropped a title
+    // word now and then and left the round unwon.
+    await expect(input).toHaveValue("");
   }
   await expect(page.getByText("Bravo, tu l'as trouvée")).toBeVisible();
 

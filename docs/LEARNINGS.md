@@ -4,6 +4,12 @@ A running log of gotchas, root causes, and anything that cost real time to figur
 
 Each entry: date, short title, what happened, how it was resolved.
 
+## 2026-09-29 — Title-guess loops in e2e dropped a word now and then
+
+`reveals guesses live and lets the player win the round` (play.spec.ts) and `reveals every still-hidden lyrics word…` (revealAllLyrics.spec.ts) failed about one run in three with "Bravo, tu l'as trouvée" never showing, on the base commit as well as with rooms: the page had 3 tries for a 4-word title. Root cause: both loops filled the next word and pressed Enter without waiting for the previous guess to land, and a guess submitted while another is in flight is ignored by design (see the 2026-09-29 phone-keyboard entry below). Fixed by waiting for the input to empty after each Enter, which it does once the answer is in; the four loops in those two specs each do it. Checked with `--repeat-each=4` on both specs: 60/60.
+
+**Takeaway**: an e2e loop that submits guesses must wait for each one to land. "Enter was pressed" is not "the guess was made".
+
 ## 2026-09-29 — A bar's text now includes its screen-reader label; match on `.token-blank-face`
 
 Issue #33 gave every hidden-word bar a visually hidden "mot caché, N lettres" next to its masked text (now wrapped in an `aria-hidden` `.token-blank-face`). Any locator that matches a bar's whole text exactly — `devReveal.spec.ts`'s `^word$` on `.token-word-devhint` — stops matching, since `textContent` includes the label. Match on `.token-blank-face` instead. Also, `npx prettier --write` is not a project tool here (no Prettier config or dependency): it reformats dozens of untouched files, so don't run it.
