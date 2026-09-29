@@ -10,6 +10,32 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#f7f1e7" />
     <!--
+      Picks the light or dark palette before the first paint, so a dark-mode
+      player never sees the page flash light while the app loads. Mirrors
+      initialTheme() and applyTheme() in src/theme.ts (tests/unit/theme.test.ts).
+    -->
+    <script id="lyrix-theme-boot">
+      (function () {
+        var theme = null;
+        try {
+          theme = localStorage.getItem("lyrix:theme");
+        } catch (e) {}
+        if (theme !== "light" && theme !== "dark") {
+          theme =
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+        }
+        document.documentElement.setAttribute("data-theme", theme);
+        if (theme === "dark") {
+          document
+            .querySelector('meta[name="theme-color"]')
+            .setAttribute("content", "#140e0a");
+        }
+      })();
+    </script>
+    <!--
       Linked here rather than @imported from global.css, so the font request
       starts as soon as the HTML is parsed instead of waiting for the app's
       stylesheet to arrive. preconnect opens the two connections Google Fonts

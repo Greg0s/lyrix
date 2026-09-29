@@ -12,7 +12,7 @@ A free web game inspired by Pedantix, built around song lyrics instead of Wikipe
 
 ## Current Phase: MVP (no 3D)
 
-The UI follows the "Lyrix v3" mockup: sticky header, one song card whose hidden words are accent bars, a sticky guess dock, and a side column (progress, tried words). Short CSS animations only, all disabled under `prefers-reduced-motion` — no 3D. Do not add 3D dependencies (`three`, `@react-three/fiber`, `@react-three/drei`) unless explicitly asked; 3D is a planned post-MVP phase (see "Out of Scope"). MVP scope: masked lyrics (blanks matching word length, punctuation/line breaks preserved), a text input that reveals every occurrence of a correctly guessed word, and a win state once the title is fully uncovered.
+The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header, one song card whose hidden words are accent bars, a sticky guess dock, and a side column (progress, tried words). Short CSS animations only, all disabled under `prefers-reduced-motion` — no 3D. Do not add 3D dependencies (`three`, `@react-three/fiber`, `@react-three/drei`) unless explicitly asked; 3D is a planned post-MVP phase (see "Out of Scope"). MVP scope: masked lyrics (blanks matching word length, punctuation/line breaks preserved), a text input that reveals every occurrence of a correctly guessed word, and a win state once the title is fully uncovered.
 
 ## Tech Stack
 
@@ -32,6 +32,8 @@ The UI follows the "Lyrix v3" mockup: sticky header, one song card whose hidden 
 - Test: `npm test` (lint + typecheck + Vitest), `npm run test:e2e` (Playwright)
 - Debug mode — play against real proximity scores instead of the dev placeholder: `npm run dev:debug`
 - Knowledge graph refresh after code changes: `npm run graph:update` (see "graphify" below)
+- There is no Prettier config or dependency: never run `npx prettier --write` here — its defaults reformat every file it touches. Match the surrounding style by hand.
+- In a cloud session, the pre-installed Chromium is not the build the pinned `@playwright/test` expects, so every e2e test fails at launch ("Executable doesn't exist"). Run the suite through a throwaway, uncommitted config that re-exports `playwright.config.ts` with `use.launchOptions.executablePath: "/opt/pw-browsers/chromium"`. LRCLIB is unreachable there too, so specs that look the day's song up in `catalog` fail on the emergency song — compare against `main` before blaming a change.
 
 ## TypeScript Rules
 
@@ -97,6 +99,7 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 - **Anti-cheat is a hard requirement**, even in the MVP: the Worker is the only thing that knows the actual lyrics. It receives a guessed word and returns which positions match — never the full text before the round is won. The one exception is `DEV_REVEAL_LYRICS` (`worker/src/index.ts`), which attaches each hidden word's real text as `devHint` for local debugging (`WordToken.tsx`); wired only into `dev:worker`/`dev:all`/`test:e2e`, never in `wrangler.toml` or production.
 - **The "show all lyrics" checkbox reuses that same mechanism, gated on `victory` instead of a dev flag.** Once `RoundView.victory` is true — recomputed by the Worker itself from signed state, never client-supplied — `buildRoundView` attaches every still-hidden lyrics word's real text as `DisplayToken.revealHint`, riding along on the normal round/guess response (no extra endpoint or round trip). The checkbox itself is local, unsigned UI state owned by `GameScreen`, rendered only once won (`TitleGuess`); `WordToken` shows `revealHint` in place of a blank only while checked, ahead of a close-guess placement and the dev hint.
 - **French text matching**: normalize both the guess and the stored lyrics before comparing (case/accent-insensitive, œ/æ spelled out) and account for elisions ("j'aime" vs "je aime", "qu'il", "l'amour"). `LETTER_CLASS` (`src/game/tokenize.ts`) must cover every letter French lyrics use. A run of digits is a word too.
+- **Theming**: light and dark palettes, both in `src/styles/tokens.css` (dark under `:root[data-theme="dark"]`). Components use tokens only, never a raw colour, and a text token is never a surface: dark fills use `--color-solid*` and stay dark in both themes (text on them is `--color-on-ink*`), bright fills take `--color-on-bright` text. The theme follows the system until the player picks one with the header's toggle (`src/theme.ts`, stored in localStorage); `index.html`'s inline script applies it before first paint and must stay in step with `initialTheme()` (`tests/unit/theme.test.ts`).
 - **Rooms** (#29): a room knows its code, its members, and its round. Its wire contract, codes (`ABCDEFGHJKMNPQRSTUVWXYZ23456789`, 6 characters) and pseudo sanitizing live in `src/game/room.ts`, shared by both sides. Two rules keep codes from being enumerated: every join attempt is rate-limited, and no other route may answer differently for a live code than for a dead one (an unknown token and an unknown room close the socket the same way, and get the same 404 from `/guess`; leave always answers 204). A pseudo is personal data: stored only in its room's Durable Object, deleted with the room, never logged.
 - **A room's round lives in its Durable Object** (#30), never on a client: a member sends a word (`POST /api/rooms/:code/guess`), the object checks it with the same code as the solo route (`worker/src/round.ts`), keeps it, and sends every member the room's masked view plus its guess list — over the socket on (re)connection and after each guess. The song is pinned the first time the room needs it. Victory, and with it `revealHint`, is the room's, but only the member who completed the title (`RoomRound.winningKey`) sees it straight away: everyone else keeps looking alone, on a solo round the room signs for them (`POST /api/rooms/:code/alone`: the group's finds but the winning word, plus their own verified solo state), until they win it or press "Afficher la réponse" (remembered per room, `roomStorage`). While they look alone, the room's later finds are never announced to them. A teammate's close guesses are placed in everyone's lyrics. While in a room, the solo round (`roundStorage`) is set aside untouched and comes back on leaving; the room's round is never saved locally. An answer and a broadcast can cross: a view only replaces one with fewer guesses.
 - **LRCLIB data isn't guaranteed clean**: `plainLyrics`/`syncedLyrics` are LRC-format text, not prose. Everything unsung is dropped before masking (`cleanLyrics`) — a player must never be asked to guess `[Refrain]`, `♪`, or the artist out of an `[ar:…]` tag — and a result too thin to be a puzzle is refused (`MIN_LYRIC_WORDS`) so the day's pick falls through to the next catalog entry. The catalog is only as good as LRCLIB's copy of it and the suite mocks the network on purpose, so run `npm run catalog:check` after editing `worker/src/catalog.ts`, and whenever a day's round looks wrong.
@@ -124,6 +127,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   roundStorage.ts        # localStorage persistence so a reload resumes today's round
                           # (deferred/idle writes, flushed on tab hide/close)
   roomStorage.ts          # the room the player is in (code, member token), so a reload reconnects
+  theme.ts                 # light/dark: stored choice or system setting, applied as <html data-theme>
   /api                    # client.ts: fetchRound, submitGuess; rooms.ts: create/join/leave/guess + socket URL;
                           # base.ts: the Worker's URL (VITE_API_BASE_URL in production)
   /components             # presentational React components (layout: "Lyrix v3" mockup)
@@ -131,6 +135,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                            # round (slots.ts), owns which dialog is open, the input ref, and
                            # the "show all lyrics" checkbox's local, unsigned reveal-all toggle
     AppHeader.tsx, Logo.tsx, GroupIcon.tsx  # sticky top bar, CSS logo mark + wordmark
+    ThemeToggle.tsx         # header's sun/moon button; the theme is its own local state
     GroupFoundBanner.tsx   # "X a trouvé la chanson pour le groupe" + "Afficher la réponse" (#30)
     TitleGuess.tsx         # masked title, victory panel, and the "show all lyrics"
                            # checkbox once won (RoundView.victory), controlled by GameScreen
@@ -170,7 +175,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     similarity.ts, functionWords.ts, slots.ts  # 0-100 proximity scale; excluded function words;
                                                 # addressing hidden words by position
     room.ts                     # rooms' wire contract: codes, pseudos, close codes, room round, message parsing
-  /styles                    # tokens.css (v3 palette), global.css (keyframes), game.css
+  /styles                    # tokens.css (v3 light + dark palettes), global.css (keyframes), game.css
                              # (layout; breakpoints are CSS media queries, never JS)
 /worker/src
   index.ts                  # Hono app: GET /api/round, POST /api/guess, mounts /api/rooms; exports Room

@@ -1,31 +1,56 @@
+/*
+ * The palette. Components read these tokens and nothing else, so a theme is
+ * just a second set of values: light below, dark under [data-theme="dark"]
+ * (set on <html> by index.html's inline script before first paint, then by
+ * src/theme.ts). The "solid" surfaces - the guess dock, the victory panel, the
+ * room card, the header's dark pill - stay dark in both themes, so the
+ * --color-on-ink family written on them never changes.
+ */
 :root {
+  color-scheme: light;
+
   --color-page-bg: oklch(96% 0.015 80);
   --color-page-bg-glass: oklch(96% 0.015 80 / 0.92);
   --color-surface: oklch(99.5% 0.003 80);
+  /* The sliding tab behind the active tab, on a --color-surface-muted track. */
+  --color-surface-raised: oklch(99.5% 0.003 80);
   --color-surface-muted: oklch(94% 0.012 78);
   --color-surface-hover: oklch(92% 0.015 78);
+  /* Insets within a card (stats, the room code, the help example). */
+  --color-sunken: oklch(96% 0.015 80);
+  /* The guess input, inside the dock. */
+  --color-field: oklch(96% 0.015 80);
   --color-track: oklch(92% 0.012 75);
   --color-ink: oklch(22% 0.02 50);
-  --color-ink-raised: oklch(32% 0.025 50);
   --color-ink-muted: oklch(45% 0.02 55);
   --color-ink-soft: oklch(38% 0.02 55);
   --color-ink-faint: oklch(62% 0.015 60);
+  /* Dark surfaces: buttons, the dock, the victory panel, the room card. */
+  --color-solid: oklch(22% 0.02 50);
+  --color-solid-raised: oklch(32% 0.025 50);
   --color-on-ink: oklch(96% 0.015 80);
   --color-on-ink-muted: oklch(80% 0.012 70);
   --color-on-ink-accent: oklch(80% 0.11 50);
+  /* Text on a bright fill (the accent, a player's colour): dark in both themes. */
+  --color-on-bright: oklch(22% 0.02 50);
   --color-border: oklch(89% 0.012 75);
   --color-border-strong: oklch(84% 0.015 70);
   --color-border-input: oklch(86% 0.012 75);
   --color-border-dashed: oklch(80% 0.02 65);
   --color-divider: oklch(91% 0.01 75);
   --color-error: oklch(50% 0.17 30);
+  --color-link: oklch(50% 0.16 42);
+  --color-link-hover: oklch(40% 0.14 42);
   /* Someone is in the room with you: the header's dot, the "Copié !" flash. */
   --color-presence: oklch(74% 0.17 150);
 
-  --shadow-card: 0 1px 2px oklch(30% 0.02 50 / 0.04), 0 12px 32px -12px oklch(30% 0.02 50 / 0.1);
+  --shadow-card:
+    0 1px 2px oklch(30% 0.02 50 / 0.04),
+    0 12px 32px -12px oklch(30% 0.02 50 / 0.1);
   --shadow-dock: 0 16px 40px -12px oklch(22% 0.02 50 / 0.45);
   --shadow-modal: 0 24px 60px -16px oklch(22% 0.02 50 / 0.5);
   --shadow-tip: 0 6px 16px -6px oklch(22% 0.02 50 / 0.5);
+  --shadow-tab: 0 1px 3px oklch(30% 0.02 50 / 0.14);
   --color-backdrop: oklch(22% 0.02 50 / 0.45);
 
   /* Accent: the mockup's default orange. solid = title bars, buttons, progress; soft = lyrics bars; tint = last found word. */
@@ -52,4 +77,56 @@
   --font-display: "Bricolage Grotesque", "Figtree", sans-serif;
 
   --ease-out: cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+/* The "Lyrix v3" mockup's dark palette. Its page background is also DARK_THEME_COLOR in src/theme.ts. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-page-bg: oklch(17% 0.012 55);
+  --color-page-bg-glass: oklch(17% 0.012 55 / 0.88);
+  --color-surface: oklch(21% 0.014 55);
+  --color-surface-raised: oklch(35% 0.016 55);
+  --color-surface-muted: oklch(27% 0.015 55);
+  --color-surface-hover: oklch(33% 0.016 55);
+  --color-sunken: oklch(25% 0.015 55);
+  --color-field: oklch(19% 0.012 55);
+  --color-track: oklch(29% 0.015 55);
+  --color-ink: oklch(93% 0.012 80);
+  --color-ink-muted: oklch(70% 0.015 65);
+  --color-ink-soft: oklch(80% 0.012 70);
+  --color-ink-faint: oklch(55% 0.015 60);
+  --color-solid: oklch(28% 0.018 55);
+  --color-solid-raised: oklch(34% 0.02 55);
+  --color-border: oklch(29% 0.014 55);
+  --color-border-strong: oklch(37% 0.016 55);
+  --color-border-input: oklch(37% 0.016 55);
+  --color-border-dashed: oklch(42% 0.02 60);
+  --color-divider: oklch(27% 0.014 55);
+  --color-error: oklch(72% 0.15 30);
+  --color-link: oklch(76% 0.14 48);
+  --color-link-hover: oklch(84% 0.1 50);
+
+  --shadow-card:
+    0 1px 2px oklch(0% 0 0 / 0.2), 0 12px 32px -12px oklch(0% 0 0 / 0.5);
+  --shadow-dock: 0 16px 40px -12px oklch(0% 0 0 / 0.6);
+  --shadow-modal: 0 24px 60px -16px oklch(0% 0 0 / 0.7);
+  --shadow-tip: 0 6px 16px -6px oklch(0% 0 0 / 0.6);
+  --shadow-tab: 0 1px 3px oklch(0% 0 0 / 0.4);
+  --color-backdrop: oklch(8% 0.01 50 / 0.65);
+
+  /* The accent's light shades, mixed into the dark surface rather than washed out to white. */
+  --accent-soft: color-mix(in oklch, #ec6a2c 52%, oklch(21% 0.014 55));
+  --accent-tint: color-mix(in oklch, #ec6a2c 26%, oklch(21% 0.014 55));
+  --accent-deep: oklch(80% 0.11 50);
+
+  --proximity-hot-bg: oklch(32% 0.06 145);
+  --proximity-hot-border: oklch(55% 0.12 145);
+  --proximity-hot-ink: oklch(86% 0.1 145);
+  --proximity-warm-bg: oklch(33% 0.06 70);
+  --proximity-warm-border: oklch(60% 0.12 70);
+  --proximity-warm-ink: oklch(87% 0.1 75);
+  --proximity-cold-bg: oklch(30% 0.05 25);
+  --proximity-cold-border: oklch(58% 0.11 25);
+  --proximity-cold-ink: oklch(85% 0.08 25);
 }
