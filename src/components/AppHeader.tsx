@@ -2,6 +2,7 @@ import { memo } from "react";
 import { playerCountLabel } from "../game/room";
 import { GroupIcon } from "./GroupIcon";
 import { Logo } from "./Logo";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface AppHeaderProps {
   /** How many players are connected to the player's room; null outside a room. */
@@ -50,6 +51,7 @@ export const AppHeader = memo(function AppHeader({ roomPlayers, onOpenMultiplaye
             </span>
             <span className="lyrix-pill-label is-help">Comment jouer</span>
           </button>
+          <ThemeToggle />
         </div>
       </div>
     </header>

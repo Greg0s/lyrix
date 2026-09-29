@@ -12,6 +12,9 @@
   color: var(--color-ink);
   display: flex;
   flex-direction: column;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 /* ---------- Top bar ---------- */
@@ -61,7 +64,7 @@
   width: 36px;
   height: 36px;
   border-radius: 9px;
-  background: var(--color-ink);
+  background: var(--color-solid);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -135,7 +138,7 @@
   border-left: 1px solid var(--color-border-strong);
   font-size: 0.95rem;
   font-weight: 500;
-  color: oklch(42% 0.02 55);
+  color: var(--color-ink-soft);
   white-space: nowrap;
   line-height: 24px;
 }
@@ -159,14 +162,14 @@
 }
 
 .lyrix-pill.is-dark {
-  background: var(--color-ink);
+  background: var(--color-solid);
   color: var(--color-on-ink);
   border: none;
   padding: 9px 16px 9px 13px;
 }
 
 .lyrix-pill.is-dark:hover {
-  background: var(--color-ink-raised);
+  background: var(--color-solid-raised);
 }
 
 .lyrix-pill.is-outline {
@@ -185,12 +188,43 @@
   height: 20px;
   border-radius: 50%;
   background: var(--color-ink);
-  color: var(--color-on-ink);
+  color: var(--color-page-bg);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.75rem;
   font-weight: 700;
+}
+
+/* Sun in the dark theme, moon in the light one (ThemeToggle.tsx); the icon pops in on each switch. */
+.lyrix-theme-toggle {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  color: var(--color-ink);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 50%;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.12s ease;
+}
+
+.lyrix-theme-toggle:hover {
+  background: var(--color-surface-hover);
+}
+
+.lyrix-theme-toggle:active {
+  transform: scale(0.92);
+}
+
+.lyrix-theme-icon {
+  animation: lyrix-pop-a 0.3s ease;
 }
 
 @media (max-width: 639px) {
@@ -219,12 +253,12 @@
   height: 9px;
   border-radius: 50%;
   background: var(--color-presence);
-  box-shadow: 0 0 0 2px var(--color-ink);
+  box-shadow: 0 0 0 2px var(--color-solid);
   transition: box-shadow 0.15s ease;
 }
 
 .lyrix-pill.is-dark:hover .lyrix-presence-dot {
-  box-shadow: 0 0 0 2px var(--color-ink-raised);
+  box-shadow: 0 0 0 2px var(--color-solid-raised);
 }
 
 .lyrix-pill-label.is-room,
@@ -449,7 +483,7 @@
 
 /* Dev-only (DEV_REVEAL_LYRICS, never on in production): the real word, faint, on its bar. */
 .token-blank.token-word-devhint {
-  color: oklch(22% 0.02 50 / 0.4);
+  color: color-mix(in oklch, var(--color-ink) 40%, transparent);
 }
 
 /* Shown by the post-victory "reveal all lyrics" checkbox - not something the player found, styled distinctly from .token-word-found. */
@@ -507,7 +541,7 @@
   z-index: 5;
   pointer-events: none;
   background: var(--color-ink);
-  color: var(--color-on-ink);
+  color: var(--color-page-bg);
   font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 700;
@@ -535,7 +569,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 18px 20px;
-  background: var(--color-ink);
+  background: var(--color-solid);
   color: var(--color-on-ink);
   border-radius: 16px;
   animation: lyrix-panel-in 0.5s var(--ease-out);
@@ -590,7 +624,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--color-ink-raised);
+  background: var(--color-solid-raised);
   border-radius: 12px;
   padding: 10px 14px;
   font-size: 0.92rem;
@@ -618,7 +652,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: var(--color-ink);
+  background: var(--color-solid);
   border-radius: 20px;
   padding: 10px;
   box-shadow: var(--shadow-dock);
@@ -645,7 +679,7 @@
   padding: 13px 16px;
   border-radius: 12px;
   border: none;
-  background: var(--color-page-bg);
+  background: var(--color-field);
   color: var(--color-ink);
   outline: none;
   transition: box-shadow 0.2s ease;
@@ -658,7 +692,7 @@
 .lyrix-submit {
   flex-shrink: 0;
   background: var(--accent-solid);
-  color: var(--color-ink);
+  color: var(--color-on-bright);
   border: none;
   border-radius: 12px;
   padding: 13px 22px;
@@ -748,7 +782,7 @@
 
 .lyrix-button {
   align-self: flex-start;
-  background: var(--color-ink);
+  background: var(--color-solid);
   color: var(--color-on-ink);
   border: none;
   border-radius: 12px;
@@ -763,7 +797,7 @@
 }
 
 .lyrix-button:hover {
-  background: var(--color-ink-raised);
+  background: var(--color-solid-raised);
 }
 
 .lyrix-button:active {
@@ -772,7 +806,7 @@
 
 .lyrix-button.is-accent {
   background: var(--accent-solid);
-  color: var(--color-ink);
+  color: var(--color-on-bright);
 }
 
 .lyrix-button.is-accent:hover {
@@ -843,7 +877,7 @@
 
 .lyrix-stat {
   margin: 0;
-  background: var(--color-page-bg);
+  background: var(--color-sunken);
   border-radius: 12px;
   padding: 10px 12px;
   display: flex;
@@ -1080,7 +1114,7 @@
   margin: 0;
   font-size: 0.88rem;
   line-height: 1.5;
-  color: oklch(50% 0.02 55);
+  color: var(--color-ink-muted);
 }
 
 .lyrix-promo {
@@ -1103,7 +1137,7 @@
 }
 
 .lyrix-promo:hover {
-  background: oklch(94% 0.015 78);
+  background: var(--color-surface-muted);
   border-color: var(--accent-solid);
 }
 
@@ -1115,7 +1149,7 @@
   width: 36px;
   height: 36px;
   border-radius: 12px;
-  background: var(--color-ink);
+  background: var(--color-solid);
   color: var(--color-on-ink);
   display: flex;
   align-items: center;
@@ -1223,7 +1257,7 @@
 }
 
 .lyrix-modal-close:hover {
-  background: oklch(90% 0.015 78);
+  background: var(--color-surface-hover);
   transform: rotate(90deg);
 }
 
@@ -1247,7 +1281,7 @@
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: var(--color-page-bg);
+  background: var(--color-sunken);
   border-radius: 14px;
 }
 
@@ -1318,8 +1352,8 @@
   left: 4px;
   width: calc(50% - 6px);
   border-radius: 10px;
-  background: var(--color-surface);
-  box-shadow: 0 1px 3px oklch(30% 0.02 50 / 0.14);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-tab);
   transition: transform 0.3s cubic-bezier(0.3, 0.7, 0.3, 1);
 }
 
@@ -1393,7 +1427,7 @@
   margin: 0;
   font-size: 0.95rem;
   line-height: 1.55;
-  color: oklch(40% 0.02 55);
+  color: var(--color-ink-soft);
 }
 
 .lyrix-mp-form {
@@ -1431,7 +1465,7 @@
   gap: 10px;
   padding: 18px;
   border-radius: 16px;
-  background: var(--color-page-bg);
+  background: var(--color-sunken);
 }
 
 .lyrix-room-code {
@@ -1469,12 +1503,12 @@
 }
 
 .lyrix-copy.is-light {
-  background: var(--color-ink);
+  background: var(--color-solid);
   color: var(--color-on-ink);
 }
 
 .lyrix-copy.is-light:hover {
-  background: var(--color-ink-raised);
+  background: var(--color-solid-raised);
 }
 
 .lyrix-copy.is-dark {
@@ -1489,7 +1523,7 @@
 .lyrix-copy.is-done,
 .lyrix-copy.is-done:hover {
   background: var(--color-presence);
-  color: var(--color-ink);
+  color: var(--color-on-bright);
 }
 
 .lyrix-mp-members {
@@ -1527,7 +1561,7 @@
 .lyrix-members.is-list .lyrix-member {
   padding: 8px 10px;
   border-radius: 12px;
-  background: var(--color-page-bg);
+  background: var(--color-sunken);
 }
 
 .lyrix-member-text {
@@ -1561,7 +1595,7 @@
   height: 30px;
   border-radius: 50%;
   background: var(--player, var(--color-track));
-  color: var(--color-ink);
+  color: var(--color-on-bright);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1592,7 +1626,7 @@
 
 /* The dark "Salon" card, first in the side column while in a room. */
 .lyrix-room {
-  background: var(--color-ink);
+  background: var(--color-solid);
   color: var(--color-on-ink);
   border-color: transparent;
   box-shadow: var(--shadow-dock);
@@ -1686,7 +1720,7 @@
 
 .lyrix-room .lyrix-tag.is-host {
   background: var(--accent-solid);
-  color: var(--color-ink);
+  color: var(--color-on-bright);
 }
 
 .lyrix-room-waiting {

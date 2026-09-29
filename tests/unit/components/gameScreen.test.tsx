@@ -379,6 +379,34 @@ describe("the dialogs (v3 header)", () => {
   });
 });
 
+describe("the theme toggle", () => {
+  afterEach(() => {
+    delete document.documentElement.dataset.theme;
+  });
+
+  it("switches the palette and remembers the choice, without re-rendering a single lyrics token", async () => {
+    document.documentElement.dataset.theme = "light";
+    await mountGame();
+
+    fireEvent.click(screen.getByRole("button", { name: "Passer en mode sombre" }));
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(window.localStorage.getItem("lyrix:theme")).toBe("dark");
+    expect(wordTokenRenders.count).toBe(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Passer en mode clair" }));
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(window.localStorage.getItem("lyrix:theme")).toBe("light");
+    expect(wordTokenRenders.count).toBe(0);
+  });
+
+  it("starts from the theme index.html already put on the page", async () => {
+    document.documentElement.dataset.theme = "dark";
+    await mountGame();
+
+    expect(screen.getByRole("button", { name: "Passer en mode clair" })).toBeTruthy();
+  });
+});
+
 describe("the progress card", () => {
   it("counts revealed word occurrences, found words and guesses, in agreeing French", async () => {
     const title = tokens("Le refuge de novembre");

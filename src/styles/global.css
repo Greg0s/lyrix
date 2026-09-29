@@ -15,11 +15,11 @@ body {
 }
 
 a {
-  color: oklch(50% 0.16 42);
+  color: var(--color-link);
 }
 
 a:hover {
-  color: oklch(40% 0.14 42);
+  color: var(--color-link-hover);
 }
 
 ::selection {
