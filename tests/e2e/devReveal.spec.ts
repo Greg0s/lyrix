@@ -19,9 +19,12 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** A dev-hint span whose text is exactly `word` - not a substring match, which could also hit an unrelated longer word. */
+/**
+ * A dev-hint bar whose visible text is exactly `word` - not a substring match, which could also hit an
+ * unrelated longer word. Matched on the bar's face, since the bar also holds its screen-reader label.
+ */
 function devHintFor(page: import("@playwright/test").Page, word: string) {
-  return page.locator(".token-word-devhint", { hasText: new RegExp(`^${escapeRegExp(word)}$`) });
+  return page.locator(".token-word-devhint .token-blank-face", { hasText: new RegExp(`^${escapeRegExp(word)}$`) });
 }
 
 async function firstTitleWord(page: import("@playwright/test").Page): Promise<string> {
@@ -42,7 +45,7 @@ test("shows every hidden word's real text at low opacity before any guess", asyn
 
   await expect(devHintFor(page, firstWord).first()).toBeVisible();
   // Nothing has been guessed yet, so the normal blank rendering never applies to this word.
-  await expect(page.locator(".token-word-hidden", { hasText: new RegExp(`^${escapeRegExp(firstWord)}$`) })).toHaveCount(0);
+  await expect(page.locator(".token-word-hidden .token-blank-face", { hasText: new RegExp(`^${escapeRegExp(firstWord)}$`) })).toHaveCount(0);
 });
 
 test("replaces the dev hint with the normal found rendering once the word is guessed", async ({ page }) => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { normalize } from "../game/normalize";
 import { proximityTier } from "../game/similarity";
 import type { SlotToken } from "../game/slots";
@@ -21,22 +21,32 @@ interface BlankProps {
   className: string;
   style?: CSSProperties;
   title?: string;
+  /** Read by screen readers after "mot caché, N lettres" - e.g. the close guess sitting on the bar. */
+  extraLabel?: string;
   children: ReactNode;
 }
 
+/** What a screen reader says for a bar, in place of its masked text. */
+export function blankLabel(letters: number, extra?: string): string {
+  const base = `mot caché, ${letters} lettre${letters === 1 ? "" : "s"}`;
+  return extra ? `${base}, ${extra}` : base;
+}
+
 /**
- * A still-hidden word, drawn as a bar. Tapping it shows how many letters it
- * has for a moment - the same thing its width already says, so nothing that
- * isn't on screen yet. The tip's state is local, so a tap re-renders this one
- * word and not the lyrics around it.
+ * A still-hidden word, drawn as a bar. Tapping it - or reaching it from the
+ * keyboard (see useRovingBlanks) - shows how many letters it has for a moment:
+ * the same thing its width already says, so nothing that isn't on screen yet.
+ * Screen readers get that count as text instead of the masked underscores.
+ * The tip's state is local, so it re-renders this one word and not the
+ * lyrics around it. Its tab stop is managed in the DOM by useRovingBlanks.
  */
-function Blank({ letters, className, style, title, children }: BlankProps) {
+function Blank({ letters, className, style, title, extraLabel, children }: BlankProps) {
   const [peek, setPeek] = useState<"in" | "out" | null>(null);
   const timers = useRef<number[]>([]);
 
   useEffect(() => () => timers.current.forEach((timer) => window.clearTimeout(timer)), []);
 
-  const onClick = () => {
+  const show = () => {
     timers.current.forEach((timer) => window.clearTimeout(timer));
     setPeek("in");
     timers.current = [
@@ -45,11 +55,28 @@ function Blank({ letters, className, style, title, children }: BlankProps) {
     ];
   };
 
+  const onKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    show();
+  };
+
   return (
-    <span className={`token-blank ${className}`} style={style} title={title} onClick={onClick}>
-      {children}
+    <span
+      className={`token-blank ${className}`}
+      style={style}
+      title={title}
+      onClick={show}
+      onFocus={show}
+      onKeyDown={onKeyDown}
+    >
+      <span className="token-blank-face" aria-hidden="true">
+        {children}
+      </span>
+      <span className="sr-only">{blankLabel(letters, extraLabel)}</span>
+      {/* Hidden from screen readers: the label above already says it. */}
       {peek ? (
-        <span className={`token-peek${peek === "out" ? " is-out" : ""}`} role="status">
+        <span className={`token-peek${peek === "out" ? " is-out" : ""}`} aria-hidden="true">
           {letters} lettre{letters === 1 ? "" : "s"}
         </span>
       ) : null}
@@ -102,9 +129,10 @@ export function WordToken({ token, revealAll = false, lastFoundKey = null }: Wor
         className={`token-word-near tier-${proximityTier({ found: false, score })}`}
         style={heatStyle(score)}
         title={`« ${text} » est proche de ce mot (${score}/100)`}
+        extraLabel={`« ${text} » est proche, ${score} sur 100`}
       >
         {/* The word's own blank sizes the bar; the guess is laid over it, never wider. */}
-        <span className="token-near-blank" aria-hidden="true">
+        <span className="token-near-blank">
           {token.text}
         </span>
         <span className="token-near-guess" style={fitGuess(text, letters)}>

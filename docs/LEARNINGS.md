@@ -4,6 +4,12 @@ A running log of gotchas, root causes, and anything that cost real time to figur
 
 Each entry: date, short title, what happened, how it was resolved.
 
+## 2026-09-29 — A bar's text now includes its screen-reader label; match on `.token-blank-face`
+
+Issue #33 gave every hidden-word bar a visually hidden "mot caché, N lettres" next to its masked text (now wrapped in an `aria-hidden` `.token-blank-face`). Any locator that matches a bar's whole text exactly — `devReveal.spec.ts`'s `^word$` on `.token-word-devhint` — stops matching, since `textContent` includes the label. Match on `.token-blank-face` instead. Also, `npx prettier --write` is not a project tool here (no Prettier config or dependency): it reformats dozens of untouched files, so don't run it.
+
+In the same session, the cloud sandbox's pre-installed Playwright browsers (build 1194) didn't match the project's pinned `@playwright/test` (wants build 1243): symlinking `/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell` to the 1194 `headless_shell` let `npm run test:e2e` run without downloading anything.
+
 ## 2026-09-28 — In a cloud sandbox with no LRCLIB access, 9 e2e tests fail on any branch
 
 While integrating the v3 mockup in a Claude Code cloud container, 9 of the 25 e2e tests failed with `unknown song id from /api/round: le-refuge-de-novembre`. That is the Worker's emergency song: the sandbox's egress proxy blocks lrclib.net, so every catalog entry falls through to it, and the specs that look the day's song up in `catalog` can't find it. The same 9 failed on the untouched base commit, so the failures weren't caused by the change. To still exercise those flows (win, reload, reveal all), append a local, **uncommitted** catalog entry with the emergency song's id, title and artist, run the suite, then restore `worker/src/catalog.ts`. All 25 passed that way.
@@ -206,6 +212,20 @@ Installing the third-party [Graphify](https://github.com/Graphify-Labs/graphify)
 - **`echo ... > file` in Windows PowerShell 5.1 writes UTF-16LE with a BOM, not UTF-8.** Redirecting `{}` into `.claude/settings.json` this way produced a file that read back as garbled bytes — invalid JSON. Graphify's own `SKILL.md` documents this exact trap for its generated files and works around it with `[System.IO.File]::WriteAllText(path, content, (New-Object System.Text.UTF8Encoding $false))`, which writes plain UTF-8 with no BOM and no extra newline.
 
 **Takeaway**: never hand a Windows/PowerShell user a bare `echo >` or `Out-File` command to produce a file another tool will parse (JSON, YAML, etc.) — Windows PowerShell 5.1 defaults both to UTF-16LE-with-BOM. Use `[System.IO.File]::WriteAllText(...)` with an explicit BOM-less `UTF8Encoding`, or just have them paste the content directly in an editor.
+
+## 2026-09-29 — Versioning the graphify graph: three extraction defects fixed by hand
+
+`graphify-out/` is now committed (graph, report, manifest, and the semantic cache — the LLM extraction of the docs, which costs ~90k tokens to redo). The first build's health check flagged three defects, all graphify's, none in Lyrix's code:
+
+- **Self-loop `normalize() → normalize()`** (`src/game/normalize.ts`). The TS AST extractor resolves the method call `word.normalize("NFD")` (`String.prototype.normalize`) to the module's own `normalize()` function. `graphify update` re-extracts every code file (the AST cache is not committed), so the edge comes back on every update, whether or not `normalize.ts` changed. Fixed durably by `npm run graph:update`, which drops the edges listed in `scripts/lib/graphFixes.ts` after each update; `tests/unit/scripts/graphFixes.test.ts` fails if the committed graph still carries one.
+- **Three dangling `imports_from` edges** from `src/main.tsx` to `src/styles/{tokens,global,game}.css`. graphify has no CSS extractor, and it additionally skips `tokens.css` as "sensitive" (filename heuristic). Fixed durably: the three stylesheets are nodes in CLAUDE.md's semantic cache entry (CLAUDE.md does list them, line 153), so the import edges resolve.
+- **Ghost node `worker_src_similarity_wordpositions`**: the semantic extraction of `docs/SIMILARITY.md` guessed that `wordPositions` lives in `worker/src/similarity.ts` ("Worker side"); it is in `src/game/slots.ts`. The ghost made a bogus "surprising connection". Fixed durably by renaming it to `src_game_slots_wordpositions` in the cached entry.
+
+Also: editing a doc invalidates its semantic cache entry (keyed by content hash). When the edit doesn't touch anything the extraction captured, re-keying the old entry (`save_semantic_cache` with the old nodes/edges) avoids paying for a re-extraction. And an intended shrink (a removed ghost node) trips `to_json`'s shrink guard (#479) — pass `force=True` only once you know why the node count dropped.
+
+`graphify update` also leaves a dated backup directory and a `.graphify_labels.json.sig` behind (now in `graphify-out/.gitignore`), and re-clusters: hand-picked community names are replaced by each community's hub node.
+
+**Takeaway**: after any graphify rebuild, read the health check before committing — a dangling edge or self-loop there is a graphify extraction defect, not a code problem, and the report's "surprising connections" are the first place a ghost node shows up.
 
 ## 2026-09-29 — The phone keyboard closed and reopened on every guess
 

@@ -30,6 +30,7 @@ The UI follows the "Lyrix v3" mockup: sticky header, one song card whose hidden 
 - Run: `npm run dev:all` (Vite + `wrangler dev` side by side; `/api/*` is proxied to the Worker)
 - Test: `npm test` (lint + typecheck + Vitest), `npm run test:e2e` (Playwright)
 - Debug mode — play against real proximity scores instead of the dev placeholder: `npm run dev:debug`
+- Knowledge graph refresh after code changes: `npm run graph:update` (see "graphify" below)
 
 ## TypeScript Rules
 
@@ -78,7 +79,7 @@ Never test manually when it can be scripted instead — this applies to the deve
 The game's own logic is cheap; everything that has ever been slow here was correct work repeated for a value that hadn't changed.
 
 - **Nothing in the Worker's per-guess path may scale with the length of the song.** A song is immutable once resolved, so anything derived from it — tokenization (`src/game/analyze.ts`), the resolved song, the parsed similarity table, the HMAC key — is derived once and memoized per isolate. When adding an isolate-level cache, add its `reset*()` and call it from the affected tests' `beforeEach` in the same commit.
-- **Typing a guess must not re-render the lyrics.** Derived state goes through `useMemo` keyed on what it actually reads; components that display it are `memo()`d. Neither may opening a dialog or tapping a bar (its "N lettres" tip is local state in `WordToken`'s `Blank`).
+- **Typing a guess must not re-render the lyrics.** Derived state goes through `useMemo` keyed on what it actually reads; components that display it are `memo()`d. Neither may opening a dialog, tapping a bar (its "N lettres" tip is local state in `WordToken`'s `Blank`), or moving between bars with the arrow keys (the roving tab stop lives in the DOM — `useRovingBlanks`).
 - **Measure before and after, and pin the result with a test that counts the work** — tokenization calls, KV reads, tokens re-rendered per keystroke. Never assert on elapsed time; an unpinned fix comes straight back.
 
 ## Continuous Improvement Loop
@@ -132,7 +133,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     TokenRun.tsx             # one line: keeps each word on one line with its punctuation
     WordToken.tsx           # one token: found word (last found highlighted), bar, close-guess
                             # bar, revealed-via-checkbox text (DisplayToken.revealHint), dev
-                            # hint; a tapped bar shows its letter count (local state)
+                            # hint; a tapped or focused bar shows its letter count (local state);
+                            # screen readers read "mot caché, N lettres", never the underscores
     heatStyle.ts             # inline --heat a scored word is shaded with
     GuessForm.tsx             # sticky guess dock: input, feedback line, shake on a miss
     ProgressCard.tsx, TriedWords.tsx  # side column: % revealed + counts; past guesses,
@@ -142,6 +144,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     MultiplayerModal.tsx, MultiplayerPromo.tsx  # PLACEHOLDER team-mode entry points (#29, #30)
   /hooks
     useGame.ts              # round/guess state machine; hydrates from roundStorage before network
+    useRovingBlanks.ts       # one tab stop per title/lyrics, arrow keys move between bars (#33)
   /game                       # masking/matching/normalization — framework-agnostic, unit-tested,
                                # imported by BOTH the frontend and the Worker
     types.ts, tokenize.ts, normalize.ts  # wire contract; word/non-word tokenizer (elisions,
@@ -169,9 +172,9 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   wrangler.debug.toml         # same Worker + a local-only SIMILARITY namespace (npm run dev:debug)
 /scripts                     # Node tooling via tsx, never bundled into the Worker
   ensure-dev-vars.ts, check-catalog.ts, convert-embeddings.ts, build-similarity-table.ts,
-  dev-debug.ts, inspect-similarity-table.ts, build-favicon.ts
+  dev-debug.ts, inspect-similarity-table.ts, build-favicon.ts, graph-update.ts
   /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, debugMode.ts, devVars.ts, catalogAudit.ts,
-       favicon.ts
+       favicon.ts, graphFixes.ts
 /tests
   /unit/game, /unit/worker, /unit/scripts, /unit/storage, /unit/components, /unit/ci
   /e2e                        # Playwright; fixtures/similarity-table.json stands in for a built table
@@ -199,12 +202,16 @@ Two standing rules — a missing `worker/.dev.vars` has broken CI once and a dev
 
 ## graphify
 
-This project can maintain a knowledge graph at `graphify-out/` (god nodes, community structure, cross-file relationships) via the `/graphify` skill — not yet built; run `/graphify .` to generate it before relying on these rules.
+This project maintains a knowledge graph at `graphify-out/` (god nodes, community structure, cross-file relationships) via the `/graphify` skill. The graph (`graph.json`, `graph.html`, `GRAPH_REPORT.md`, `manifest.json`) and the semantic cache (the paid LLM extraction of the docs) are committed; `graphify-out/.gitignore` keeps machine-local files out. `.graphifyignore` keeps the skill's own docs out of the graph.
+
+- **Code changes**: `npm run graph:update` — `graphify update .` (AST only: free, seconds) plus dropping the edges graphify is known to get wrong here (`scripts/lib/graphFixes.ts`; add one there, with its reason, rather than editing `graph.json` by hand). In cloud sessions the SessionStart hook (`.claude/hooks/session-start.sh`) runs it whenever the committed graph is older than the code, so the working tree may start with `graphify-out/` modified: never stage it with an unrelated change — commit a graph refresh on its own (`🔧 chore(graphify): refresh the knowledge graph`).
+- **Doc changes** (`*.md`, `ci.yml`, `index.html`) need a semantic re-extraction: `/graphify . --update` in Claude Code, which costs tokens — batch it rather than running it per edit.
+- `graphify update` re-clusters and names communities after their hub node; curated names don't survive it. Known graphify defects are logged in `docs/LEARNINGS.md` (2026-09-29).
 
 - For codebase questions, first run `graphify query "<question>"` once `graphify-out/graph.json` exists; `graphify path "<A>" "<B>"` for relationships, `graphify explain "<concept>"` for focused concepts.
 - If `graphify-out/wiki/index.md` exists, use it for broad navigation instead of raw source browsing.
 - Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review or when query/path/explain don't surface enough.
-- After modifying code, run `graphify update .` to keep the graph current.
+- After modifying code, run `npm run graph:update` (not bare `graphify update .`) to keep the graph current.
 
 ## Reference docs
 

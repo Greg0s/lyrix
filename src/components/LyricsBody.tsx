@@ -1,4 +1,5 @@
-import { memo } from "react";
+import { memo, useId } from "react";
+import { useRovingBlanks } from "../hooks/useRovingBlanks";
 import type { SlotSection } from "../game/slots";
 import { TokenRun } from "./TokenRun";
 
@@ -17,11 +18,25 @@ interface LyricsBodyProps {
  * single token. Guarded by tests/unit/components/gameScreen.test.tsx. Toggling
  * `revealAll` is a deliberate, explicit action rather than a keystroke, and
  * `lastFoundKey` only changes when a guess comes back, so either re-rendering
- * every token is expected.
+ * every token is expected. Moving between bars with the arrow keys re-renders
+ * nothing: see useRovingBlanks.
  */
 export const LyricsBody = memo(function LyricsBody({ sections, revealAll = false, lastFoundKey = null }: LyricsBodyProps) {
+  const roving = useRovingBlanks<HTMLDivElement>();
+  const hintId = useId();
   return (
-    <div className="lyrix-lyrics">
+    <div
+      className="lyrix-lyrics"
+      role="group"
+      aria-label="Paroles"
+      aria-describedby={hintId}
+      ref={roving.ref}
+      onFocus={roving.onFocus}
+      onKeyDown={roving.onKeyDown}
+    >
+      <p className="sr-only" id={hintId}>
+        Flèches pour passer d’un mot caché à l’autre.
+      </p>
       {sections.map((section, sectionIndex) => (
         <section className="lyrix-section" key={sectionIndex}>
           <p className="lyrix-section-label">{section.label}</p>
