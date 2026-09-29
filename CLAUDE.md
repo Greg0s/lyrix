@@ -114,6 +114,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
 ## Project Structure
 
 ```
+/public                  # favicon.svg, favicon-48.png, apple-touch-icon.png — generated from the
+                          # logo mark + tokens.css by `npm run favicon:build`, never edited by hand
 /src
   main.tsx, App.tsx     # React entry point, top-level render of GameScreen
   roundStorage.ts        # localStorage persistence so a reload resumes today's round
@@ -168,9 +170,9 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   wrangler.debug.toml         # same Worker + a local-only SIMILARITY namespace (npm run dev:debug)
 /scripts                     # Node tooling via tsx, never bundled into the Worker
   ensure-dev-vars.ts, check-catalog.ts, convert-embeddings.ts, build-similarity-table.ts,
-  dev-debug.ts, inspect-similarity-table.ts, graph-update.ts
+  dev-debug.ts, inspect-similarity-table.ts, build-favicon.ts, graph-update.ts
   /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, debugMode.ts, devVars.ts, catalogAudit.ts,
-       graphFixes.ts
+       favicon.ts, graphFixes.ts
 /tests
   /unit/game, /unit/worker, /unit/scripts, /unit/storage, /unit/components, /unit/ci
   /e2e                        # Playwright; fixtures/similarity-table.json stands in for a built table
