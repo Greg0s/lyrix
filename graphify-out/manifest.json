@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "src/components/WordToken.tsx": {
-    "mtime": 1790700104.9311316,
-    "seen": 1790700188.3688834,
-    "ast_hash": "7a639919e3cb6c2cf531cec4d16a00b5",
+    "mtime": 1790703006.9210975,
+    "seen": 1790703022.1114862,
+    "ast_hash": "bd16faea581de0fb649406615b00f4fd",
     "semantic_hash": ""
   },
   "src/components/heatStyle.ts": {
@@ -330,9 +330,9 @@
     "semantic_hash": ""
   },
   "tests/e2e/similarity.spec.ts": {
-    "mtime": 1790700090.2354393,
-    "seen": 1790700188.3689036,
-    "ast_hash": "3c983508bff559ba56dbf4c3e0f95f62",
+    "mtime": 1790703006.9210975,
+    "seen": 1790703022.111507,
+    "ast_hash": "6548b18333db40de838b827bd5db2591",
     "semantic_hash": ""
   },
   "tests/unit/ci/debugMode.test.ts": {
@@ -612,9 +612,9 @@
     "semantic_hash": ""
   },
   "docs/LEARNINGS.md": {
-    "mtime": 1790699949.2572887,
-    "seen": 1790699964.0402794,
-    "ast_hash": "21f67b7bbb4401946b6f5538933ce348",
+    "mtime": 1790703018.5868146,
+    "seen": 1790703022.1115487,
+    "ast_hash": "b62fc3f0ef9aa8b448a562a059e55a60",
     "semantic_hash": ""
   },
   "docs/SIMILARITY.md": {
