@@ -196,7 +196,7 @@ Two standing rules — a missing `worker/.dev.vars` has broken CI once and a dev
 
 ## graphify
 
-This project maintains a knowledge graph at `graphify-out/` (god nodes, community structure, cross-file relationships) via the `/graphify` skill. `graphify-out/` is gitignored, so each checkout builds its own: if `graphify-out/graph.json` is missing, run `/graphify .` first (the CLI installs with `uv tool install graphifyy`). `.graphifyignore` keeps the skill's own docs out of the graph.
+This project maintains a knowledge graph at `graphify-out/` (god nodes, community structure, cross-file relationships) via the `/graphify` skill. The graph (`graph.json`, `graph.html`, `GRAPH_REPORT.md`, `manifest.json`) and the semantic cache (the paid LLM extraction of the docs) are committed; `graphify-out/.gitignore` keeps machine-local files out. The CLI installs with `uv tool install graphifyy`. `.graphifyignore` keeps the skill's own docs out of the graph. Known graphify defects fixed by hand in the committed graph are listed in `docs/LEARNINGS.md` (2026-09-29) — re-apply them after a rebuild.
 
 - For codebase questions, first run `graphify query "<question>"` once `graphify-out/graph.json` exists; `graphify path "<A>" "<B>"` for relationships, `graphify explain "<concept>"` for focused concepts.
 - If `graphify-out/wiki/index.md` exists, use it for broad navigation instead of raw source browsing.
