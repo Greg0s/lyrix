@@ -6,10 +6,10 @@
     "semantic_hash": "b60d37dc41ffd607fe1ba9ff26318acb"
   },
   ".claude/settings.json": {
-    "mtime": 1790623256.3351672,
-    "seen": 1790671884.5342689,
-    "ast_hash": "8a80554c91d9fca8acb82f023de02f11",
-    "semantic_hash": "8a80554c91d9fca8acb82f023de02f11"
+    "mtime": 1790675951.2852914,
+    "seen": 1790676078.5152411,
+    "ast_hash": "3850be437051ab4f71f6bcc13d97fbaa",
+    "semantic_hash": "3850be437051ab4f71f6bcc13d97fbaa"
   },
   "eslint.config.js": {
     "mtime": 1790623256.3365593,
@@ -18,10 +18,10 @@
     "semantic_hash": "788224757565ad14e3969ca07225b9d8"
   },
   "package.json": {
-    "mtime": 1790623256.3365593,
-    "seen": 1790671884.534271,
-    "ast_hash": "80cd5ec6a168394619752c352dc65579",
-    "semantic_hash": "80cd5ec6a168394619752c352dc65579"
+    "mtime": 1790675890.5816839,
+    "seen": 1790676078.5152435,
+    "ast_hash": "8e89e48375d15769d8fe956e40fe5e55",
+    "semantic_hash": "8e89e48375d15769d8fe956e40fe5e55"
   },
   "playwright.config.ts": {
     "mtime": 1790623256.3365593,
@@ -600,10 +600,10 @@
     "semantic_hash": "9053f1ba06ba262316ae430516919eb3"
   },
   "CLAUDE.md": {
-    "mtime": 1790672247.1006503,
-    "seen": 1790672293.597006,
-    "ast_hash": "64274560cd235f890ada55a2ef57896e",
-    "semantic_hash": "64274560cd235f890ada55a2ef57896e"
+    "mtime": 1790675951.2782836,
+    "seen": 1790676078.5153303,
+    "ast_hash": "b24b63fee8cf15c6a1b23cab992dff37",
+    "semantic_hash": "b24b63fee8cf15c6a1b23cab992dff37"
   },
   "README.md": {
     "mtime": 1790671696.6448345,
@@ -612,10 +612,10 @@
     "semantic_hash": "e9e824b3f3cc6159c7bd793d6c5701ee"
   },
   "docs/LEARNINGS.md": {
-    "mtime": 1790672247.1008098,
-    "seen": 1790672293.597008,
-    "ast_hash": "4c96101c37a010d555ae7e3c31c05358",
-    "semantic_hash": "4c96101c37a010d555ae7e3c31c05358"
+    "mtime": 1790675942.0660002,
+    "seen": 1790676078.515332,
+    "ast_hash": "6c473aa11c650e5bc0520dc2a4d7e52d",
+    "semantic_hash": "6c473aa11c650e5bc0520dc2a4d7e52d"
   },
   "docs/SIMILARITY.md": {
     "mtime": 1790671696.6488345,
@@ -628,5 +628,29 @@
     "seen": 1790671884.534343,
     "ast_hash": "1d16131815c191f4417397f591e4978c",
     "semantic_hash": "1d16131815c191f4417397f591e4978c"
+  },
+  "scripts/graph-update.ts": {
+    "mtime": 1790675883.813002,
+    "seen": 1790676078.515252,
+    "ast_hash": "cb40f004d59387bb09ed0e69361c0f59",
+    "semantic_hash": "cb40f004d59387bb09ed0e69361c0f59"
+  },
+  "scripts/lib/graphFixes.ts": {
+    "mtime": 1790675869.6890028,
+    "seen": 1790676078.5152576,
+    "ast_hash": "158cb1f18be4c9fee3c76d514a9cb6cb",
+    "semantic_hash": "158cb1f18be4c9fee3c76d514a9cb6cb"
+  },
+  "tests/unit/scripts/graphFixes.test.ts": {
+    "mtime": 1790675878.6810024,
+    "seen": 1790676078.5153022,
+    "ast_hash": "9ab074a7b9859321281eb0448326fd19",
+    "semantic_hash": "9ab074a7b9859321281eb0448326fd19"
+  },
+  ".claude/hooks/session-start.sh": {
+    "mtime": 1790675951.2809992,
+    "seen": 1790676078.5152357,
+    "ast_hash": "bf520542cd7339d7c8fbef55dbcd12d3",
+    "semantic_hash": "bf520542cd7339d7c8fbef55dbcd12d3"
   }
 }
