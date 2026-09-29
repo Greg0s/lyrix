@@ -324,6 +324,37 @@ describe("the dialogs (v3 header)", () => {
     expect(wordTokenRenders.count).toBe(0);
   });
 
+  // Regression: closing a dialog always focused the guess input, which on a
+  // phone opened the on-screen keyboard every time a dialog was dismissed.
+  describe("on a touch screen", () => {
+    beforeEach(() => {
+      vi.stubGlobal("matchMedia", (query: string) => ({
+        matches: query === "(pointer: coarse)",
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }));
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    it.each([
+      ["Comment jouer", "Comment on joue ?"],
+      ["Jouer à plusieurs", "Jouer à plusieurs"],
+    ])("gives focus back to %s, not to the input (which would open the keyboard)", async (buttonName, dialogName) => {
+      const input = await mountGame();
+      const opener = screen.getByRole("button", { name: buttonName });
+
+      opener.focus();
+      fireEvent.click(opener);
+      expect(screen.getByRole("dialog", { name: dialogName })).toBeTruthy();
+
+      fireEvent.click(screen.getByRole("button", { name: "Fermer" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(document.activeElement).not.toBe(input);
+      expect(document.activeElement).toBe(opener);
+    });
+  });
+
   it("closes the rules from their own button too", async () => {
     await mountGame();
     fireEvent.click(screen.getByRole("button", { name: "Comment jouer" }));

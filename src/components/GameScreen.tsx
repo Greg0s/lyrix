@@ -27,6 +27,11 @@ function feedbackMessage({ word, found, duplicate, nearCount }: Feedback): strin
 
 type Dialog = "help" | "multiplayer" | null;
 
+/** A phone or tablet: its primary pointer is a finger, and focusing a text input opens its keyboard. */
+function isTouchScreen(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+}
+
 export function GameScreen() {
   const game = useGame();
   // Room events ("X a rejoint le salon.", a teammate's guess) go to the guess
@@ -35,12 +40,24 @@ export function GameScreen() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [revealAllLyrics, setRevealAllLyrics] = useState(false);
-  const openHelp = useCallback(() => setDialog("help"), []);
-  const openMultiplayer = useCallback(() => setDialog("multiplayer"), []);
+  // What had focus when a dialog opened (its button), to hand it back on a touch screen.
+  const openerRef = useRef<HTMLElement | null>(null);
+  const openDialog = useCallback((which: Exclude<Dialog, null>) => {
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setDialog(which);
+  }, []);
+  const openHelp = useCallback(() => openDialog("help"), [openDialog]);
+  const openMultiplayer = useCallback(() => openDialog("multiplayer"), [openDialog]);
   // Once a dialog is gone, the player is back to guessing: give them the input.
+  // Not on a touch screen, where focusing the input pops the on-screen keyboard
+  // up over the page the player just came back to: focus goes back to the
+  // button that opened the dialog, and the player taps the input when ready.
   const closeDialog = useCallback(() => {
     setDialog(null);
-    inputRef.current?.focus();
+    const opener = openerRef.current;
+    openerRef.current = null;
+    if (!isTouchScreen()) inputRef.current?.focus();
+    else if (opener?.isConnected) opener.focus();
   }, []);
   const toggleRevealAllLyrics = useCallback(() => setRevealAllLyrics((reveal) => !reveal), []);
   const { submit } = game;
