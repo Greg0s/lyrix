@@ -21,9 +21,9 @@ The UI follows the "Lyrix v3" mockup: sticky header, one song card whose hidden 
 - **Hosting**: Cloudflare Pages (frontend) + Cloudflare Workers (API).
 - **Lyrics source**: LRCLIB (lrclib.net), queried server-side via `/api/search` (not `/api/get` — see `docs/LEARNINGS.md`), cleaned before it is ever masked (`worker/src/lyrics.ts`), cached per catalog id with the Workers Cache API (`worker/src/cache.ts`).
 - **Database**: none. Cloudflare D1 is reserved for a later phase (accounts, leaderboard) — do not add it now. Workers KV holds only the precomputed similarity tables (see below), not application data.
-- **Rooms** ("salons", #29): one SQLite-backed Durable Object per room code (`worker/src/room.ts`), members kept live over hibernatable WebSockets, everything deleted at the next UTC midnight. Creating and joining are rate-limited per client with the Workers Rate Limiting binding (`worker/src/roomRoutes.ts`).
+- **Rooms** ("salons", #29): one SQLite-backed Durable Object per room code (`worker/src/room.ts`), members kept live over hibernatable WebSockets, everything deleted at the next UTC midnight. Creating and joining are rate-limited per client with the Workers Rate Limiting binding (`worker/src/roomRoutes.ts`). Each room also plays the day's round together (#30): its object holds the room's guesses and sends every member the same masked view.
 - **Semantic proximity scoring**: French word embeddings, precomputed offline into a per-song score table — see `docs/SIMILARITY.md`.
-- **Planned, not yet in scope**: `@react-three/fiber`/`@react-three/drei` for in-game 3D; sharing a round's progress across a room (#30 — rooms themselves exist, #29); word-usage counter.
+- **Planned, not yet in scope**: `@react-three/fiber`/`@react-three/drei` for in-game 3D; word-usage counter.
 
 ## Working on this project
 
@@ -97,7 +97,8 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 - **Anti-cheat is a hard requirement**, even in the MVP: the Worker is the only thing that knows the actual lyrics. It receives a guessed word and returns which positions match — never the full text before the round is won. The one exception is `DEV_REVEAL_LYRICS` (`worker/src/index.ts`), which attaches each hidden word's real text as `devHint` for local debugging (`WordToken.tsx`); wired only into `dev:worker`/`dev:all`/`test:e2e`, never in `wrangler.toml` or production.
 - **The "show all lyrics" checkbox reuses that same mechanism, gated on `victory` instead of a dev flag.** Once `RoundView.victory` is true — recomputed by the Worker itself from signed state, never client-supplied — `buildRoundView` attaches every still-hidden lyrics word's real text as `DisplayToken.revealHint`, riding along on the normal round/guess response (no extra endpoint or round trip). The checkbox itself is local, unsigned UI state owned by `GameScreen`, rendered only once won (`TitleGuess`); `WordToken` shows `revealHint` in place of a blank only while checked, ahead of a close-guess placement and the dev hint.
 - **French text matching**: normalize both the guess and the stored lyrics before comparing (case/accent-insensitive, œ/æ spelled out) and account for elisions ("j'aime" vs "je aime", "qu'il", "l'amour"). `LETTER_CLASS` (`src/game/tokenize.ts`) must cover every letter French lyrics use. A run of digits is a word too.
-- **Rooms never touch the lyrics** (#29): a room only knows its code and its members. Its wire contract, codes (`ABCDEFGHJKMNPQRSTUVWXYZ23456789`, 6 characters) and pseudo sanitizing live in `src/game/room.ts`, shared by both sides. Two rules keep codes from being enumerated: every join attempt is rate-limited, and no other route may answer differently for a live code than for a dead one (an unknown token and an unknown room close the socket the same way; leave always answers 204). A pseudo is personal data: stored only in its room's Durable Object, deleted with the room, never logged.
+- **Rooms** (#29): a room knows its code, its members, and its round. Its wire contract, codes (`ABCDEFGHJKMNPQRSTUVWXYZ23456789`, 6 characters) and pseudo sanitizing live in `src/game/room.ts`, shared by both sides. Two rules keep codes from being enumerated: every join attempt is rate-limited, and no other route may answer differently for a live code than for a dead one (an unknown token and an unknown room close the socket the same way, and get the same 404 from `/guess`; leave always answers 204). A pseudo is personal data: stored only in its room's Durable Object, deleted with the room, never logged.
+- **A room's round lives in its Durable Object** (#30), never on a client: a member sends a word (`POST /api/rooms/:code/guess`), the object checks it with the same code as the solo route (`worker/src/round.ts`), keeps it, and sends every member the room's masked view plus its guess list — over the socket on (re)connection and after each guess. The song is pinned the first time the room needs it. Victory, and with it `revealHint`, is the room's, so it unlocks for every member at once; a teammate's close guesses are placed in everyone's lyrics. While in a room, the solo round (`roundStorage`) is set aside untouched and comes back on leaving; the room's round is never saved locally. An answer and a broadcast can cross: a view only replaces one with fewer guesses.
 - **LRCLIB data isn't guaranteed clean**: `plainLyrics`/`syncedLyrics` are LRC-format text, not prose. Everything unsung is dropped before masking (`cleanLyrics`) — a player must never be asked to guess `[Refrain]`, `♪`, or the artist out of an `[ar:…]` tag — and a result too thin to be a puzzle is refused (`MIN_LYRIC_WORDS`) so the day's pick falls through to the next catalog entry. The catalog is only as good as LRCLIB's copy of it and the suite mocks the network on purpose, so run `npm run catalog:check` after editing `worker/src/catalog.ts`, and whenever a day's round looks wrong.
 
 ## Semantic Proximity Scoring
@@ -109,7 +110,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
 ## Out of Scope (do not implement without an explicit request)
 
 - Any 3D code or dependency (`three`, `@react-three/fiber`, `@react-three/drei`).
-- Sharing a round's progress across a room, word-usage counter (V2). Rooms exist (#29), but don't wire the round into them without a go-ahead on #30 — the found words would have to live in the room's Durable Object, never come from a client.
+- Word-usage counter (V2).
 - User accounts, authentication, leaderboard, Cloudflare D1 (V3).
 - Monetization of any kind.
 
@@ -123,10 +124,10 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   roundStorage.ts        # localStorage persistence so a reload resumes today's round
                           # (deferred/idle writes, flushed on tab hide/close)
   roomStorage.ts          # the room the player is in (code, member token), so a reload reconnects
-  /api                    # client.ts: fetchRound, submitGuess; rooms.ts: create/join/leave + socket URL;
+  /api                    # client.ts: fetchRound, submitGuess; rooms.ts: create/join/leave/guess + socket URL;
                           # base.ts: the Worker's URL (VITE_API_BASE_URL in production)
   /components             # presentational React components (layout: "Lyrix v3" mockup)
-    GameScreen.tsx        # top-level layout; wires useGame(), places close guesses onto the
+    GameScreen.tsx        # top-level layout; wires useGame() and useRoom(), places close guesses onto the
                            # round (slots.ts), owns which dialog is open, the input ref, and
                            # the "show all lyrics" checkbox's local, unsigned reveal-all toggle
     AppHeader.tsx, Logo.tsx, GroupIcon.tsx  # sticky top bar, CSS logo mark + wordmark
@@ -142,7 +143,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     heatStyle.ts             # inline --heat a scored word is shaded with
     GuessForm.tsx             # sticky guess dock: input, feedback line, shake on a miss
     ProgressCard.tsx, TriedWords.tsx  # side column: % revealed + counts; past guesses,
-                                      # sorted by score, crediting the embedding model
+                                      # sorted by score, crediting the embedding model;
+                                      # "Mots du groupe" in a room, a colour dot per chip
                                       # (collapsed by default below 880px)
     Modal.tsx, HowToPlay.tsx   # dialog shell (Escape/backdrop, exit animation); the rules
     MultiplayerModal.tsx      # rooms (#29): "Créer un salon" / "Rejoindre" tabs, or the room once in one
@@ -150,10 +152,12 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                               # list/grid, "Copié !" flash, a player's stable colour
     MultiplayerPromo.tsx       # "Chercher à plusieurs" card, hidden while in a room
   /hooks
-    useGame.ts              # round/guess state machine; hydrates from roundStorage before network
+    useGame.ts              # round/guess state machine; hydrates from roundStorage before network;
+                            # in a room, plays the room's round instead (fed by useRoom, #30)
     useRovingBlanks.ts       # one tab stop per title/lyrics, arrow keys move between bars (#33)
     useRoom.ts                # room state, its WebSocket (reconnect with backoff, keep-alive); room
-                              # events reach the dock's feedback line through useGame's announce()
+                              # events reach the dock's feedback line through useGame's announce(),
+                              # round messages go to useGame's receiveRoomRound()
   /game                       # masking/matching/normalization — framework-agnostic, unit-tested,
                                # imported by BOTH the frontend and the Worker
     types.ts, tokenize.ts, normalize.ts  # wire contract; word/non-word tokenizer (elisions,
@@ -164,12 +168,13 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     daily.ts                    # time until the next song (UTC midnight), countdown format
     similarity.ts, functionWords.ts, slots.ts  # 0-100 proximity scale; excluded function words;
                                                 # addressing hidden words by position
-    room.ts                     # rooms' wire contract: codes, pseudos, close codes, message parsing
+    room.ts                     # rooms' wire contract: codes, pseudos, close codes, room round, message parsing
   /styles                    # tokens.css (v3 palette), global.css (keyframes), game.css
                              # (layout; breakpoints are CSS media queries, never JS)
 /worker/src
   index.ts                  # Hono app: GET /api/round, POST /api/guess, mounts /api/rooms; exports Room
-  room.ts, roomRoutes.ts      # the Room Durable Object (members, expiry alarm); /api/rooms routes
+  round.ts                    # checking a guess and building the masked view: shared by solo and rooms
+  room.ts, roomRoutes.ts      # the Room Durable Object (members, round, expiry alarm); /api/rooms routes
   catalog.ts                  # curated {id, artist, title} list + deterministic daily pick
   lrclib.ts, lyrics.ts          # LRCLIB /api/search client; cleanLyrics (drops LRC markup: timestamps,
                                  # id tags, section headers, instrumental filler) + section parsing
