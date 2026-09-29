@@ -20,6 +20,7 @@
     "deploy:check": "wrangler deploy --dry-run --config worker/wrangler.toml",
     "similarity:convert": "tsx scripts/convert-embeddings.ts",
     "similarity:build": "tsx scripts/build-similarity-table.ts",
+    "favicon:build": "tsx scripts/build-favicon.ts",
     "similarity:inspect": "tsx scripts/inspect-similarity-table.ts"
   },
   "keywords": [],
