@@ -59,7 +59,7 @@ it counts renders rather than timing anything.
 
 A guess that isn't in the lyrics still comes back with a 0-100 score saying how semantically close it is, Cemantix-style — and when it is close to hidden words, it shows up in their place in the lyrics, Pedantix-style, written in white over the hidden word's bar and sharper the closer it gets (the Worker only ever says *where*, never which word is there). A score is a rank: 80 means the guess is among a hidden word's 10 nearest neighbours in the embedding model, 60 among its 100, 40 among its 1,000 — which is also how close a guess has to be to show up in the lyrics. Grammatical words (articles, pronouns, prepositions…) never count, and numbers are compared by value, so 2000 is close to 2015.
 
-The scoring is precomputed offline — the Worker only ever does a key lookup — so it needs a one-time setup before it does anything in production:
+The scoring is precomputed offline — the Worker only ever does a key lookup — so the tables are built and uploaded by hand, again after any catalog change:
 
 ```bash
 # 1. download frWac_non_lem_no_postag_no_phrase_200_skip_cut100.bin by hand from https://fauconnier.github.io/#data into data/models/
@@ -68,12 +68,11 @@ npm run similarity:convert -- --input data/models/frWac_non_lem_no_postag_no_phr
 # 3. build the per-song tables, and check what one of them answers
 npm run similarity:build -- --model data/models/frwac.vecbin --all --bulk
 npm run similarity:inspect -- --song papaoutai amour papa
-# 4. create the KV namespace, uncomment the binding in worker/wrangler.toml, and upload
-npx wrangler kv namespace create SIMILARITY
+# 4. upload them to the SIMILARITY namespace worker/wrangler.toml binds (already created)
 npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote --config worker/wrangler.toml
 ```
 
-Without that namespace the game runs exactly as before, with no scores and no close words in the lyrics. Local development doesn't need any of it: `npm run dev:worker` serves hand-written placeholder scores so the coloured chips, and the close words shown in the lyrics, are visible right away. Only a few dozen words carry one — the API log lists them all on the first guess (any other word scores nothing, and a word that is in the lyrics is revealed instead of scored). Where a placeholder word lands in the lyrics is arbitrary: real neighbours only come from the embedding model, and `npm run similarity:inspect` is how to see them.
+A song with no table in the namespace plays exactly as before, with no scores and no close words in the lyrics. Local development doesn't need any of it: `npm run dev:worker` serves hand-written placeholder scores so the coloured chips, and the close words shown in the lyrics, are visible right away. Only a few dozen words carry one — the API log lists them all on the first guess (any other word scores nothing, and a word that is in the lyrics is revealed instead of scored). Where a placeholder word lands in the lyrics is arbitrary: real neighbours only come from the embedding model, and `npm run similarity:inspect` is how to see them.
 
 ### Debug mode: playing today's song with real scores
 

@@ -7,9 +7,10 @@ import { parseSimilarityTable, SIMILARITY_TABLE_VERSION, type SimilarityTable } 
 /**
  * Debug mode: playing today's song locally against a real similarity table.
  *
- * The Worker reads its tables from a KV namespace, and the configuration this
- * repository deploys binds none (see worker/wrangler.toml): production and
- * `npm run dev:all` alike answer from the placeholder table, or not at all.
+ * The Worker reads its tables from a KV namespace. The configuration this
+ * repository deploys binds the production one (worker/wrangler.toml), but
+ * `npm run dev:all` runs it against an empty local copy and answers from the
+ * placeholder table instead.
  * `npm run dev:debug` (scripts/dev-debug.ts) builds the day's table,
  * loads it into a KV namespace that only exists on this machine, and starts
  * the game against it.
