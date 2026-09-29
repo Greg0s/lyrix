@@ -5,6 +5,7 @@ import { useGame, type Feedback } from "../hooks/useGame";
 import { useRoom } from "../hooks/useRoom";
 import { AppHeader } from "./AppHeader";
 import { playerColor } from "./playerColor";
+import { GroupFoundBanner } from "./GroupFoundBanner";
 import { GuessForm, type GuessFeedback } from "./GuessForm";
 import { HowToPlay } from "./HowToPlay";
 import { LyricsBody } from "./LyricsBody";
@@ -108,7 +109,7 @@ export function GameScreen() {
   const { feedback, notice } = game;
   // In a room, the dock's line carries the colour of whoever proposed the word.
   const you = room.view?.you ?? null;
-  const group = game.inRoom && you !== null ? { you } : null;
+  const group = game.playingRoom && you !== null ? { you } : null;
   // A teammate's find is highlighted like the player's own, while it is the latest news.
   const lastFoundKey = notice ? (notice.foundKey ?? null) : feedback?.found ? feedback.key : null;
   let guessFeedback: GuessFeedback | null = null;
@@ -143,6 +144,9 @@ export function GameScreen() {
   return shell(
     <main className="lyrix-main">
       <div className="lyrix-game-col">
+        {game.aloneAfter && !round.victory ? (
+          <GroupFoundBanner winner={game.aloneAfter} you={you} onReveal={game.revealAnswer} />
+        ) : null}
         <article className="lyrix-card lyrix-song">
           <TitleGuess
             titleTokens={slots.title}

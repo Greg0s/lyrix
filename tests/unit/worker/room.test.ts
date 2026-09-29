@@ -20,6 +20,7 @@ import app from "../../../worker/src/index";
 import { Room, type RoomContext, type RoomSocket } from "../../../worker/src/room";
 import type { RateLimiter, RoomNamespace } from "../../../worker/src/roomRoutes";
 import { resetSongMemo } from "../../../worker/src/songs";
+import { signState, verifyState } from "../../../worker/src/state";
 
 /**
  * Rooms, end to end under plain Node: the Worker's routes in front of real
@@ -684,6 +685,97 @@ describe("the room's round (#30)", () => {
     const socket = await connect(entry);
 
     expect(socket.lastRound().guesses).toEqual([]);
+  });
+});
+
+async function winTogether(host: RoomEntry, guest: RoomEntry): Promise<void> {
+  await guessIn(host, "le");
+  await guessIn(guest, "refuge");
+  await guessIn(host, "de");
+  await guessIn(guest, "novembre");
+}
+
+async function alone(entry: RoomEntry, state?: string): Promise<Response> {
+  return post(`/api/rooms/${entry.room.code}/alone`, { token: entry.token, state });
+}
+
+describe("keeping looking alone once the group has won", () => {
+  it("names the guess that completed the title, for everyone, and only from then on", async () => {
+    const host = await createRoom("Camille");
+    const hostSocket = await connect(host);
+    const guest = await joinRoom(host.room.code, "Léo");
+
+    await guessIn(host, "vent");
+    expect(hostSocket.lastRound().winningKey).toBeUndefined();
+    await winTogether(host, guest);
+    await guessIn(host, "jardin");
+
+    expect(hostSocket.lastRound().winningKey).toBe("novembre");
+    expect((await connect(guest)).lastRound().winningKey).toBe("novembre");
+  });
+
+  it("is refused before the group has won", async () => {
+    const host = await createRoom();
+    await guessIn(host, "refuge");
+
+    expect((await alone(host)).status).toBe(409);
+  });
+
+  it("is refused the same way as a guess for anyone who isn't a member", async () => {
+    const host = await createRoom();
+    const wrong = await post(`/api/rooms/${host.room.code}/alone`, { token: "0".repeat(32) });
+    const guess = await post(`/api/rooms/${host.room.code}/guess`, { token: "0".repeat(32), word: "x" });
+
+    expect(wrong.status).toBe(404);
+    expect(await wrong.json()).toEqual(await guess.json());
+  });
+
+  it("signs a solo round holding the group's finds but the winning word, without the answer", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await guessIn(host, "vent");
+    await winTogether(host, guest);
+
+    const response = await alone(host);
+    expect(response.status).toBe(200);
+    const view = (await response.json()) as RoundView;
+
+    expect(view.victory).toBe(false);
+    expect(view.artist).toBeUndefined();
+    expect(revealed(view)).not.toContain("novembre");
+    expect(revealed(view)).toEqual(expect.arrayContaining(["Le", "refuge", "de", "vent"]));
+    expect(words(view).some((token) => token.revealHint !== undefined)).toBe(false);
+    const payload = await verifyState(view.state, env.STATE_SECRET);
+    expect(new Set(payload?.foundKeys)).toEqual(new Set(["le", "refuge", "de", "vent"]));
+  });
+
+  it("keeps the player's own solo finds, and only a genuine state of the same song", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await winTogether(host, guest);
+    const songId = (await connect(host)).lastRound().round.songId;
+
+    const own = await signState({ songId, foundKeys: ["jardin"] }, env.STATE_SECRET);
+    const otherSong = await signState({ songId: "another-song", foundKeys: ["lampe"] }, env.STATE_SECRET);
+    const forged = await signState({ songId, foundKeys: ["maison"] }, "not-the-secret");
+
+    const keys = async (state: string) =>
+      (await verifyState(((await (await alone(guest, state)).json()) as RoundView).state, env.STATE_SECRET))
+        ?.foundKeys ?? [];
+    expect(await keys(own)).toContain("jardin");
+    expect(await keys(otherSong)).not.toContain("lampe");
+    expect(await keys(forged)).not.toContain("maison");
+  });
+
+  it("hands over a round the solo route plays on: finding the winning word wins it", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await winTogether(host, guest);
+    const view = (await (await alone(host)).json()) as RoundView;
+
+    const response = await post("/api/guess", { state: view.state, word: "novembre" });
+
+    expect(((await response.json()) as RoundView).victory).toBe(true);
   });
 });
 

@@ -1,4 +1,11 @@
-import { parseRoomEntry, parseRoomGuessResult, type RoomEntry, type RoomGuessResult } from "../game/room";
+import {
+  isRoundView,
+  parseRoomEntry,
+  parseRoomGuessResult,
+  type RoomEntry,
+  type RoomGuessResult,
+} from "../game/room";
+import type { RoundView } from "../game/types";
 import { apiUrl } from "./base";
 
 /** Why creating or joining a room didn't work, as the player needs to hear it. */
@@ -69,4 +76,20 @@ export async function submitRoomGuess(code: string, token: string, word: string)
   const result = response.ok ? parseRoomGuessResult(body) : null;
   if (!result) throw new Error(`room guess failed with status ${response.status}`);
   return result;
+}
+
+/**
+ * Once the room has found the song, a solo round for a member who didn't
+ * complete the title: the group's finds but the winning word, merged with the
+ * player's own solo `state` when there is one. Throws when it couldn't be had.
+ */
+export async function continueAlone(code: string, token: string, state: string | undefined): Promise<RoundView> {
+  const response = await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/alone`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, state }),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok || !isRoundView(body)) throw new Error(`continuing alone failed with status ${response.status}`);
+  return body;
 }

@@ -44,3 +44,26 @@ export function clearSavedRoom(storage: Storage | undefined = globalThis.localSt
     // Same as above.
   }
 }
+
+/**
+ * The room whose answer the player chose to see after the group found the
+ * song without them (#30), so a reload doesn't hide it again. One room at a
+ * time: a player is only ever in one.
+ */
+const ANSWER_KEY = "lyrix:room-answer";
+
+export function isAnswerRevealed(code: string, storage: Storage | undefined = globalThis.localStorage): boolean {
+  try {
+    return storage?.getItem(ANSWER_KEY) === code;
+  } catch {
+    return false;
+  }
+}
+
+export function saveAnswerRevealed(code: string, storage: Storage | undefined = globalThis.localStorage): void {
+  try {
+    storage?.setItem(ANSWER_KEY, code);
+  } catch {
+    // Persistence is a nice-to-have: never fatal.
+  }
+}

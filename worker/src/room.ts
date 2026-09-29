@@ -13,12 +13,15 @@ import {
   type RoomGuessResult,
   type RoomMember,
   type RoomMessage,
+  type RoomRound,
   type RoomRoundMessage,
   type RoomSnapshot,
 } from "../../src/game/room";
-import type { Song } from "../../src/game/types";
+import { isVictory } from "../../src/game/mask";
+import type { RoundView, Song } from "../../src/game/types";
 import { buildRoundView, evaluateGuess, MAX_WORD_LENGTH, parseGuessWord, type RoundEnv } from "./round";
 import { getSongById, getTodaysSong } from "./songs";
+import { verifyState } from "./state";
 
 /**
  * One room ("salon", issue #29) per Durable Object, addressed by its code
@@ -63,6 +66,8 @@ interface RoundRecord {
   songId: string;
   /** Newest first. */
   guesses: RoomGuess[];
+  /** The guess that completed the title, once one has. */
+  winningKey?: string;
 }
 
 interface SocketAttachment {
@@ -160,6 +165,7 @@ export class Room {
     if (route === "POST /join") return this.#join(await readBody(request));
     if (route === "POST /leave") return this.#leave(await readBody(request));
     if (route === "POST /guess") return this.#guess(await readBody(request));
+    if (route === "POST /alone") return this.#alone(await readBody(request));
     return json({ error: "not found" }, 404);
   }
 
@@ -307,7 +313,9 @@ export class Room {
     }
 
     const guess: RoomGuess = { ...outcome, display: trimmed, by: publicMember(member) };
+    const wonBefore = isVictory(song, foundKeys(round));
     round.guesses.unshift(guess);
+    if (!wonBefore && isVictory(song, foundKeys(round))) round.winningKey = guess.key;
     await this.ctx.storage.put(ROUND_STORAGE_KEY, round);
 
     const current = await this.#roundOf(round, song);
@@ -315,6 +323,38 @@ export class Room {
     this.#send(JSON.stringify(message));
     const result: RoomGuessResult = { ...current, guess, duplicate: false };
     return json(result, 200);
+  }
+
+  /**
+   * Once the group has found the song, a member who didn't complete the title
+   * can keep looking on their own: this signs them a solo round holding
+   * everything the group found except the winning word, plus whatever their
+   * own solo round (`state`, verified here) had found. Refused before the
+   * group has won: until then, the room's own view is all there is.
+   */
+  async #alone({ token, state }: Record<string, unknown>): Promise<Response> {
+    const room = await this.#load();
+    const member = room && typeof token === "string" ? room.members.find((m) => m.token === token) : undefined;
+    if (!room || !member) return json({ error: "not a member of a live room" }, 404);
+
+    let loaded: { round: RoundRecord; song: Song };
+    try {
+      loaded = await this.#loadRound();
+    } catch {
+      return json({ error: "the song is unavailable, try again" }, 503);
+    }
+    const { round, song } = loaded;
+    const { winningKey } = round;
+    if (winningKey === undefined) return json({ error: "the room hasn't found the song yet" }, 409);
+
+    const keys = foundKeys(round);
+    keys.delete(winningKey);
+    const own = typeof state === "string" ? await verifyState(state, this.env.STATE_SECRET) : null;
+    // Only the player's own progress on this same song: a found word of theirs
+    // is theirs to keep, the winning one included.
+    if (own && own.songId === song.id) for (const key of own.foundKeys) keys.add(key);
+    const view: RoundView = await buildRoundView(song, keys, this.env);
+    return json(view, 200);
   }
 
   /** The room's round, pinned to today's song the first time it is needed. */
@@ -335,8 +375,12 @@ export class Room {
     return { round, song };
   }
 
-  async #roundOf(round: RoundRecord, song: Song): Promise<{ round: RoomRoundMessage["round"]; guesses: RoomGuess[] }> {
-    return { round: await buildRoundView(song, foundKeys(round), this.env), guesses: round.guesses };
+  async #roundOf(round: RoundRecord, song: Song): Promise<RoomRound> {
+    return {
+      round: await buildRoundView(song, foundKeys(round), this.env),
+      guesses: round.guesses,
+      ...(round.winningKey !== undefined ? { winningKey: round.winningKey } : {}),
+    };
   }
 
   async #roundMessage(): Promise<RoomRoundMessage> {

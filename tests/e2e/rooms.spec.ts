@@ -221,12 +221,15 @@ test("plays the day's round together: every find and every miss reaches the whol
 
   for (const word of titleWords.slice(1)) await guess(host, word);
 
-  for (const page of [host, guest]) {
-    await expect(page.getByText("Bravo, le groupe l'a trouvée")).toBeVisible();
-    await expect(page.getByRole("region", { name: "Progression" }).locator('[data-stat="tried"]')).toContainText(
-      `${titleWords.length + 1} essais`
-    );
-  }
+  // Whoever completed the title sees the victory (Camille, unless the title is
+  // one word and Léo's first find completed it); the other is offered the
+  // answer, or to keep looking (see "when a teammate completes the title").
+  const [finder, other] = titleWords.length > 1 ? [host, guest] : [guest, host];
+  await expect(finder.getByText("Bravo, le groupe l'a trouvée")).toBeVisible();
+  await expect(finder.getByRole("region", { name: "Progression" }).locator('[data-stat="tried"]')).toContainText(
+    `${titleWords.length + 1} essais`
+  );
+  await expect(other.getByRole("button", { name: "Afficher la réponse" })).toBeVisible();
 });
 
 test("catches a player up on the room's round after a reload, and gives the solo round back on leaving", async ({
@@ -249,6 +252,50 @@ test("catches a player up on the room's round after a reload, and gives the solo
   await expect(guest.getByPlaceholder("Propose un mot…")).toBeVisible();
   await expect(guest.locator(".lyrix-title-line .token-word-found")).toHaveCount(0);
   await expect(guest.getByRole("region", { name: "Tes mots" })).toContainText("Les mots que tu proposes");
+});
+
+test.describe("when a teammate completes the title", () => {
+  async function wonByHost(browser: Browser): Promise<{ host: Page; guest: Page; winning: string }> {
+    const host = await openGame(browser);
+    const guest = await openGame(browser);
+    const code = await createRoom(host, "Camille");
+    await joinRoom(guest, code, "Léo");
+    await expect(feedback(host)).toHaveText("Léo a rejoint le salon.");
+    const winning = titleWords.at(-1);
+    if (!winning) throw new Error("the day's song title has no word");
+    for (const word of titleWords) await guess(host, word);
+    await expect(host.getByText("Bravo, le groupe l'a trouvée")).toBeVisible();
+    return { host, guest, winning };
+  }
+
+  test("the others keep looking alone, the winning word still hidden, and can win on their own", async ({
+    browser,
+  }) => {
+    const { guest, winning } = await wonByHost(browser);
+
+    await expect(feedback(guest)).toHaveText("Camille a trouvé la chanson !");
+    await expect(guest.getByRole("region", { name: "Le groupe a trouvé" })).toBeVisible();
+    await expect(guest.getByText(/Bravo/)).toHaveCount(0);
+    await expect(guest.locator(".lyrix-title-line .token-word-found", { hasText: winning })).toHaveCount(0);
+
+    const input = guest.getByPlaceholder("Propose un mot…");
+    await input.fill(winning);
+    await input.press("Enter");
+
+    await expect(guest.getByText("Bravo, tu l'as trouvée")).toBeVisible();
+    await expect(guest.getByRole("region", { name: "Le groupe a trouvé" })).toHaveCount(0);
+  });
+
+  test("the others can see the answer at once, and still do after a reload", async ({ browser }) => {
+    const { guest, winning } = await wonByHost(browser);
+
+    await guest.getByRole("button", { name: "Afficher la réponse" }).click();
+
+    await expect(guest.getByText("Bravo, le groupe l'a trouvée")).toBeVisible();
+    await expect(guest.locator(".lyrix-title-line .token-word-found", { hasText: winning }).first()).toBeVisible();
+    await guest.reload();
+    await expect(guest.getByText("Bravo, le groupe l'a trouvée")).toBeVisible();
+  });
 });
 
 test.describe("on a narrow phone", () => {

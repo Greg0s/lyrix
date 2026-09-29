@@ -10,6 +10,7 @@ import { generateRoomCode, isRoomCode } from "../../src/game/room";
  *   POST /api/rooms/:code/members      join one                               -> RoomEntry
  *   POST /api/rooms/:code/leave        leave it (body: { token })             -> 204
  *   POST /api/rooms/:code/guess        guess for the room (body: { token, word }) -> RoomGuessResult
+ *   POST /api/rooms/:code/alone        once the room has won, keep looking alone (body: { token, state? }) -> RoundView
  *   GET  /api/rooms/:code/ws?token=    the member's live connection (WebSocket)
  */
 
@@ -125,6 +126,14 @@ roomRoutes.post("/:code/guess", async (c) => {
   if (!isRoomCode(code)) return c.json({ error: "not a member of a live room" }, 404);
   const { token, word } = await readBody(c);
   return roomStub(c.env, code).fetch(internalPost("/guess", { token, word }));
+});
+
+// Same shape as /guess: a member's token, and the same 404 for a wrong one.
+roomRoutes.post("/:code/alone", async (c) => {
+  const code = c.req.param("code");
+  if (!isRoomCode(code)) return c.json({ error: "not a member of a live room" }, 404);
+  const { token, state } = await readBody(c);
+  return roomStub(c.env, code).fetch(internalPost("/alone", { token, state }));
 });
 
 // Not rate-limited: it takes a member's token, which can't be guessed, and

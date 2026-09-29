@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchRound, submitGuess } from "../api/client";
-import { submitRoomGuess } from "../api/rooms";
+import { continueAlone, submitRoomGuess } from "../api/rooms";
 import { normalize } from "../game/normalize";
 import { memberName, type RoomGuess, type RoomMember, type RoomRound, type RoomRoundMessage } from "../game/room";
 import { parseNearSlots } from "../game/slots";
 import type { NearSlot, RoundView } from "../game/types";
+import { isAnswerRevealed, saveAnswerRevealed } from "../roomStorage";
 import { loadSavedRound, saveRoundSoon } from "../roundStorage";
 
 export interface TriedWord {
@@ -74,6 +75,29 @@ interface SharedRound extends RoomSession {
   /** Null until the room has sent it. */
   round: RoundView | null;
   triedWords: TriedWord[];
+  /** Once the group has found the song: the guess that completed the title (RoomRound.winningKey). */
+  winningKey: string | null;
+  /** The player chose to see the answer the group found without them. Saved per room (roomStorage). */
+  revealed: boolean;
+  /** The solo round to keep looking on was asked for (see useGame's effect): once per room session. */
+  aloneRequested: boolean;
+}
+
+/** Who completed the title for the group, once someone has. */
+function groupWinner(shared: SharedRound): RoomMember | null {
+  if (!shared.round?.victory || shared.winningKey === null) return null;
+  return shared.triedWords.find((word) => word.key === shared.winningKey)?.by ?? null;
+}
+
+/**
+ * The group found the song, but not this player, who hasn't asked for the
+ * answer: they keep looking on their own, on their solo round, and the room's
+ * round (the answer in full) stays out of sight.
+ */
+function lookingAlone(shared: SharedRound | null): boolean {
+  if (!shared || shared.revealed) return false;
+  const winner = groupWinner(shared);
+  return winner !== null && winner.id !== shared.you;
 }
 
 function triedWordFrom({ key, display, found, score, near, by }: RoomGuess): TriedWord {
@@ -87,12 +111,18 @@ function triedWordFrom({ key, display, found, score, near, by }: RoomGuess): Tri
  */
 function withRoomRound(shared: SharedRound, update: RoomRound): SharedRound {
   if (shared.round && update.guesses.length <= shared.triedWords.length) return shared;
-  return { ...shared, round: update.round, triedWords: update.guesses.map(triedWordFrom) };
+  return {
+    ...shared,
+    round: update.round,
+    triedWords: update.guesses.map(triedWordFrom),
+    winningKey: update.winningKey ?? null,
+  };
 }
 
-/** Another member's guess, as the dock's feedback line tells it. */
-function teammateNotice(guess: RoomGuess, you: string, seq: number): Notice {
+/** Another member's guess, as the dock's feedback line tells it. The winning word is never named: it would give the answer away. */
+function teammateNotice(guess: RoomGuess, you: string, seq: number, winning: boolean): Notice {
   const name = memberName(guess.by, you);
+  if (winning) return { text: `${name} a trouvé la chanson !`, seq, by: guess.by, outcome: "found" };
   return guess.found
     ? { text: `${name} a trouvé « ${guess.display} » !`, seq, by: guess.by, outcome: "found", foundKey: guess.key }
     : { text: `${name} a proposé « ${guess.display} », sans succès.`, seq, by: guess.by, outcome: "missed" };
@@ -194,7 +224,9 @@ export function useGame() {
   }, []);
 
   const submit = useCallback(async () => {
-    const { inputValue, submitting, shared } = state;
+    const { inputValue, submitting } = state;
+    // Looking alone after the group won: the player's guesses are their own again.
+    const shared = lookingAlone(state.shared) ? null : state.shared;
     const round = shared ? shared.round : state.round;
     const triedWords = shared ? shared.triedWords : state.triedWords;
     const raw = inputValue.trim();
@@ -292,7 +324,15 @@ export function useGame() {
       const current = prev.shared;
       if (!session) return current ? { ...prev, shared: null, submitting: false } : prev;
       if (current && current.code === session.code && current.token === session.token) return prev;
-      return { ...prev, shared: { ...session, round: null, triedWords: [] }, submitting: false, error: null };
+      const shared: SharedRound = {
+        ...session,
+        round: null,
+        triedWords: [],
+        winningKey: null,
+        revealed: isAnswerRevealed(session.code),
+        aloneRequested: false,
+      };
+      return { ...prev, shared, submitting: false, error: null };
     });
   }, []);
 
@@ -305,22 +345,63 @@ export function useGame() {
       if (shared === current) return prev;
       // The player's own guess is told by its answer (submit), with the player's own wording.
       const latest = message.latest ? message.guesses.find((guess) => guess.key === message.latest) : undefined;
+      const winning = latest !== undefined && latest.key === message.winningKey;
+      // Looking alone, the room's later finds would give words away: only the win itself is news.
+      const quiet = lookingAlone(current) && !winning;
       const notice =
-        latest && latest.by.id !== current.you
-          ? teammateNotice(latest, current.you, (prev.notice?.seq ?? 0) + 1)
+        latest && latest.by.id !== current.you && !quiet
+          ? teammateNotice(latest, current.you, (prev.notice?.seq ?? 0) + 1, winning)
           : prev.notice;
       return { ...prev, shared, notice };
     });
   }, []);
 
-  // In a room, its round takes the solo one's place everywhere; the solo round
-  // is kept as it was, for when the player leaves.
-  const { shared } = state;
+  /** Shows the room's round, the answer included, to a player who was looking alone. */
+  const revealAnswer = useCallback(() => {
+    setState((prev) => {
+      if (!prev.shared) return prev;
+      saveAnswerRevealed(prev.shared.code);
+      return { ...prev, shared: { ...prev.shared, revealed: true }, notice: null, feedback: null, error: null };
+    });
+  }, []);
+
+  // The group won without this player: their solo round becomes the group's
+  // progress but the winning word, plus their own finds (signed by the room,
+  // never merged here). Asked once per room session, once the solo round has
+  // loaded, so its own progress goes along. Without it, the solo round as is.
+  const alone = lookingAlone(state.shared);
+  const aloneSession = alone && state.shared && !state.shared.aloneRequested && !state.loading ? state.shared : null;
+  const soloState = state.round?.state;
+  useEffect(() => {
+    if (!aloneSession) return;
+    const { code, token } = aloneSession;
+    setState((prev) => (prev.shared ? { ...prev, shared: { ...prev.shared, aloneRequested: true } } : prev));
+    continueAlone(code, token, soloState)
+      .then((round) => {
+        setState((prev) => {
+          if (prev.shared?.code !== code) return prev;
+          saveRoundSoon(round, prev.triedWords);
+          return { ...prev, round, error: null };
+        });
+      })
+      .catch(() => {});
+  }, [aloneSession, soloState]);
+
+  // In a room, its round takes the solo one's place everywhere, unless the
+  // player is looking alone; the solo round is kept as it was, for then and
+  // for when the player leaves.
+  const shared = alone ? null : state.shared;
+  const winner = state.shared ? groupWinner(state.shared) : null;
   return {
     ...state,
     round: shared ? shared.round : state.round,
     triedWords: shared ? shared.triedWords : state.triedWords,
-    inRoom: shared !== null,
+    inRoom: state.shared !== null,
+    /** True while the room's round is the one shown and played. */
+    playingRoom: shared !== null,
+    /** Who found the song for the group, while this player is looking alone; null otherwise. */
+    aloneAfter: alone ? winner : null,
+    revealAnswer,
     setInputValue,
     submit,
     loadRound,

@@ -101,6 +101,12 @@ export interface RoomGuess {
 export interface RoomRound {
   round: RoundView;
   guesses: RoomGuess[];
+  /**
+   * Once the group has found the song: the key of the guess that completed the
+   * title. Its player found it; everyone else is offered the answer or to keep
+   * looking on their own (POST /api/rooms/:code/alone).
+   */
+  winningKey?: string;
 }
 
 /** Sent to a member on (re)connection, and to everyone after each new guess. */
@@ -275,7 +281,9 @@ function parseRoomRound(value: Record<string, unknown>): RoomRound | null {
     if (!guess) return null;
     guesses.push(guess);
   }
-  return { round: value.round, guesses };
+  return typeof value.winningKey === "string"
+    ? { round: value.round, guesses, winningKey: value.winningKey }
+    : { round: value.round, guesses };
 }
 
 export function parseRoomRoundMessage(value: unknown): RoomRoundMessage | null {
