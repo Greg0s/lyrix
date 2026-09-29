@@ -1,5 +1,6 @@
 import { memo } from "react";
 import type { SlotToken } from "../game/slots";
+import { NextSongCountdown } from "./NextSongCountdown";
 import { TokenRun } from "./TokenRun";
 
 interface TitleGuessProps {
@@ -16,8 +17,8 @@ interface TitleGuessProps {
 /**
  * The masked title, then the victory panel once it is found. Where the v3
  * mockup offers "Rejouer avec une autre chanson", the panel keeps the daily
- * model instead: one song a day for everyone, so it points to tomorrow and
- * offers the "show all lyrics" checkbox (see CLAUDE.md's domain rules).
+ * model instead: one song a day for everyone, so it counts down to tomorrow's
+ * and offers the "show all lyrics" checkbox (see CLAUDE.md's domain rules).
  */
 export const TitleGuess = memo(function TitleGuess({
   titleTokens,
@@ -43,6 +44,7 @@ export const TitleGuess = memo(function TitleGuess({
               {artist ? ` · ${artist}` : null}
             </p>
             <p className="lyrix-victory-note">Reviens demain pour une nouvelle chanson&nbsp;!</p>
+            <NextSongCountdown />
           </div>
           <label className="lyrix-reveal-all">
             <input type="checkbox" checked={revealAllLyrics} onChange={onToggleRevealAllLyrics} />
