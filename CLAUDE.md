@@ -21,8 +21,9 @@ The UI follows the "Lyrix v3" mockup: sticky header, one song card whose hidden 
 - **Hosting**: Cloudflare Pages (frontend) + Cloudflare Workers (API).
 - **Lyrics source**: LRCLIB (lrclib.net), queried server-side via `/api/search` (not `/api/get` — see `docs/LEARNINGS.md`), cleaned before it is ever masked (`worker/src/lyrics.ts`), cached per catalog id with the Workers Cache API (`worker/src/cache.ts`).
 - **Database**: none. Cloudflare D1 is reserved for a later phase (accounts, leaderboard) — do not add it now. Workers KV holds only the precomputed similarity tables (see below), not application data.
+- **Rooms** ("salons", #29): one SQLite-backed Durable Object per room code (`worker/src/room.ts`), members kept live over hibernatable WebSockets, everything deleted at the next UTC midnight. Creating and joining are rate-limited per client with the Workers Rate Limiting binding (`worker/src/roomRoutes.ts`).
 - **Semantic proximity scoring**: French word embeddings, precomputed offline into a per-song score table — see `docs/SIMILARITY.md`.
-- **Planned, not yet in scope**: `@react-three/fiber`/`@react-three/drei` for in-game 3D; team mode (its v3 entry points exist as a disabled placeholder, `MultiplayerModal.tsx` — see issues #29 and #30); word-usage counter.
+- **Planned, not yet in scope**: `@react-three/fiber`/`@react-three/drei` for in-game 3D; sharing a round's progress across a room (#30 — rooms themselves exist, #29); word-usage counter.
 
 ## Working on this project
 
@@ -96,6 +97,7 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 - **Anti-cheat is a hard requirement**, even in the MVP: the Worker is the only thing that knows the actual lyrics. It receives a guessed word and returns which positions match — never the full text before the round is won. The one exception is `DEV_REVEAL_LYRICS` (`worker/src/index.ts`), which attaches each hidden word's real text as `devHint` for local debugging (`WordToken.tsx`); wired only into `dev:worker`/`dev:all`/`test:e2e`, never in `wrangler.toml` or production.
 - **The "show all lyrics" checkbox reuses that same mechanism, gated on `victory` instead of a dev flag.** Once `RoundView.victory` is true — recomputed by the Worker itself from signed state, never client-supplied — `buildRoundView` attaches every still-hidden lyrics word's real text as `DisplayToken.revealHint`, riding along on the normal round/guess response (no extra endpoint or round trip). The checkbox itself is local, unsigned UI state owned by `GameScreen`, rendered only once won (`TitleGuess`); `WordToken` shows `revealHint` in place of a blank only while checked, ahead of a close-guess placement and the dev hint.
 - **French text matching**: normalize both the guess and the stored lyrics before comparing (case/accent-insensitive, œ/æ spelled out) and account for elisions ("j'aime" vs "je aime", "qu'il", "l'amour"). `LETTER_CLASS` (`src/game/tokenize.ts`) must cover every letter French lyrics use. A run of digits is a word too.
+- **Rooms never touch the lyrics** (#29): a room only knows its code and its members. Its wire contract, codes (`ABCDEFGHJKMNPQRSTUVWXYZ23456789`, 6 characters) and pseudo sanitizing live in `src/game/room.ts`, shared by both sides. Two rules keep codes from being enumerated: every join attempt is rate-limited, and no other route may answer differently for a live code than for a dead one (an unknown token and an unknown room close the socket the same way; leave always answers 204). A pseudo is personal data: stored only in its room's Durable Object, deleted with the room, never logged.
 - **LRCLIB data isn't guaranteed clean**: `plainLyrics`/`syncedLyrics` are LRC-format text, not prose. Everything unsung is dropped before masking (`cleanLyrics`) — a player must never be asked to guess `[Refrain]`, `♪`, or the artist out of an `[ar:…]` tag — and a result too thin to be a puzzle is refused (`MIN_LYRIC_WORDS`) so the day's pick falls through to the next catalog entry. The catalog is only as good as LRCLIB's copy of it and the suite mocks the network on purpose, so run `npm run catalog:check` after editing `worker/src/catalog.ts`, and whenever a day's round looks wrong.
 
 ## Semantic Proximity Scoring
@@ -107,7 +109,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
 ## Out of Scope (do not implement without an explicit request)
 
 - Any 3D code or dependency (`three`, `@react-three/fiber`, `@react-three/drei`).
-- Team mode, word-usage counter (V2). The multiplayer dialog and "Chercher à plusieurs" card are UI placeholders with their actions disabled; don't wire them up without a go-ahead on #29/#30.
+- Sharing a round's progress across a room, word-usage counter (V2). Rooms exist (#29), but don't wire the round into them without a go-ahead on #30 — the found words would have to live in the room's Durable Object, never come from a client.
 - User accounts, authentication, leaderboard, Cloudflare D1 (V3).
 - Monetization of any kind.
 
@@ -120,7 +122,9 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   main.tsx, App.tsx     # React entry point, top-level render of GameScreen
   roundStorage.ts        # localStorage persistence so a reload resumes today's round
                           # (deferred/idle writes, flushed on tab hide/close)
-  /api/client.ts         # fetch wrapper (fetchRound, submitGuess)
+  roomStorage.ts          # the room the player is in (code, member token), so a reload reconnects
+  /api                    # client.ts: fetchRound, submitGuess; rooms.ts: create/join/leave + socket URL;
+                          # base.ts: the Worker's URL (VITE_API_BASE_URL in production)
   /components             # presentational React components (layout: "Lyrix v3" mockup)
     GameScreen.tsx        # top-level layout; wires useGame(), places close guesses onto the
                            # round (slots.ts), owns which dialog is open, the input ref, and
@@ -141,10 +145,15 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                                       # sorted by score, crediting the embedding model
                                       # (collapsed by default below 880px)
     Modal.tsx, HowToPlay.tsx   # dialog shell (Escape/backdrop, exit animation); the rules
-    MultiplayerModal.tsx, MultiplayerPromo.tsx  # PLACEHOLDER team-mode entry points (#29, #30)
+    MultiplayerModal.tsx      # rooms (#29): "Créer un salon" / "Rejoindre" tabs, or the room once in one
+    RoomCard.tsx, RoomMembers.tsx, CopyCodeButton.tsx, playerColor.ts  # dark "Salon" card, member
+                              # list/grid, "Copié !" flash, a player's stable colour
+    MultiplayerPromo.tsx       # "Chercher à plusieurs" card, hidden while in a room
   /hooks
     useGame.ts              # round/guess state machine; hydrates from roundStorage before network
     useRovingBlanks.ts       # one tab stop per title/lyrics, arrow keys move between bars (#33)
+    useRoom.ts                # room state, its WebSocket (reconnect with backoff, keep-alive); room
+                              # events reach the dock's feedback line through useGame's announce()
   /game                       # masking/matching/normalization — framework-agnostic, unit-tested,
                                # imported by BOTH the frontend and the Worker
     types.ts, tokenize.ts, normalize.ts  # wire contract; word/non-word tokenizer (elisions,
@@ -155,10 +164,12 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     daily.ts                    # time until the next song (UTC midnight), countdown format
     similarity.ts, functionWords.ts, slots.ts  # 0-100 proximity scale; excluded function words;
                                                 # addressing hidden words by position
+    room.ts                     # rooms' wire contract: codes, pseudos, close codes, message parsing
   /styles                    # tokens.css (v3 palette), global.css (keyframes), game.css
                              # (layout; breakpoints are CSS media queries, never JS)
 /worker/src
-  index.ts                  # Hono app: GET /api/round, POST /api/guess
+  index.ts                  # Hono app: GET /api/round, POST /api/guess, mounts /api/rooms; exports Room
+  room.ts, roomRoutes.ts      # the Room Durable Object (members, expiry alarm); /api/rooms routes
   catalog.ts                  # curated {id, artist, title} list + deterministic daily pick
   lrclib.ts, lyrics.ts          # LRCLIB /api/search client; cleanLyrics (drops LRC markup: timestamps,
                                  # id tags, section headers, instrumental filler) + section parsing
@@ -168,7 +179,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   similarity.ts, sampleSimilarity.ts # reads the precomputed KV table per guess; dev/e2e placeholder
   state.ts                            # HMAC-signed round state (songId + foundKeys) via Web Crypto
 /worker
-  wrangler.toml              # Worker config; STATE_SECRET dev default, SIMILARITY binding (commented)
+  wrangler.toml              # Worker config: ROOMS Durable Object + migration, room rate limits,
+                              # SIMILARITY binding (commented)
   wrangler.debug.toml         # same Worker + a local-only SIMILARITY namespace (npm run dev:debug)
 /scripts                     # Node tooling via tsx, never bundled into the Worker
   ensure-dev-vars.ts, check-catalog.ts, convert-embeddings.ts, build-similarity-table.ts,
@@ -176,7 +188,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, debugMode.ts, devVars.ts, catalogAudit.ts,
        favicon.ts, graphFixes.ts
 /tests
-  /unit/game, /unit/worker, /unit/scripts, /unit/storage, /unit/components, /unit/ci
+  /unit/game, /unit/worker, /unit/scripts, /unit/storage, /unit/components, /unit/api, /unit/ci
   /e2e                        # Playwright; fixtures/similarity-table.json stands in for a built table
 /docs
   LEARNINGS.md, SIMILARITY.md
@@ -184,7 +196,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
 
 **Anti-cheat shape**: the Worker is the only code that ever sees unmasked lyrics. Every response sends already-masked display tokens plus an opaque HMAC-signed `state` string encoding found words so far; the client only echoes it back. This keeps the Worker stateless while making forged "already found" progress impossible.
 
-**Dev wiring**: `vite.config.ts` proxies `/api/*` to the Worker at `localhost:8787`, so the frontend always calls a relative `/api/...` URL in dev and production. `src/game` is not a published package — the root and Worker `tsconfig.json` each `include` it by relative path, so Vite and Wrangler bundle it independently from the same source.
+**Dev wiring**: `vite.config.ts` proxies `/api/*` (WebSockets included, for rooms) to the Worker at `localhost:8787`, so the frontend always calls a relative `/api/...` URL in dev and production. `src/game` is not a published package — the root and Worker `tsconfig.json` each `include` it by relative path, so Vite and Wrangler bundle it independently from the same source.
 
 ## Configuration
 
@@ -199,6 +211,7 @@ Two standing rules — a missing `worker/.dev.vars` has broken CI once and a dev
 
 - Frontend to Cloudflare Pages, API to Cloudflare Workers, via Wrangler.
 - GitHub Actions: run tests, then deploy on merge to `main`.
+- The `Room` Durable Object ships with the Worker: its class and storage come from `[[migrations]]` in `worker/wrangler.toml`, applied by the deploy itself. Never edit or remove a migration that has shipped; renaming or deleting the class takes a new tag. `wrangler.debug.toml` repeats every binding but the KV one (`tests/unit/ci/debugMode.test.ts`).
 
 ## graphify
 

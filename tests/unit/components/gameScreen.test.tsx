@@ -323,20 +323,14 @@ describe("the dialogs (v3 header)", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  // Placeholder until rooms exist (GitHub issues #29 and #30): reachable, but it must not pretend to work.
-  it("opens the multiplayer dialog from the header and the side card, with its actions disabled", async () => {
+  // Rooms themselves are covered in rooms.test.tsx; this is about getting to them.
+  it("opens the multiplayer dialog from the header and the side card, without re-rendering the lyrics", async () => {
     await mountGame();
 
     fireEvent.click(screen.getByRole("button", { name: "Jouer à plusieurs" }));
-    const dialog = screen.getByRole("dialog", { name: "Jouer à plusieurs" });
-    expect(dialog.textContent).toContain("Bientôt disponible");
-    expect((screen.getByRole("button", { name: "Créer le salon" }) as HTMLButtonElement).disabled).toBe(true);
-
-    fireEvent.click(screen.getByRole("tab", { name: "Rejoindre" }));
-    const code = screen.getByPlaceholderText("6 caractères") as HTMLInputElement;
-    fireEvent.change(code, { target: { value: "abc123" } });
-    expect(code.value).toBe("ABC123");
-    expect((screen.getByRole("button", { name: "Rejoindre le salon" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("dialog", { name: "Jouer à plusieurs" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Créer un salon" }).getAttribute("aria-selected")).toBe("true");
+    expect(wordTokenRenders.count).toBe(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Fermer" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());

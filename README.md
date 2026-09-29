@@ -10,6 +10,7 @@ Currently in **MVP** phase: plain, functional UI, no 3D or animations yet.
 - **Backend**: Cloudflare Workers (Hono) — keeps the target lyrics secret and only ever sends masked words to the client
 - **Lyrics source**: [LRCLIB](https://lrclib.net)
 - **Proximity hints**: French word embeddings, precomputed offline into a per-song word → score table stored in Cloudflare Workers KV
+- **Rooms**: one Cloudflare Durable Object per room, members kept live over WebSockets
 
 ## Requirements
 
@@ -87,6 +88,12 @@ It stands in for `npm run dev:all` for that session: same address, same API, rea
 Without a model it says so, names where it looked, and stops; `npm run dev:all` still plays the same game on placeholder scores. Nothing about debug mode can reach production: the binding lives in `worker/wrangler.debug.toml`, a configuration `wrangler deploy` never reads (CI dry-runs the one it does read, on every pull request). `npm run dev:all` and the test suites are untouched, and go on serving the placeholder.
 
 > **Licence.** [frWac2Vec](https://fauconnier.github.io/#data), by Jean-Philippe Fauconnier, is published under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/): it can be reused, and tables derived from it uploaded, with attribution — the game credits it under the tried-word list whenever a score is shown. It is still never committed or downloaded automatically (`data/` is gitignored). Any word2vec-format model works — see the "Semantic Proximity Scoring" section of [CLAUDE.md](CLAUDE.md).
+
+## Playing together: rooms
+
+"Jouer à plusieurs" creates a room ("salon") with a 6-character code to share, or joins one with its code. Everyone in a room sees who else is there, live; sharing the round's found words across the room comes next ([#30](https://github.com/Greg0s/lyrix/issues/30)).
+
+Nothing to set up, locally or in production. Each room is a Cloudflare Durable Object (`worker/src/room.ts`), declared in `worker/wrangler.toml` together with two rate limits on creating and joining rooms, and deployed with the Worker: `npm run dev:all` runs all of it locally, WebSockets included. A room lasts until the next UTC midnight, when the day's song changes, and then it is deleted with everything in it — pseudos are kept nowhere else.
 
 ## Project Structure
 

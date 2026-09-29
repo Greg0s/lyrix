@@ -4,6 +4,27 @@ A running log of gotchas, root causes, and anything that cost real time to figur
 
 Each entry: date, short title, what happened, how it was resolved.
 
+## 2026-09-29 — Rooms (#29): what Durable Objects and WebSockets asked for
+
+Rooms are one SQLite-backed Durable Object per code, reached over hibernatable WebSockets. What cost time, or would have:
+
+- **Vite's dev proxy doesn't forward WebSockets unless told to.** `"/api": target` proxies HTTP only; the upgrade to `/api/rooms/:code/ws` needs `{ target, ws: true }`. Pinned in `tests/unit/ci/e2e-servers.test.ts`.
+- **A browser tells you nothing about a refused WebSocket.** A 404 or 429 on the upgrade surfaces as a bare close 1006, indistinguishable from a network drop. So everything that can fail with a reason the player must read (unknown code, rate limit) happens over plain HTTP first (`POST /api/rooms`, `POST /api/rooms/:code/members`), and the socket only carries the live member list. What the socket does need to say ("you're not in this room any more", "the room expired") goes in custom close codes (`src/game/room.ts`), sent after accepting the socket.
+- **Each distinguishable answer is an enumeration oracle.** Rate-limiting joins is useless if another route tells a live code from a dead one for free. The natural design, one close code for "no such room" and another for "wrong token", would let anyone probe codes through the WebSocket route, which isn't rate-limited (a reconnecting phone must never be locked out). So both get `ROOM_CLOSE_UNKNOWN`, and leave always answers 204. Tests: "is turned away the same way…", "answers the same whether or not there was anything to leave" in `tests/unit/worker/room.test.ts`.
+- **`WebSocketPair` and a `101` response exist only in workerd**, so the upgrade can't run under plain-Node Vitest. `Room.admit(socket, token)` takes the socket the upgrade would have produced; the unit tests hand it a fake, and the e2e suite (`tests/e2e/rooms.spec.ts`, two browser contexts against `wrangler dev`) covers the real thing. `wrangler dev` 4.86 runs the Durable Object, its alarm and the `[[ratelimits]]` bindings locally with no extra setup, and `deploy --dry-run` validates the migration.
+- **Hibernation means the object forgets.** Member records live in storage; which member a socket belongs to lives in its attachment (`serializeAttachment`), since in-memory maps are gone after eviction. `getWebSockets()` still lists a socket that is closing, so "who is online" filters on `readyState` and excludes the socket being closed. The unit tests build a fresh `Room` on the same state for every call, which is what a woken object looks like.
+- **The reduced-motion rule turned an infinite animation into a strobe.** `global.css` shortens every animation to 0.01ms; for the rooms' pulsing "En attente…" (`infinite`), that is a hundred thousand loops a second. The rule now also sets `animation-iteration-count: 1`.
+
+Also: the room's first-connection "X a rejoint le salon." isn't sent for the creator (nobody else is there yet), and a dropped connection removes a member from the others' lists silently, so a phone going to sleep and waking up doesn't announce itself twice.
+
+## 2026-09-29 — Title-guess loops in e2e dropped a word now and then
+
+`reveals guesses live and lets the player win the round` (play.spec.ts) and `reveals every still-hidden lyrics word…` (revealAllLyrics.spec.ts) failed about one run in three with "Bravo, tu l'as trouvée" never showing, on the base commit as well as with rooms: the page had 3 tries for a 4-word title. Root cause: both loops filled the next word and pressed Enter without waiting for the previous guess to land, and a guess submitted while another is in flight is ignored by design (see the 2026-09-29 phone-keyboard entry below). Fixed by waiting for the input to empty after each Enter, which it does once the answer is in; the four loops in those two specs each do it. Checked with `--repeat-each=4` on both specs: 60/60.
+
+**Takeaway**: an e2e loop that submits guesses must wait for each one to land. "Enter was pressed" is not "the guess was made".
+
+In the same full runs, `shades each close word by how close it is` (similarity.spec.ts) failed with the hottest and coolest placements the same colour. It compared the bars' computed backgrounds, as written when a close word's bar was shaded by its score. Since the v3 layout, the bar is the accent whatever the score, and it is the guess written over it that gets more opaque the closer it is (`.token-near-guess`). The test had only been passing by catching the bars mid-way through their 0.45s background transition. It now compares the guess's opacity, read once its animations have finished (`getAnimations()`). **Takeaway**: a test that reads a computed style must read it settled, or it can pass on a transition instead of on the design.
+
 ## 2026-09-29 — A bar's text now includes its screen-reader label; match on `.token-blank-face`
 
 Issue #33 gave every hidden-word bar a visually hidden "mot caché, N lettres" next to its masked text (now wrapped in an `aria-hidden` `.token-blank-face`). Any locator that matches a bar's whole text exactly — `devReveal.spec.ts`'s `^word$` on `.token-word-devhint` — stops matching, since `textContent` includes the label. Match on `.token-blank-face` instead. Also, `npx prettier --write` is not a project tool here (no Prettier config or dependency): it reformats dozens of untouched files, so don't run it.

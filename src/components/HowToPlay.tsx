@@ -30,7 +30,7 @@ export function HowToPlay({ onClosed }: HowToPlayProps) {
           </div>
           <p className="lyrix-help-text">Touche une barre pour savoir combien de lettres compte le mot qu'elle cache.</p>
           <p className="lyrix-help-text">
-            Bientôt, à plusieurs&nbsp;: crée un salon ou rejoins celui d'un ami avec son code, et les mots trouvés par
+            À plusieurs&nbsp;: crée un salon ou rejoins celui d'un ami avec son code. Bientôt, les mots trouvés par
             chacun se dévoileront pour tout le groupe.
           </p>
           <button type="button" className="lyrix-button" onClick={close}>

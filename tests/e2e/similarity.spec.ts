@@ -91,11 +91,17 @@ test("shades each close word by how close it is", async ({ page }) => {
   // further off each time, and each of those steps gets its own shade.
   const placed = page.locator(".token-word-near", { hasText: CLOSE_WORD });
   await expect(placed.first()).toBeVisible();
-  const shaded: { heat: number; background: string }[] = [];
+  const shaded: { heat: number; opacity: number }[] = [];
   for (const slot of await placed.all()) {
     shaded.push({
       heat: await heatOf(slot),
-      background: await slot.evaluate((element) => getComputedStyle(element).backgroundColor),
+      // The bar is the accent whatever the score: the guess written over it is
+      // what gets more opaque the closer it is (game.css). Read once settled:
+      // it fades in, and mid-way every slot shows about the same.
+      opacity: await slot.locator(".token-near-guess").evaluate(async (element) => {
+        await Promise.all(element.getAnimations().map((animation) => animation.finished));
+        return Number(getComputedStyle(element).opacity);
+      }),
     });
   }
   const heats = shaded.map((slot) => slot.heat);
@@ -104,7 +110,7 @@ test("shades each close word by how close it is", async ({ page }) => {
   // Different shades, not just different numbers in an attribute.
   const hottest = shaded.find((slot) => slot.heat === Math.max(...heats));
   const coolest = shaded.find((slot) => slot.heat === Math.min(...heats));
-  expect(hottest?.background).not.toBe(coolest?.background);
+  expect(hottest?.opacity).toBeGreaterThan(coolest?.opacity ?? 1);
 
   // The chip wears the shade of the guess's best placement.
   expect(await heatOf(chipOf(page, CLOSE_WORD))).toBe(Math.max(...heats));

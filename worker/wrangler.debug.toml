@@ -23,6 +23,31 @@ name = "lyrix-api"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 
+# Rooms ("salons", issue #29): one Durable Object per room code, holding its
+# members for the day (see worker/src/room.ts). SQLite-backed, which is what
+# the Workers Free plan offers. No database: D1 stays reserved for accounts.
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
+
+# Per-client limits on creating and joining rooms (worker/src/roomRoutes.ts),
+# so room codes can't be enumerated. A join is what a code guess costs, so it
+# is the one that matters; both stay loose enough for a class on one school
+# network. The namespace ids only need to be unique on the account.
+[[ratelimits]]
+name = "ROOM_CREATE_LIMIT"
+namespace_id = "2901"
+simple = { limit = 20, period = 60 }
+
+[[ratelimits]]
+name = "ROOM_JOIN_LIMIT"
+namespace_id = "2902"
+simple = { limit = 30, period = 60 }
+
 [[kv_namespaces]]
 binding = "SIMILARITY"
 # Local dev only. `wrangler dev` (and `wrangler kv … --local`) use this id as a

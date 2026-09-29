@@ -32,11 +32,24 @@ function nextSeq(previous: Feedback | null): number {
   return (previous?.seq ?? 0) + 1;
 }
 
+/**
+ * Something that happened outside the round (a player joining the room) and
+ * belongs in the feedback line. It shows until the outcome of the player's
+ * next guess, which clears it; it never touches `feedback`, so the last found
+ * word stays highlighted in the lyrics meanwhile.
+ */
+export interface Notice {
+  text: string;
+  /** Bumped on every notice, so the same message twice in a row still replays its animation. */
+  seq: number;
+}
+
 interface GameState {
   round: RoundView | null;
   triedWords: TriedWord[];
   inputValue: string;
   feedback: Feedback | null;
+  notice: Notice | null;
   loading: boolean;
   submitting: boolean;
   error: string | null;
@@ -47,6 +60,7 @@ const initialState: GameState = {
   triedWords: [],
   inputValue: "",
   feedback: null,
+  notice: null,
   loading: true,
   submitting: false,
   error: null,
@@ -60,6 +74,7 @@ function hydratedState(): GameState | null {
     triedWords: saved.triedWords,
     inputValue: "",
     feedback: null,
+    notice: null,
     loading: false,
     submitting: false,
     error: null,
@@ -89,6 +104,7 @@ export function useGame() {
         triedWords: [],
         inputValue: "",
         feedback: null,
+        notice: null,
         loading: false,
         submitting: false,
         error: null,
@@ -135,6 +151,7 @@ export function useGame() {
         ...prev,
         inputValue: "",
         error: null,
+        notice: null,
         feedback: { word: raw, key, found: false, duplicate: true, nearCount: 0, seq: nextSeq(prev.feedback) },
       }));
       return;
@@ -160,6 +177,7 @@ export function useGame() {
         // would close a phone's keyboard): keep whatever was typed meanwhile.
         inputValue: prev.inputValue === inputValue ? "" : prev.inputValue,
         submitting: false,
+        notice: null,
         feedback: {
           word: raw,
           key: result.key,
@@ -174,10 +192,15 @@ export function useGame() {
       setState((prev) => ({
         ...prev,
         submitting: false,
+        notice: null,
         error: error instanceof Error ? error.message : "Impossible de vérifier ce mot.",
       }));
     }
   }, [state]);
 
-  return { ...state, setInputValue, submit, loadRound };
+  const announce = useCallback((text: string) => {
+    setState((prev) => ({ ...prev, notice: { text, seq: (prev.notice?.seq ?? 0) + 1 } }));
+  }, []);
+
+  return { ...state, setInputValue, submit, loadRound, announce };
 }

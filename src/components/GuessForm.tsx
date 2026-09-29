@@ -2,7 +2,8 @@ import type { FormEvent, MouseEvent, RefObject } from "react";
 
 export interface GuessFeedback {
   text: string;
-  tone: "found" | "missed" | "error";
+  /** "info": something from outside the round, e.g. a player joining the room. */
+  tone: "found" | "missed" | "error" | "info";
   /** Bumped on every new guess: a new message is a new element, so its entrance replays, and the shake alternates. */
   seq: number;
   /** A guess of the player's own that missed: the input row shakes. */
