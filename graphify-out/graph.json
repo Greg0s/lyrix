@@ -820,7 +820,7 @@
       "file_type": "code",
       "norm_label": "loadedtable",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L137"
+      "source_location": "L138"
     },
     {
       "id": "src_components_gamescreen_dialog",
@@ -4206,7 +4206,7 @@
       "file_type": "code",
       "norm_label": "everysongid()",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L182"
+      "source_location": "L183"
     },
     {
       "id": "scripts_lib_debugmode_wranglerdevargs",
@@ -4218,7 +4218,7 @@
       "file_type": "code",
       "norm_label": "wranglerdevargs()",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L52"
+      "source_location": "L53"
     },
     {
       "id": "scripts_lib_devvars_ensurefilefromexample",
@@ -4878,7 +4878,7 @@
       "file_type": "code",
       "norm_label": "buildtableargs()",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L88"
+      "source_location": "L89"
     },
     {
       "id": "scripts_lib_debugmode_extensionrank",
@@ -4890,7 +4890,7 @@
       "file_type": "code",
       "norm_label": "extensionrank()",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L97"
+      "source_location": "L98"
     },
     {
       "id": "scripts_lib_debugmode_findmodel",
@@ -4902,7 +4902,7 @@
       "file_type": "code",
       "norm_label": "findmodel()",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L129"
+      "source_location": "L130"
     },
     {
       "id": "scripts_lib_debugmode_modelsearchdirs",
@@ -4914,7 +4914,7 @@
       "file_type": "code",
       "norm_label": "modelsearchdirs()",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L122"
+      "source_location": "L123"
     },
     {
       "id": "scripts_lib_debugmode_modelsin",
@@ -4926,7 +4926,7 @@
       "file_type": "code",
       "norm_label": "modelsin()",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L103"
+      "source_location": "L104"
     },
     {
       "id": "scripts_lib_debugmode_readtablefile",
@@ -4938,7 +4938,7 @@
       "file_type": "code",
       "norm_label": "readtablefile()",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L149"
+      "source_location": "L150"
     },
     {
       "id": "scripts_lib_debugmode_tablepath",
@@ -4950,7 +4950,7 @@
       "file_type": "code",
       "norm_label": "tablepath()",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L93"
+      "source_location": "L94"
     },
     {
       "id": "tests_unit_scripts_debugmode_test_modeldir",
@@ -5346,7 +5346,7 @@
       "file_type": "code",
       "norm_label": "lyricsblanks()",
       "source_file": "tests/unit/components/gameScreen.test.tsx",
-      "source_location": "L439"
+      "source_location": "L447"
     },
     {
       "id": "tests_unit_components_gamescreen_test_mountgame",
@@ -5370,7 +5370,7 @@
       "file_type": "code",
       "norm_label": "peekof()",
       "source_file": "tests/unit/components/gameScreen.test.tsx",
-      "source_location": "L445"
+      "source_location": "L453"
     },
     {
       "id": "tests_unit_components_gamescreen_test_pendingguess",
@@ -5382,7 +5382,7 @@
       "file_type": "code",
       "norm_label": "pendingguess()",
       "source_file": "tests/unit/components/gameScreen.test.tsx",
-      "source_location": "L241"
+      "source_location": "L249"
     },
     {
       "id": "tests_unit_components_gamescreen_test_round",
@@ -5418,7 +5418,7 @@
       "file_type": "code",
       "norm_label": "wonround()",
       "source_file": "tests/unit/components/gameScreen.test.tsx",
-      "source_location": "L143"
+      "source_location": "L151"
     },
     {
       "id": "scripts_inspect_similarity_table_main",
@@ -6246,7 +6246,7 @@
       "file_type": "code",
       "norm_label": "bulkentries()",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L173"
+      "source_location": "L174"
     },
     {
       "id": "scripts_lib_debugmode_kvbulkputargs",
@@ -6258,7 +6258,7 @@
       "file_type": "code",
       "norm_label": "kvbulkputargs()",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L71"
+      "source_location": "L72"
     },
     {
       "id": "src_api_client_fetchround",
@@ -8933,7 +8933,7 @@
       "file_type": "code",
       "norm_label": "debug_config",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L24"
+      "source_location": "L25"
     },
     {
       "id": "scripts_lib_debugmode_debug_persist_dir",
@@ -8944,7 +8944,7 @@
       "file_type": "code",
       "norm_label": "debug_persist_dir",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L37"
+      "source_location": "L38"
     },
     {
       "id": "scripts_lib_debugmode_similarity_binding",
@@ -8955,7 +8955,7 @@
       "file_type": "code",
       "norm_label": "similarity_binding",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L27"
+      "source_location": "L28"
     },
     {
       "id": "tests_unit_ci_debugmode_test",
@@ -9318,7 +9318,7 @@
       "file_type": "code",
       "norm_label": "build_script",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L46"
+      "source_location": "L47"
     },
     {
       "id": "scripts_lib_debugmode_model_dir",
@@ -9329,7 +9329,7 @@
       "file_type": "code",
       "norm_label": "model_dir",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L43"
+      "source_location": "L44"
     },
     {
       "id": "scripts_lib_debugmode_model_extensions",
@@ -9340,7 +9340,7 @@
       "file_type": "code",
       "norm_label": "model_extensions",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L49"
+      "source_location": "L50"
     },
     {
       "id": "scripts_lib_debugmode_table_dir",
@@ -9351,7 +9351,7 @@
       "file_type": "code",
       "norm_label": "table_dir",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L40"
+      "source_location": "L41"
     },
     {
       "id": "tests_unit_scripts_debugmode_test",
@@ -12980,7 +12980,7 @@
       "confidence_score": 1,
       "context": "call",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L131",
+      "source_location": "L132",
       "weight": 1
     },
     {
@@ -12992,7 +12992,7 @@
       "confidence_score": 1,
       "context": "call",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L111",
+      "source_location": "L112",
       "weight": 1
     },
     {
@@ -13004,7 +13004,7 @@
       "confidence_score": 1,
       "context": "call",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L159",
+      "source_location": "L160",
       "weight": 1
     },
     {
@@ -14288,7 +14288,7 @@
       "confidence_score": 1,
       "context": "call",
       "source_file": "src/components/WordToken.tsx",
-      "source_location": "L138",
+      "source_location": "L140",
       "weight": 1
     },
     {
@@ -15452,7 +15452,7 @@
       "confidence_score": 1,
       "context": "call",
       "source_file": "tests/unit/components/gameScreen.test.tsx",
-      "source_location": "L146",
+      "source_location": "L154",
       "weight": 1
     },
     {
@@ -18512,7 +18512,7 @@
       "confidence_score": 1,
       "context": "call",
       "source_file": "tests/unit/components/gameScreen.test.tsx",
-      "source_location": "L241",
+      "source_location": "L249",
       "weight": 1
     },
     {
@@ -18536,7 +18536,7 @@
       "confidence_score": 1,
       "context": "call",
       "source_file": "tests/unit/components/gameScreen.test.tsx",
-      "source_location": "L439",
+      "source_location": "L447",
       "weight": 1
     },
     {
@@ -18548,7 +18548,7 @@
       "confidence_score": 1,
       "context": "call",
       "source_file": "tests/unit/components/gameScreen.test.tsx",
-      "source_location": "L445",
+      "source_location": "L453",
       "weight": 1
     },
     {
@@ -18560,7 +18560,7 @@
       "confidence_score": 1,
       "context": "call",
       "source_file": "tests/unit/components/gameScreen.test.tsx",
-      "source_location": "L534",
+      "source_location": "L542",
       "weight": 1
     },
     {
@@ -19472,7 +19472,7 @@
       "confidence_score": 1,
       "context": "field",
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L141",
+      "source_location": "L142",
       "weight": 1
     },
     {
@@ -33043,7 +33043,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L103",
+      "source_location": "L104",
       "weight": 1
     },
     {
@@ -33054,7 +33054,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L122",
+      "source_location": "L123",
       "weight": 1
     },
     {
@@ -33065,7 +33065,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L129",
+      "source_location": "L130",
       "weight": 1
     },
     {
@@ -33076,7 +33076,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L137",
+      "source_location": "L138",
       "weight": 1
     },
     {
@@ -33087,7 +33087,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L149",
+      "source_location": "L150",
       "weight": 1
     },
     {
@@ -33098,7 +33098,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L173",
+      "source_location": "L174",
       "weight": 1
     },
     {
@@ -33109,7 +33109,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L182",
+      "source_location": "L183",
       "weight": 1
     },
     {
@@ -33120,7 +33120,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L24",
+      "source_location": "L25",
       "weight": 1
     },
     {
@@ -33131,7 +33131,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L27",
+      "source_location": "L28",
       "weight": 1
     },
     {
@@ -33142,7 +33142,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L37",
+      "source_location": "L38",
       "weight": 1
     },
     {
@@ -33153,7 +33153,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L40",
+      "source_location": "L41",
       "weight": 1
     },
     {
@@ -33164,7 +33164,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L43",
+      "source_location": "L44",
       "weight": 1
     },
     {
@@ -33175,7 +33175,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L46",
+      "source_location": "L47",
       "weight": 1
     },
     {
@@ -33186,7 +33186,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L49",
+      "source_location": "L50",
       "weight": 1
     },
     {
@@ -33197,7 +33197,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L52",
+      "source_location": "L53",
       "weight": 1
     },
     {
@@ -33208,7 +33208,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L71",
+      "source_location": "L72",
       "weight": 1
     },
     {
@@ -33219,7 +33219,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L88",
+      "source_location": "L89",
       "weight": 1
     },
     {
@@ -33230,7 +33230,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L93",
+      "source_location": "L94",
       "weight": 1
     },
     {
@@ -33241,7 +33241,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1,
       "source_file": "scripts/lib/debugMode.ts",
-      "source_location": "L97",
+      "source_location": "L98",
       "weight": 1
     },
     {
@@ -41613,5 +41613,5 @@
       "source_file": "docs/LEARNINGS.md"
     }
   ],
-  "built_at_commit": "37007f11bcf06e543eb13327ccc9d6ea0a2194b2"
+  "built_at_commit": "e691d65c380781f50973c32a1cf3449034b7d036"
 }
