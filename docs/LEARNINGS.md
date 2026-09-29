@@ -272,3 +272,9 @@ Fix: namespace created on the account, bound in `worker/wrangler.toml`, tables b
 (Also: "dieu" never reveals "dieux" — normalization folds case and accents, not number; with a real table "dieu" scores high and is shown on "dieux"'s bar.)
 
 **Takeaway**: an optional feature's "off" state must not be the same silence as "misconfigured in production". A test that pins a config to a temporary state (here "no binding yet") needs a note saying when it should flip, or it keeps the temporary state forever.
+
+## 2026-09-29 — Flaky timer tests in gameScreen.test.tsx
+
+Three different tests failed about one run in four (CI on PR #43, and on `main` earlier that day): the bar tip's `is-out` step, the countdown tick, the "new song" offer. Root cause: `mountGame` rendered outside `act` and returned as soon as the input appeared. The mocked round landed through the real scheduler, so passive effects could still be pending — then ran after the test had switched to fake timers: the countdown's `setInterval` started too late to tick, and StrictMode's cleanup-and-rerun of `Blank`'s effect cleared the peek timers a focus had just set. Fix: `mountGame` renders inside `await act(async () => …)`. Checked by running the file 15 times in a row (0 failures, against 2 in 8 before).
+
+**Takeaway**: in a component test that goes on to fake or advance timers, mount inside `act` — "the element is visible" does not mean "its effects have run".

@@ -56,7 +56,15 @@ function round(state = "state-0"): RoundView {
 }
 
 async function mountGame(): Promise<HTMLInputElement> {
-  render(<GameScreen />);
+  // Inside act, so the mocked round has landed and every effect it triggers —
+  // StrictMode's cleanup-and-rerun included — has run before the test goes on.
+  // Rendered outside it, those effects could still be pending once the input
+  // showed up, and run after a test had switched to fake timers: the countdown's
+  // interval started too late to tick, and a bar's re-run cleanup cleared the
+  // tip timers a focus had just set.
+  await act(async () => {
+    render(<GameScreen />);
+  });
   await waitFor(() => expect(screen.getByPlaceholderText("Propose un mot…")).toBeTruthy());
   // Let the mount settle (StrictMode double-invokes) before counting anything.
   wordTokenRenders.count = 0;
