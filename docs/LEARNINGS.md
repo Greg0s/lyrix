@@ -226,3 +226,11 @@ Also: editing a doc invalidates its semantic cache entry (keyed by content hash)
 `graphify update` also leaves a dated backup directory and a `.graphify_labels.json.sig` behind (now in `graphify-out/.gitignore`), and re-clusters: hand-picked community names are replaced by each community's hub node.
 
 **Takeaway**: after any graphify rebuild, read the health check before committing — a dangling edge or self-loop there is a graphify extraction defect, not a code problem, and the report's "surprising connections" are the first place a ghost node shows up.
+
+## 2026-09-29 — The phone keyboard closed and reopened on every guess
+
+Root cause: `GuessForm` set `disabled` on the input (and "Valider") while a guess was in flight, to stop a double submit. Disabling a focused input blurs it natively, and on a phone losing focus closes the on-screen keyboard; the effect that handed focus back once the answer landed reopened it — a flicker on every guess. Tapping "Valider" did the same on its own: the tap's `mousedown` moved focus to the button before `handleSubmit` refocused the input.
+
+Fix: nothing in the dock is ever `disabled` any more. The input stays editable in flight (`useGame` only clears it if it still holds the submitted word, so text typed meanwhile survives); "Valider" is `aria-disabled` and `handleSubmit` ignores it while `submitting` (`useGame.submit` keeps its own guard); the button cancels `mousedown`, so neither a click nor a tap takes focus from the input. A `disabled` button couldn't do that last part — it doesn't get the `mousedown` to cancel. Regression tests: "a guess in flight" / "the Valider button" in `tests/unit/components/gameScreen.test.tsx`, and the blur-counting tests (mouse and `hasTouch` tap) at the end of `tests/e2e/play.spec.ts`.
+
+**Takeaway**: never toggle `disabled` on a text field that has focus to mean "busy" — on mobile it costs the keyboard. Gate the action instead (guard in the handler, `aria-disabled` on the button).

@@ -129,7 +129,7 @@ export function GameScreen() {
           value={game.inputValue}
           onChange={game.setInputValue}
           onSubmit={onSubmit}
-          disabled={game.submitting}
+          submitting={game.submitting}
           feedback={guessFeedback}
           inputRef={inputRef}
         />
