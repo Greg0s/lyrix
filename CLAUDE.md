@@ -78,7 +78,7 @@ Never test manually when it can be scripted instead — this applies to the deve
 The game's own logic is cheap; everything that has ever been slow here was correct work repeated for a value that hadn't changed.
 
 - **Nothing in the Worker's per-guess path may scale with the length of the song.** A song is immutable once resolved, so anything derived from it — tokenization (`src/game/analyze.ts`), the resolved song, the parsed similarity table, the HMAC key — is derived once and memoized per isolate. When adding an isolate-level cache, add its `reset*()` and call it from the affected tests' `beforeEach` in the same commit.
-- **Typing a guess must not re-render the lyrics.** Derived state goes through `useMemo` keyed on what it actually reads; components that display it are `memo()`d. Neither may opening a dialog or tapping a bar (its "N lettres" tip is local state in `WordToken`'s `Blank`).
+- **Typing a guess must not re-render the lyrics.** Derived state goes through `useMemo` keyed on what it actually reads; components that display it are `memo()`d. Neither may opening a dialog, tapping a bar (its "N lettres" tip is local state in `WordToken`'s `Blank`), or moving between bars with the arrow keys (the roving tab stop lives in the DOM — `useRovingBlanks`).
 - **Measure before and after, and pin the result with a test that counts the work** — tokenization calls, KV reads, tokens re-rendered per keystroke. Never assert on elapsed time; an unpinned fix comes straight back.
 
 ## Continuous Improvement Loop
@@ -130,7 +130,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     TokenRun.tsx             # one line: keeps each word on one line with its punctuation
     WordToken.tsx           # one token: found word (last found highlighted), bar, close-guess
                             # bar, revealed-via-checkbox text (DisplayToken.revealHint), dev
-                            # hint; a tapped bar shows its letter count (local state)
+                            # hint; a tapped or focused bar shows its letter count (local state);
+                            # screen readers read "mot caché, N lettres", never the underscores
     heatStyle.ts             # inline --heat a scored word is shaded with
     GuessForm.tsx             # sticky guess dock: input, feedback line, shake on a miss
     ProgressCard.tsx, TriedWords.tsx  # side column: % revealed + counts; past guesses,
@@ -140,6 +141,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     MultiplayerModal.tsx, MultiplayerPromo.tsx  # PLACEHOLDER team-mode entry points (#29, #30)
   /hooks
     useGame.ts              # round/guess state machine; hydrates from roundStorage before network
+    useRovingBlanks.ts       # one tab stop per title/lyrics, arrow keys move between bars (#33)
   /game                       # masking/matching/normalization — framework-agnostic, unit-tested,
                                # imported by BOTH the frontend and the Worker
     types.ts, tokenize.ts, normalize.ts  # wire contract; word/non-word tokenizer (elisions,
