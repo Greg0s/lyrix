@@ -10,6 +10,8 @@ Each entry: date, short title, what happened, how it was resolved.
 
 **Takeaway**: an e2e loop that submits guesses must wait for each one to land. "Enter was pressed" is not "the guess was made".
 
+In the same full runs, `shades each close word by how close it is` (similarity.spec.ts) failed with the hottest and coolest placements the same colour. It compared the bars' computed backgrounds, as written when a close word's bar was shaded by its score. Since the v3 layout, the bar is the accent whatever the score, and it is the guess written over it that gets more opaque the closer it is (`.token-near-guess`). The test had only been passing by catching the bars mid-way through their 0.45s background transition. It now compares the guess's opacity, read once its animations have finished (`getAnimations()`). **Takeaway**: a test that reads a computed style must read it settled, or it can pass on a transition instead of on the design.
+
 ## 2026-09-29 — A bar's text now includes its screen-reader label; match on `.token-blank-face`
 
 Issue #33 gave every hidden-word bar a visually hidden "mot caché, N lettres" next to its masked text (now wrapped in an `aria-hidden` `.token-blank-face`). Any locator that matches a bar's whole text exactly — `devReveal.spec.ts`'s `^word$` on `.token-word-devhint` — stops matching, since `textContent` includes the label. Match on `.token-blank-face` instead. Also, `npx prettier --write` is not a project tool here (no Prettier config or dependency): it reformats dozens of untouched files, so don't run it.
