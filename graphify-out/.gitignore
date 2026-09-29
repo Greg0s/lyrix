@@ -8,3 +8,7 @@ cache/ast/
 cache/stat-index.json
 .graphify_*.json
 !.graphify_labels.json
+# Written by `graphify update`: a dated backup of the previous graph, and a
+# signature of the labels file.
+[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
+*.sig
