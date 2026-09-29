@@ -30,6 +30,7 @@ The UI follows the "Lyrix v3" mockup: sticky header, one song card whose hidden 
 - Run: `npm run dev:all` (Vite + `wrangler dev` side by side; `/api/*` is proxied to the Worker)
 - Test: `npm test` (lint + typecheck + Vitest), `npm run test:e2e` (Playwright)
 - Debug mode — play against real proximity scores instead of the dev placeholder: `npm run dev:debug`
+- Knowledge graph refresh after code changes: `npm run graph:update` (see "graphify" below)
 
 ## TypeScript Rules
 
@@ -171,9 +172,9 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   wrangler.debug.toml         # same Worker + a local-only SIMILARITY namespace (npm run dev:debug)
 /scripts                     # Node tooling via tsx, never bundled into the Worker
   ensure-dev-vars.ts, check-catalog.ts, convert-embeddings.ts, build-similarity-table.ts,
-  dev-debug.ts, inspect-similarity-table.ts, build-favicon.ts
+  dev-debug.ts, inspect-similarity-table.ts, build-favicon.ts, graph-update.ts
   /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, debugMode.ts, devVars.ts, catalogAudit.ts,
-       favicon.ts
+       favicon.ts, graphFixes.ts
 /tests
   /unit/game, /unit/worker, /unit/scripts, /unit/storage, /unit/components, /unit/ci
   /e2e                        # Playwright; fixtures/similarity-table.json stands in for a built table
@@ -201,12 +202,16 @@ Two standing rules — a missing `worker/.dev.vars` has broken CI once and a dev
 
 ## graphify
 
-This project can maintain a knowledge graph at `graphify-out/` (god nodes, community structure, cross-file relationships) via the `/graphify` skill — not yet built; run `/graphify .` to generate it before relying on these rules.
+This project maintains a knowledge graph at `graphify-out/` (god nodes, community structure, cross-file relationships) via the `/graphify` skill. The graph (`graph.json`, `graph.html`, `GRAPH_REPORT.md`, `manifest.json`) and the semantic cache (the paid LLM extraction of the docs) are committed; `graphify-out/.gitignore` keeps machine-local files out. `.graphifyignore` keeps the skill's own docs out of the graph.
+
+- **Code changes**: `npm run graph:update` — `graphify update .` (AST only: free, seconds) plus dropping the edges graphify is known to get wrong here (`scripts/lib/graphFixes.ts`; add one there, with its reason, rather than editing `graph.json` by hand). In cloud sessions the SessionStart hook (`.claude/hooks/session-start.sh`) runs it whenever the committed graph is older than the code, so the working tree may start with `graphify-out/` modified: never stage it with an unrelated change — commit a graph refresh on its own (`🔧 chore(graphify): refresh the knowledge graph`).
+- **Doc changes** (`*.md`, `ci.yml`, `index.html`) need a semantic re-extraction: `/graphify . --update` in Claude Code, which costs tokens — batch it rather than running it per edit.
+- `graphify update` re-clusters and names communities after their hub node; curated names don't survive it. Known graphify defects are logged in `docs/LEARNINGS.md` (2026-09-29).
 
 - For codebase questions, first run `graphify query "<question>"` once `graphify-out/graph.json` exists; `graphify path "<A>" "<B>"` for relationships, `graphify explain "<concept>"` for focused concepts.
 - If `graphify-out/wiki/index.md` exists, use it for broad navigation instead of raw source browsing.
 - Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review or when query/path/explain don't surface enough.
-- After modifying code, run `graphify update .` to keep the graph current.
+- After modifying code, run `npm run graph:update` (not bare `graphify update .`) to keep the graph current.
 
 ## Reference docs
 
