@@ -125,6 +125,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     AppHeader.tsx, Logo.tsx, GroupIcon.tsx  # sticky top bar, CSS logo mark + wordmark
     TitleGuess.tsx         # masked title, victory panel, and the "show all lyrics"
                            # checkbox once won (RoundView.victory), controlled by GameScreen
+    NextSongCountdown.tsx  # victory panel's countdown to the next UTC midnight (local tick)
     LyricsBody.tsx          # masked lyrics, grouped by section; takes the reveal-all toggle
     TokenRun.tsx             # one line: keeps each word on one line with its punctuation
     WordToken.tsx           # one token: found word (last found highlighted), bar, close-guess
@@ -134,6 +135,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     GuessForm.tsx             # sticky guess dock: input, feedback line, shake on a miss
     ProgressCard.tsx, TriedWords.tsx  # side column: % revealed + counts; past guesses,
                                       # sorted by score, crediting the embedding model
+                                      # (collapsed by default below 880px)
     Modal.tsx, HowToPlay.tsx   # dialog shell (Escape/backdrop, exit animation); the rules
     MultiplayerModal.tsx, MultiplayerPromo.tsx  # PLACEHOLDER team-mode entry points (#29, #30)
   /hooks
@@ -145,6 +147,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     analyze.ts               # one tokenize+normalize pass per song, memoized (see "Performance")
     mask.ts                   # masked DisplayToken views + victory check
     progress.ts                # share of word occurrences revealed (progress card)
+    daily.ts                    # time until the next song (UTC midnight), countdown format
     similarity.ts, functionWords.ts, slots.ts  # 0-100 proximity scale; excluded function words;
                                                 # addressing hidden words by position
   /styles                    # tokens.css (v3 palette), global.css (keyframes), game.css

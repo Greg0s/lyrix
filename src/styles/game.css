@@ -523,6 +523,23 @@
   color: var(--color-on-ink-muted);
 }
 
+.lyrix-countdown {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--color-on-ink);
+}
+
+.lyrix-link-button {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-on-ink-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .lyrix-reveal-all {
   display: flex;
   align-items: center;
@@ -755,6 +772,69 @@
 
 .lyrix-words {
   animation-delay: 0.18s;
+}
+
+/* The toggle only does anything below 880px; above, the card is always open (see TriedWords.tsx). */
+.lyrix-words-heading {
+  margin: 0;
+}
+
+.lyrix-words-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lyrix-words-count {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--color-ink-muted);
+}
+
+.lyrix-chevron {
+  color: var(--color-ink-muted);
+  transition: transform 0.2s ease;
+}
+
+.lyrix-words.is-open .lyrix-chevron {
+  transform: rotate(180deg);
+}
+
+.lyrix-words-body {
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lyrix-words.is-open .lyrix-words-body {
+  display: flex;
+  animation: lyrix-feed 0.25s ease;
+}
+
+@media (min-width: 880px) {
+  .lyrix-words-toggle {
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .lyrix-words-count,
+  .lyrix-chevron {
+    display: none;
+  }
+
+  .lyrix-words-body,
+  .lyrix-words.is-open .lyrix-words-body {
+    display: flex;
+    animation: none;
+  }
 }
 
 .lyrix-tried-list {

@@ -372,3 +372,56 @@ describe("tapping a hidden word", () => {
     expect(blank.textContent).toBe("_______");
   });
 });
+
+describe("the countdown to tomorrow's song (won round)", () => {
+  function wonRound(): RoundView {
+    return { ...round("state-victory"), title: { tokens: tokens("Novembre", true) }, victory: true, artist: "Fixture" };
+  }
+
+  beforeEach(() => {
+    // Only the clock and the interval: waitFor keeps its real setTimeout.
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    vi.setSystemTime(Date.UTC(2026, 8, 29, 22, 30, 0));
+    fetchRound.mockResolvedValue(wonRound());
+  });
+
+  it("ticks every second to the next UTC midnight, re-rendering no lyrics token", async () => {
+    await mountGame();
+    expect(screen.getByText("01:30:00", { selector: ".lyrix-countdown" })).toBeTruthy();
+
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.getByText("01:29:59", { selector: ".lyrix-countdown" })).toBeTruthy();
+    expect(wordTokenRenders.count).toBe(0);
+  });
+
+  it("offers the new song once midnight has passed", async () => {
+    await mountGame();
+    act(() => vi.advanceTimersByTime(90 * 60 * 1000));
+    expect(screen.getByText("La nouvelle chanson est prête", { exact: false })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Jouer" })).toBeTruthy();
+  });
+
+  it("is not shown before the round is won", async () => {
+    fetchRound.mockResolvedValue(round());
+    await mountGame();
+    expect(document.querySelector(".lyrix-countdown")).toBeNull();
+  });
+});
+
+describe("the tried words card", () => {
+  // Collapsed on mobile only: CSS hides the body, so the toggle's state is what can be checked here.
+  it("toggles open and closed without re-rendering a single lyrics token", async () => {
+    await mountGame();
+    const toggle = screen.getByRole("button", { name: /Tes mots/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.textContent).toContain("0 mot");
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle.closest(".lyrix-words")?.className).toMatch(/is-open/);
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(wordTokenRenders.count).toBe(0);
+  });
+});
