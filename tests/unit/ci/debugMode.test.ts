@@ -15,9 +15,9 @@ import { parseSimilarityTable, SIMILARITY_TABLE_VERSION } from "../../../worker/
  * local play only.
  *
  * Two things have to stay true at once, and neither shows up in a diff. The
- * Worker that gets deployed must not gain a binding — a namespace id that
- * doesn't exist on the account fails the whole deploy, which is why this one
- * lives in a file `wrangler deploy` never opens. And the Worker being played
+ * Worker that gets deployed must never be bound to the local-only namespace —
+ * an id that doesn't exist on the account fails the whole deploy, which is why
+ * that one lives in a file `wrangler deploy` never opens. And the Worker being played
  * locally must otherwise be the Worker being shipped: a different entry point
  * or compatibility date would only tell on the day it reached production.
  */
@@ -45,8 +45,15 @@ function packageScripts(): Record<string, string> {
 }
 
 describe("the Worker configuration that gets deployed", () => {
-  it("binds no KV namespace, so no deploy can be pointed at a local-only one", () => {
-    expect(read(DEPLOY_CONFIG).kv_namespaces).toEqual([]);
+  // Unbound, every guess in production comes back unscored and nothing is
+  // logged: that is how production went without scores from the feature's
+  // first commit until this binding was added (docs/LEARNINGS.md, 2026-09-29).
+  it("binds exactly one real namespace, SIMILARITY, and never the local-only one", () => {
+    const namespaces = read(DEPLOY_CONFIG).kv_namespaces;
+    expect(namespaces).toHaveLength(1);
+    expect(namespaces[0].binding).toBe(SIMILARITY_BINDING);
+    expect(namespaces[0].id).toMatch(/^[0-9a-f]{32}$/);
+    expect(namespaces[0].id).not.toBe(read(DEBUG_CONFIG).kv_namespaces[0].id);
   });
 
   // wrangler warns on every `deploy` run against a configuration that defines

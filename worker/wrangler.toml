@@ -33,21 +33,18 @@ simple = { limit = 30, period = 60 }
 # production gets it from `wrangler secret put STATE_SECRET`.
 
 # Precomputed semantic-similarity tables, one entry per song id (see
-# scripts/build-similarity-table.ts and CLAUDE.md). Left commented out because
-# the namespace has to exist before `wrangler deploy` will accept the binding —
-# deploying with a made-up id fails the whole deploy. To turn proximity scoring
-# on in production:
+# scripts/build-similarity-table.ts and docs/SIMILARITY.md). Created with
+# `npx wrangler kv namespace create SIMILARITY`; the id is not a secret. To
+# (re)load the tables after a catalog or model change:
 #
-#   1. npx wrangler kv namespace create SIMILARITY
-#   2. paste the id it prints below and uncomment the block
-#   3. npm run similarity:build -- --model <model.vecbin> --all --bulk
-#   4. npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote --config worker/wrangler.toml
+#   npm run similarity:build -- --model <model.vecbin> --all --bulk
+#   npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote --config worker/wrangler.toml
 #
-# Until then the Worker simply answers guesses without a score or close words,
-# exactly as it did before the feature existed. Local dev gets placeholder
-# scores and placements instead, via the SIMILARITY_SAMPLE var that
-# `npm run dev:worker` passes.
-#
-# [[kv_namespaces]]
-# binding = "SIMILARITY"
-# id = "<id printed by `wrangler kv namespace create`>"
+# A song with no table in the namespace is answered without a score or close
+# words, exactly as before the feature existed. Local dev (`npm run dev:all`)
+# never reads this namespace: `wrangler dev` keeps KV local, and the Worker gets
+# placeholder scores from the SIMILARITY_SAMPLE var instead. Real tables can be
+# played locally with `npm run dev:debug` (worker/wrangler.debug.toml).
+[[kv_namespaces]]
+binding = "SIMILARITY"
+id = "90be993fabd1457e9cb7a8e4280e477c"

@@ -262,3 +262,19 @@ Fix: nothing in the dock is ever `disabled` any more. The input stays editable i
 - **A Durable Object's input gate opens on every non-storage await.** `Room.#guess` awaits the song (Cache API / LRCLIB) and the similarity table (KV), so another guess can run meanwhile. The "already proposed" check therefore runs after those awaits, with nothing awaited between it and the write, or two members typing the same word at once would both have it stored.
 - **The `songId` is the catalog slug of the title** (e.g. `alors-on-danse`), and it rides on every `RoundView` and inside the signed state, solo and room alike. A leak-checking test must not look for title words in a whole response: found while writing the room's "never sends a still-hidden word" test, which checks lyrics words instead. Not fixed here — renaming ids touches the cache keys, the similarity tables in KV and saved rounds.
 - **In the cloud sandbox, LRCLIB is unreachable**, so the e2e Worker serves the emergency song, which isn't in the catalog: specs that look the day's title up in `catalog` fail there. Read the title off the round's `devHint`s instead (the e2e Worker runs with `DEV_REVEAL_LYRICS`), as `tests/e2e/rooms.spec.ts` does.
+
+## 2026-09-29 — Production never had proximity scores
+
+Found by playing production: "dieu", "déesse", "religion" came back unscored on a song containing "dieux". Root cause: the `[[kv_namespaces]]` block binding `SIMILARITY` in `worker/wrangler.toml` was commented out in the commit that created the feature (`7599ca6`, because a deploy with a made-up id fails), and the namespace was never created nor the block uncommented. An unbound namespace is the feature's documented "off" state, so the Worker answered every guess with `score: null` and logged nothing — only a bound-but-empty namespace was logged. Dev never showed it either: `dev:all` serves the placeholder table.
+
+Fix: namespace created on the account, bound in `worker/wrangler.toml`, tables built with frWac2Vec and uploaded with `wrangler kv bulk put --remote`. Regression test: "binds exactly one real namespace, SIMILARITY, and never the local-only one" in `tests/unit/ci/debugMode.test.ts` (it replaces the test that asserted production bound *nothing*, which had pinned the bug in place).
+
+(Also: "dieu" never reveals "dieux" — normalization folds case and accents, not number; with a real table "dieu" scores high and is shown on "dieux"'s bar.)
+
+**Takeaway**: an optional feature's "off" state must not be the same silence as "misconfigured in production". A test that pins a config to a temporary state (here "no binding yet") needs a note saying when it should flip, or it keeps the temporary state forever.
+
+## 2026-09-29 — Flaky timer tests in gameScreen.test.tsx
+
+Three different tests failed about one run in four (CI on PR #43, and on `main` earlier that day): the bar tip's `is-out` step, the countdown tick, the "new song" offer. Root cause: `mountGame` rendered outside `act` and returned as soon as the input appeared. The mocked round landed through the real scheduler, so passive effects could still be pending — then ran after the test had switched to fake timers: the countdown's `setInterval` started too late to tick, and StrictMode's cleanup-and-rerun of `Blank`'s effect cleared the peek timers a focus had just set. Fix: `mountGame` renders inside `await act(async () => …)`. Checked by running the file 15 times in a row (0 failures, against 2 in 8 before).
+
+**Takeaway**: in a component test that goes on to fake or advance timers, mount inside `act` — "the element is visible" does not mean "its effects have run".
