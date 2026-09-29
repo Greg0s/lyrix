@@ -1,0 +1,194 @@
+import { msUntilNextSong } from "./daily";
+
+/**
+ * Rooms ("salons", issue #29): a group of players looking for the day's song
+ * together. The Worker issues the codes and holds who is in each room (one
+ * Durable Object per room, worker/src/room.ts); the frontend validates what
+ * the player types and draws the members. Both halves of the contract live
+ * here, so they can only disagree by editing one file.
+ *
+ * Nothing in a room touches the lyrics: sharing a round's progress is #30.
+ */
+
+/** No 0/O, 1/I/L: a code read aloud or copied off a screen can't be misread. */
+export const ROOM_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+export const ROOM_CODE_LENGTH = 6;
+export const PSEUDO_MAX_LENGTH = 16;
+/** How the local player is named when they left "Ton pseudo" empty. */
+export const OWN_FALLBACK_NAME = "Toi";
+
+/**
+ * WebSocket close codes the room's server side uses, so the client can tell
+ * "stop, you are no longer in a room" from a dropped connection worth retrying.
+ * The same one is used whether the room doesn't exist or the token isn't a
+ * member's: telling those apart would let anyone probe which codes are live
+ * without going through the rate-limited join.
+ */
+export const ROOM_CLOSE_UNKNOWN = 4404;
+/** The room reached its expiry (the next UTC midnight, with the day's song). */
+export const ROOM_CLOSE_EXPIRED = 4410;
+/** The member left the room, possibly from another tab. */
+export const ROOM_CLOSE_LEFT = 4001;
+
+/** Keep-alive: answered by the runtime itself (setWebSocketAutoResponse), without waking the room. */
+export const ROOM_PING = "ping";
+export const ROOM_PONG = "pong";
+
+export interface RoomMember {
+  /** Public and stable for as long as the player stays in the room. */
+  id: string;
+  /** Sanitized pseudo; null when the player left it empty. */
+  name: string | null;
+  /** Arrival order, from 1 for the creator: names an unnamed player, and picks their colour. */
+  number: number;
+}
+
+export interface RoomSnapshot {
+  code: string;
+  host: RoomMember;
+  /** Members with a live connection, in arrival order. */
+  members: RoomMember[];
+  /** Epoch ms of the next UTC midnight after the room was created: the room ends with the day's song. */
+  expiresAt: number;
+}
+
+/** What creating or joining a room answers. */
+export interface RoomEntry {
+  /** The member id the player has in this room. */
+  you: string;
+  /** Proves membership when (re)connecting. Only ever sent to its own member. */
+  token: string;
+  room: RoomSnapshot;
+}
+
+export interface RoomEvent {
+  kind: "joined" | "left";
+  member: RoomMember;
+}
+
+/** Every message the room's WebSocket sends: the room as it now stands, and what changed, when worth telling. */
+export interface RoomMessage {
+  type: "room";
+  room: RoomSnapshot;
+  event?: RoomEvent;
+}
+
+/** What the player typed, as a code: whitespace dropped, uppercased, capped at the code's length. */
+export function normalizeRoomCodeInput(input: string): string {
+  return input.replace(/\s+/g, "").toUpperCase().slice(0, ROOM_CODE_LENGTH);
+}
+
+/** Strict: exactly ROOM_CODE_LENGTH characters of the alphabet, nothing normalized. */
+export function isRoomCode(value: string): boolean {
+  if (value.length !== ROOM_CODE_LENGTH) return false;
+  for (const char of value) {
+    if (!ROOM_CODE_ALPHABET.includes(char)) return false;
+  }
+  return true;
+}
+
+function cryptoBytes(count: number): Uint8Array {
+  return crypto.getRandomValues(new Uint8Array(count));
+}
+
+// The largest multiple of the alphabet's size a byte can hold: a byte at or
+// above it is drawn again, so every character is exactly as likely.
+const UNBIASED_BYTE_LIMIT = 256 - (256 % ROOM_CODE_ALPHABET.length);
+
+/** A fresh random code. `randomBytes` is only there for tests. */
+export function generateRoomCode(randomBytes: (count: number) => Uint8Array = cryptoBytes): string {
+  let code = "";
+  while (code.length < ROOM_CODE_LENGTH) {
+    for (const byte of randomBytes(ROOM_CODE_LENGTH)) {
+      if (byte >= UNBIASED_BYTE_LIMIT) continue;
+      code += ROOM_CODE_ALPHABET[byte % ROOM_CODE_ALPHABET.length];
+      if (code.length === ROOM_CODE_LENGTH) break;
+    }
+  }
+  return code;
+}
+
+/**
+ * A pseudo as everyone else will see it: NFC, letters, digits, spaces and
+ * `' ’ - _ .` only, runs of whitespace collapsed, at most PSEUDO_MAX_LENGTH
+ * characters. Everything else goes, in particular control and invisible
+ * characters, bidi overrides, emoji, and combining marks (which is what
+ * stacks "zalgo" text over the rest of the page). Empty means unnamed.
+ */
+export function sanitizePseudo(raw: string): string {
+  const kept = raw
+    .normalize("NFC")
+    .replace(/\s+/gu, " ")
+    .replace(/[^\p{L}\p{N} '’\-_.]/gu, "")
+    .replace(/ {2,}/g, " ")
+    .trim();
+  return Array.from(kept).slice(0, PSEUDO_MAX_LENGTH).join("").trim();
+}
+
+/** A member's display name: their pseudo, else "Toi" for the local player and "Joueur N" for anyone else. */
+export function memberName(member: RoomMember, you: string | null): string {
+  if (member.name) return member.name;
+  return member.id === you ? OWN_FALLBACK_NAME : `Joueur ${member.number}`;
+}
+
+/** French: 0 and 1 take the singular. */
+export function playerCountLabel(count: number): string {
+  return `${count} ${count < 2 ? "joueur" : "joueurs"}`;
+}
+
+/** When a room created at `nowMs` expires: the next UTC midnight, when the day's song changes. */
+export function roomExpiresAt(nowMs: number): number {
+  return nowMs + msUntilNextSong(nowMs);
+}
+
+// ---------- Parsing what comes off the network or out of storage ----------
+// Never trusted: a malformed value is rejected, never thrown on.
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+export function parseRoomMember(value: unknown): RoomMember | null {
+  if (!isRecord(value)) return null;
+  const { id, name, number } = value;
+  if (typeof id !== "string" || id.length === 0) return null;
+  if (name !== null && typeof name !== "string") return null;
+  if (typeof number !== "number" || !Number.isInteger(number) || number < 1) return null;
+  return { id, name: name || null, number };
+}
+
+export function parseRoomSnapshot(value: unknown): RoomSnapshot | null {
+  if (!isRecord(value)) return null;
+  const { code, host, members, expiresAt } = value;
+  if (typeof code !== "string" || !isRoomCode(code)) return null;
+  if (typeof expiresAt !== "number" || !Number.isFinite(expiresAt)) return null;
+  const parsedHost = parseRoomMember(host);
+  if (!parsedHost || !Array.isArray(members)) return null;
+  const parsedMembers: RoomMember[] = [];
+  for (const entry of members) {
+    const member = parseRoomMember(entry);
+    if (!member) return null;
+    parsedMembers.push(member);
+  }
+  return { code, host: parsedHost, members: parsedMembers, expiresAt };
+}
+
+export function parseRoomEntry(value: unknown): RoomEntry | null {
+  if (!isRecord(value)) return null;
+  const { you, token } = value;
+  if (typeof you !== "string" || typeof token !== "string" || token.length === 0) return null;
+  const room = parseRoomSnapshot(value.room);
+  return room ? { you, token, room } : null;
+}
+
+export function parseRoomMessage(value: unknown): RoomMessage | null {
+  if (!isRecord(value) || value.type !== "room") return null;
+  const room = parseRoomSnapshot(value.room);
+  if (!room) return null;
+  if (value.event === undefined) return { type: "room", room };
+  if (!isRecord(value.event)) return null;
+  const { kind } = value.event;
+  const member = parseRoomMember(value.event.member);
+  if ((kind !== "joined" && kind !== "left") || !member) return null;
+  return { type: "room", room, event: { kind, member } };
+}

@@ -11,7 +11,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      "/api": apiProxyTarget,
+      // ws: rooms keep their members live over a WebSocket on /api/rooms/:code/ws.
+      "/api": { target: apiProxyTarget, ws: true },
     },
   },
 });

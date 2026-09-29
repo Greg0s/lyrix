@@ -92,10 +92,15 @@ function readinessUrl(server: WebServer): URL {
   return new URL(server.url);
 }
 
+function apiProxy(config: UserConfig): { target: string; ws: boolean } {
+  const proxy = config.server?.proxy?.["/api"];
+  if (typeof proxy === "string") return { target: proxy, ws: false };
+  if (typeof proxy?.target !== "string") throw new Error("expected vite.config.ts to proxy /api to a URL string");
+  return { target: proxy.target, ws: proxy.ws ?? false };
+}
+
 function apiProxyTarget(config: UserConfig): string {
-  const target = config.server?.proxy?.["/api"];
-  if (typeof target !== "string") throw new Error("expected vite.config.ts to proxy /api to a URL string");
-  return target;
+  return apiProxy(config).target;
 }
 
 describe("Playwright e2e web servers", () => {
@@ -163,6 +168,12 @@ describe("npm run dev:all", () => {
     const viteConfig = await loadViteConfig({});
 
     expect(apiProxyTarget(viteConfig)).toBe(`http://localhost:${DEV_WORKER_PORT}`);
+  });
+
+  // A room's members stay live over a WebSocket on /api/rooms/:code/ws; without
+  // ws, Vite answers the upgrade itself and nobody in dev ever sees another player.
+  it("proxies WebSockets on /api too", async () => {
+    expect(apiProxy(await loadViteConfig({})).ws).toBe(true);
   });
 });
 

@@ -205,9 +205,45 @@
   }
 }
 
+/* In a room, the icon carries a presence dot and the label counts the players. */
+.lyrix-pill-icon {
+  position: relative;
+  display: flex;
+}
+
+.lyrix-presence-dot {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-presence);
+  box-shadow: 0 0 0 2px var(--color-ink);
+  transition: box-shadow 0.15s ease;
+}
+
+.lyrix-pill.is-dark:hover .lyrix-presence-dot {
+  box-shadow: 0 0 0 2px var(--color-ink-raised);
+}
+
+.lyrix-pill-label.is-room,
+.lyrix-pill-label.is-room-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.lyrix-pill-label.is-room-count {
+  display: none;
+}
+
 @media (max-width: 459px) {
-  .lyrix-pill-label.is-multiplayer {
+  .lyrix-pill-label.is-multiplayer,
+  .lyrix-pill-label.is-room {
     display: none;
+  }
+
+  .lyrix-pill-label.is-room-count {
+    display: inline;
   }
 }
 
@@ -653,6 +689,11 @@
   color: var(--color-on-ink-accent);
 }
 
+.lyrix-feedback.is-info {
+  font-weight: 600;
+  color: var(--color-on-ink);
+}
+
 .lyrix-feedback.is-error {
   font-weight: 600;
   color: oklch(78% 0.12 30);
@@ -702,6 +743,13 @@
 .lyrix-button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+  transform: none;
+}
+
+/* Busy, not disabled: a disabled button would drop the focus it holds (see GuessForm). */
+.lyrix-button[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: progress;
   transform: none;
 }
 
@@ -1177,7 +1225,7 @@
   font-weight: 600;
 }
 
-/* Multiplayer (placeholder, see MultiplayerModal.tsx) */
+/* ---------- Rooms (MultiplayerModal.tsx, RoomCard.tsx) ---------- */
 
 .lyrix-mp {
   display: flex;
@@ -1304,4 +1352,335 @@
   font-size: 0.95rem;
   line-height: 1.55;
   color: oklch(40% 0.02 55);
+}
+
+.lyrix-mp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.lyrix-field-input.is-invalid,
+.lyrix-field-input.is-invalid:focus {
+  border-color: var(--color-error);
+}
+
+.lyrix-field-input.is-shake-a {
+  animation: lyrix-shake-a 0.38s ease;
+}
+
+.lyrix-field-input.is-shake-b {
+  animation: lyrix-shake-b 0.38s ease;
+}
+
+.lyrix-mp-error {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--color-error);
+  animation: lyrix-feed 0.25s ease;
+}
+
+.lyrix-room-code-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--color-page-bg);
+}
+
+.lyrix-room-code {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.lyrix-room-code.is-large {
+  font-size: clamp(2.2rem, 9vw, 2.8rem);
+  /* Letter-spacing trails the last letter too: pad the start so the code sits centred. */
+  padding-left: 0.2em;
+}
+
+.lyrix-copy {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
+}
+
+.lyrix-copy:active {
+  transform: scale(0.96);
+}
+
+.lyrix-copy.is-light {
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+}
+
+.lyrix-copy.is-light:hover {
+  background: var(--color-ink-raised);
+}
+
+.lyrix-copy.is-dark {
+  background: oklch(100% 0 0 / 0.1);
+  color: var(--color-on-ink);
+}
+
+.lyrix-copy.is-dark:hover {
+  background: oklch(100% 0 0 / 0.16);
+}
+
+.lyrix-copy.is-done,
+.lyrix-copy.is-done:hover {
+  background: var(--color-presence);
+  color: var(--color-ink);
+}
+
+.lyrix-mp-members {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lyrix-mp-members-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-muted);
+}
+
+.lyrix-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lyrix-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  animation: lyrix-feed 0.3s ease;
+}
+
+.lyrix-members.is-list .lyrix-member {
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--color-page-bg);
+}
+
+.lyrix-member-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lyrix-member-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.lyrix-member.is-waiting {
+  color: var(--color-ink-muted);
+  animation: lyrix-pulse 1.8s ease-in-out infinite;
+}
+
+.lyrix-member.is-waiting .lyrix-member-name {
+  font-weight: 500;
+}
+
+/* Initial on the player's colour (--player, set inline by playerColor.ts). */
+.lyrix-avatar {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--player, var(--color-track));
+  color: var(--color-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.lyrix-avatar.is-empty {
+  background: transparent;
+  border: 1.5px dashed var(--color-border-dashed);
+}
+
+.lyrix-tag {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: var(--color-surface-muted);
+  color: var(--color-ink-muted);
+}
+
+.lyrix-tag.is-host {
+  background: var(--accent-tint);
+  color: var(--accent-deep);
+}
+
+/* The dark "Salon" card, first in the side column while in a room. */
+.lyrix-room {
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  border-color: transparent;
+  box-shadow: var(--shadow-dock);
+  gap: 16px;
+  animation-delay: 0.06s;
+}
+
+.lyrix-room-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lyrix-room-count {
+  font-size: 0.85rem;
+  color: var(--color-on-ink-muted);
+}
+
+.lyrix-room-code-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 10px 10px 14px;
+  border-radius: 14px;
+  background: oklch(100% 0 0 / 0.06);
+}
+
+.lyrix-room-code-row .lyrix-room-code {
+  font-size: 1.25rem;
+  letter-spacing: 0.14em;
+}
+
+.lyrix-room-code-row .lyrix-copy {
+  padding: 6px 12px;
+}
+
+.lyrix-members.is-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: 172px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-solid) transparent;
+}
+
+.lyrix-members.is-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lyrix-members.is-grid::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--accent-solid);
+}
+
+.lyrix-members.is-grid .lyrix-member {
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: oklch(100% 0 0 / 0.06);
+  font-size: 0.88rem;
+}
+
+.lyrix-members.is-grid .lyrix-avatar {
+  width: 24px;
+  height: 24px;
+  font-size: 0.72rem;
+}
+
+.lyrix-members.is-grid .lyrix-member-text {
+  flex-wrap: wrap;
+  row-gap: 3px;
+}
+
+.lyrix-members.is-grid .lyrix-member-name {
+  flex-basis: 100%;
+}
+
+.lyrix-members.is-grid .lyrix-tag {
+  padding: 1px 6px;
+  font-size: 0.66rem;
+}
+
+.lyrix-room .lyrix-tag {
+  background: oklch(100% 0 0 / 0.1);
+  color: var(--color-on-ink-muted);
+}
+
+.lyrix-room .lyrix-tag.is-host {
+  background: var(--accent-solid);
+  color: var(--color-ink);
+}
+
+.lyrix-room-waiting {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-on-ink-muted);
+  animation: lyrix-pulse 1.8s ease-in-out infinite;
+}
+
+.lyrix-room-waiting.is-offline {
+  color: var(--color-on-ink-accent);
+  animation: none;
+}
+
+.lyrix-room-leave {
+  align-self: flex-start;
+  background: transparent;
+  color: var(--color-on-ink);
+  border: 1px solid oklch(100% 0 0 / 0.2);
+  border-radius: 12px;
+  padding: 9px 14px;
+  font-family: var(--font-ui);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.12s ease;
+}
+
+.lyrix-room-leave:hover {
+  background: oklch(100% 0 0 / 0.08);
+  border-color: oklch(100% 0 0 / 0.35);
+}
+
+.lyrix-room-leave:active {
+  transform: scale(0.97);
 }

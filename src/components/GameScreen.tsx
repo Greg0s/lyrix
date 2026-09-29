@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { revealedPercent } from "../game/progress";
 import { closestGuessBySlot, placeNearGuesses } from "../game/slots";
 import { useGame, type Feedback } from "../hooks/useGame";
+import { useRoom } from "../hooks/useRoom";
 import { AppHeader } from "./AppHeader";
 import { GuessForm, type GuessFeedback } from "./GuessForm";
 import { HowToPlay } from "./HowToPlay";
@@ -9,6 +10,7 @@ import { LyricsBody } from "./LyricsBody";
 import { MultiplayerModal } from "./MultiplayerModal";
 import { MultiplayerPromo } from "./MultiplayerPromo";
 import { ProgressCard } from "./ProgressCard";
+import { RoomCard } from "./RoomCard";
 import { TitleGuess } from "./TitleGuess";
 import { TriedWords } from "./TriedWords";
 
@@ -25,6 +27,8 @@ type Dialog = "help" | "multiplayer" | null;
 
 export function GameScreen() {
   const game = useGame();
+  // Room events ("X a rejoint le salon.") go to the guess dock's feedback line.
+  const room = useRoom(game.announce);
   const inputRef = useRef<HTMLInputElement>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [revealAllLyrics, setRevealAllLyrics] = useState(false);
@@ -53,11 +57,19 @@ export function GameScreen() {
   const percent = useMemo(() => (round ? revealedPercent(round) : 0), [round]);
   const foundCount = useMemo(() => triedWords.filter((word) => word.found).length, [triedWords]);
 
-  const header = <AppHeader onOpenMultiplayer={openMultiplayer} onOpenHelp={openHelp} />;
+  const header = (
+    <AppHeader
+      roomPlayers={room.view ? room.view.members.length : null}
+      onOpenMultiplayer={openMultiplayer}
+      onOpenHelp={openHelp}
+    />
+  );
   const dialogs = (
     <>
       {dialog === "help" ? <HowToPlay onClosed={closeDialog} /> : null}
-      {dialog === "multiplayer" ? <MultiplayerModal onClosed={closeDialog} /> : null}
+      {dialog === "multiplayer" ? (
+        <MultiplayerModal room={room.view} onCreate={room.create} onJoin={room.join} onClosed={closeDialog} />
+      ) : null}
     </>
   );
   const shell = (content: ReactNode) => (
@@ -91,10 +103,14 @@ export function GameScreen() {
     );
   }
 
-  const { feedback } = game;
+  const { feedback, notice } = game;
   const lastFoundKey = feedback?.found ? feedback.key : null;
   let guessFeedback: GuessFeedback | null = null;
-  if (game.error) {
+  // Whatever happened last: a notice is cleared by the next guess's outcome
+  // (useGame), so while there is one, it is the newest thing to say.
+  if (notice) {
+    guessFeedback = { text: notice.text, tone: "info", seq: notice.seq, shake: false };
+  } else if (game.error) {
     guessFeedback = {
       text: "Le mot n'a pas pu être envoyé, réessaie.",
       tone: "error",
@@ -136,9 +152,10 @@ export function GameScreen() {
       </div>
 
       <aside className="lyrix-aside">
+        {room.view ? <RoomCard room={room.view} onLeave={room.leave} /> : null}
         <ProgressCard percent={percent} foundCount={foundCount} triedCount={triedWords.length} />
         <TriedWords triedWords={triedWords} />
-        <MultiplayerPromo onOpen={openMultiplayer} />
+        {room.view ? null : <MultiplayerPromo onOpen={openMultiplayer} />}
       </aside>
     </main>
   );

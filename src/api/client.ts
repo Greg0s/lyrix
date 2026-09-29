@@ -1,6 +1,5 @@
 import type { GuessResult, RoundView } from "../game/types";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+import { API_BASE, apiUrl } from "./base";
 
 interface ErrorBody {
   error: string;
@@ -19,8 +18,7 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
 }
 
 export async function fetchRound(signal?: AbortSignal): Promise<RoundView> {
-  const url = new URL("/api/round", API_BASE || window.location.origin);
-  const response = await fetch(url, { signal });
+  const response = await fetch(apiUrl("/api/round"), { signal });
   return parseJsonResponse<RoundView>(response);
 }
 

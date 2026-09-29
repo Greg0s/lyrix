@@ -187,12 +187,25 @@ input::placeholder {
   }
 }
 
+/* A slow breath for what is waiting on someone else: the rooms' "En attente…" lines. */
+@keyframes lyrix-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-delay: 0s !important;
+    /* Or an infinite animation (lyrix-pulse) would flicker at 0.01ms a loop. */
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

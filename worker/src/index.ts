@@ -4,11 +4,12 @@ import { buildSectionsView, buildTitleView, isVictory, songWordKeys } from "../.
 import { normalize } from "../../src/game/normalize";
 import { MAX_PROXIMITY_SCORE } from "../../src/game/similarity";
 import type { GuessResult, RoundView, Song } from "../../src/game/types";
+import { roomRoutes, type RoomsEnv } from "./roomRoutes";
 import { proximityHint, type ProximityHint, type SimilarityEnv } from "./similarity";
 import { getSongById, getTodaysSong } from "./songs";
 import { signState, verifyState } from "./state";
 
-interface Env extends SimilarityEnv {
+interface Env extends SimilarityEnv, RoomsEnv {
   STATE_SECRET: string;
   /**
    * Dev/e2e only, never set in production: makes every still-hidden word's
@@ -148,4 +149,9 @@ app.post("/api/guess", async (c) => {
   return c.json(result);
 });
 
+// Rooms ("salons", issue #29). Nothing in them touches the lyrics.
+app.route("/api/rooms", roomRoutes);
+
 export default app;
+// The room's Durable Object class, which the runtime looks up by name (see worker/wrangler.toml).
+export { Room } from "./room";

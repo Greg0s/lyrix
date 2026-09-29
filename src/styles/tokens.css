@@ -19,6 +19,8 @@
   --color-border-dashed: oklch(80% 0.02 65);
   --color-divider: oklch(91% 0.01 75);
   --color-error: oklch(50% 0.17 30);
+  /* Someone is in the room with you: the header's dot, the "Copié !" flash. */
+  --color-presence: oklch(74% 0.17 150);
 
   --shadow-card: 0 1px 2px oklch(30% 0.02 50 / 0.04), 0 12px 32px -12px oklch(30% 0.02 50 / 0.1);
   --shadow-dock: 0 16px 40px -12px oklch(22% 0.02 50 / 0.45);
