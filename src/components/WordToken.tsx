@@ -135,8 +135,9 @@ export function WordToken({ token, revealAll = false, lastFoundKey = null }: Wor
         <span className="token-near-blank">
           {token.text}
         </span>
-        <span className="token-near-guess" style={fitGuess(text, letters)}>
-          {text}
+        {/* Shrunk inside the overlay, not on it: the overlay's inset is in the bar's em. */}
+        <span className="token-near-guess">
+          <span style={fitGuess(text, letters)}>{text}</span>
         </span>
       </Blank>
     );
