@@ -463,14 +463,26 @@
  * the guess is written over it in white, the more opaque the closer it is
  * (--heat, 0 to 1, set inline from the score by proximityHeat in
  * src/game/similarity.ts). The word's own masked text stays underneath,
- * transparent, so the bar keeps the width of the word it hides, plus a margin
- * at each end (--near-gutter): the guess is laid over the word's width only,
- * so its first and last letters never touch the bar's edges and stay legible.
+ * transparent, in the same grid cell as the guess: the bar is as wide as the
+ * longer of the two, so a guess longer than the word widens its bar rather
+ * than being shrunk or cut. A margin at each end (the padding) keeps its
+ * first and last letters off the bar's edges.
  */
 .token-blank.token-word-near {
-  --near-gutter: 0.3em;
   background: var(--accent-solid);
-  padding-inline: var(--near-gutter);
+  padding-inline: 0.3em;
+}
+
+/* Inline-grid, so its baseline is the text's; the tighter line height keeps it within the bar. */
+.token-word-near .token-blank-face {
+  display: inline-grid;
+  justify-items: center;
+  line-height: 1.2;
+}
+
+.token-near-blank,
+.token-near-guess {
+  grid-area: 1 / 1;
 }
 
 .token-near-blank {
@@ -478,15 +490,9 @@
 }
 
 .token-near-guess {
-  position: absolute;
-  inset: 0 var(--near-gutter);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   color: #fff;
   font-weight: 600;
   white-space: nowrap;
-  overflow: hidden;
   pointer-events: none;
   opacity: calc(0.45 + 0.55 * var(--heat, 0.5));
   animation: lyrix-hint 0.45s var(--ease-out);
@@ -1018,17 +1024,29 @@
     background: color-mix(
       in oklch,
       var(--proximity-hot-bg) var(--to-hot),
-      color-mix(in oklch, var(--proximity-warm-bg) var(--to-warm), var(--proximity-cold-bg))
+      color-mix(
+        in oklch,
+        var(--proximity-warm-bg) var(--to-warm),
+        var(--proximity-cold-bg)
+      )
     );
     border-color: color-mix(
       in oklch,
       var(--proximity-hot-border) var(--to-hot),
-      color-mix(in oklch, var(--proximity-warm-border) var(--to-warm), var(--proximity-cold-border))
+      color-mix(
+        in oklch,
+        var(--proximity-warm-border) var(--to-warm),
+        var(--proximity-cold-border)
+      )
     );
     color: color-mix(
       in oklch,
       var(--proximity-hot-ink) var(--to-hot),
-      color-mix(in oklch, var(--proximity-warm-ink) var(--to-warm), var(--proximity-cold-ink))
+      color-mix(
+        in oklch,
+        var(--proximity-warm-ink) var(--to-warm),
+        var(--proximity-cold-ink)
+      )
     );
   }
 }

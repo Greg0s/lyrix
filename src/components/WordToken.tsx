@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { normalize } from "../game/normalize";
 import { proximityTier } from "../game/similarity";
 import type { SlotToken } from "../game/slots";
@@ -40,11 +47,21 @@ export function blankLabel(letters: number, extra?: string): string {
  * The tip's state is local, so it re-renders this one word and not the
  * lyrics around it. Its tab stop is managed in the DOM by useRovingBlanks.
  */
-function Blank({ letters, className, style, title, extraLabel, children }: BlankProps) {
+function Blank({
+  letters,
+  className,
+  style,
+  title,
+  extraLabel,
+  children,
+}: BlankProps) {
   const [peek, setPeek] = useState<"in" | "out" | null>(null);
   const timers = useRef<number[]>([]);
 
-  useEffect(() => () => timers.current.forEach((timer) => window.clearTimeout(timer)), []);
+  useEffect(
+    () => () => timers.current.forEach((timer) => window.clearTimeout(timer)),
+    [],
+  );
 
   const show = () => {
     timers.current.forEach((timer) => window.clearTimeout(timer));
@@ -76,21 +93,15 @@ function Blank({ letters, className, style, title, extraLabel, children }: Blank
       <span className="sr-only">{blankLabel(letters, extraLabel)}</span>
       {/* Hidden from screen readers: the label above already says it. */}
       {peek ? (
-        <span className={`token-peek${peek === "out" ? " is-out" : ""}`} aria-hidden="true">
+        <span
+          className={`token-peek${peek === "out" ? " is-out" : ""}`}
+          aria-hidden="true"
+        >
           {letters} lettre{letters === 1 ? "" : "s"}
         </span>
       ) : null}
     </span>
   );
-}
-
-/**
- * A guess longer than the word it sits on shrinks to fit the bar, down to 60 %
- * of the text size, rather than widening the slot and giving its length away.
- */
-function fitGuess(guess: string, letters: number): CSSProperties | undefined {
-  if (guess.length <= letters) return undefined;
-  return { fontSize: `${Math.max(0.6, letters / guess.length).toFixed(2)}em` };
 }
 
 /**
@@ -104,16 +115,28 @@ function fitGuess(guess: string, letters: number): CSSProperties | undefined {
  * to read the actual song, so it takes over from a close-guess placement and
  * the dev hint, never the other way round.
  */
-export function WordToken({ token, revealAll = false, lastFoundKey = null }: WordTokenProps) {
+export function WordToken({
+  token,
+  revealAll = false,
+  lastFoundKey = null,
+}: WordTokenProps) {
   if (!token.isWord) return <span>{token.text}</span>;
   if (token.revealed) {
-    const isLast = lastFoundKey !== null && normalize(token.text) === lastFoundKey;
-    return <span className={`token-word-found${isLast ? " is-last" : ""}`}>{token.text}</span>;
+    const isLast =
+      lastFoundKey !== null && normalize(token.text) === lastFoundKey;
+    return (
+      <span className={`token-word-found${isLast ? " is-last" : ""}`}>
+        {token.text}
+      </span>
+    );
   }
 
   if (revealAll && token.revealHint) {
     return (
-      <span className="token-word-revealed" title="Affiché via « Afficher tous les lyrics »">
+      <span
+        className="token-word-revealed"
+        title="Affiché via « Afficher tous les lyrics »"
+      >
         {token.revealHint}
       </span>
     );
@@ -131,14 +154,12 @@ export function WordToken({ token, revealAll = false, lastFoundKey = null }: Wor
         title={`« ${text} » est proche de ce mot (${score}/100)`}
         extraLabel={`« ${text} » est proche, ${score} sur 100`}
       >
-        {/* The word's own blank sizes the bar; the guess is laid over it, never wider. */}
-        <span className="token-near-blank">
-          {token.text}
-        </span>
-        {/* Shrunk inside the overlay, not on it: the overlay's inset is in the bar's em. */}
-        <span className="token-near-guess">
-          <span style={fitGuess(text, letters)}>{text}</span>
-        </span>
+        {/*
+         * Stacked in one grid cell: the bar is as wide as the longer of the two,
+         * so the guess is always written in full, at the text's own size.
+         */}
+        <span className="token-near-blank">{token.text}</span>
+        <span className="token-near-guess">{text}</span>
       </Blank>
     );
   }
