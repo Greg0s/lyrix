@@ -196,7 +196,7 @@ Two standing rules — a missing `worker/.dev.vars` has broken CI once and a dev
 
 ## graphify
 
-This project can maintain a knowledge graph at `graphify-out/` (god nodes, community structure, cross-file relationships) via the `/graphify` skill — not yet built; run `/graphify .` to generate it before relying on these rules.
+This project maintains a knowledge graph at `graphify-out/` (god nodes, community structure, cross-file relationships) via the `/graphify` skill. `graphify-out/` is gitignored, so each checkout builds its own: if `graphify-out/graph.json` is missing, run `/graphify .` first (the CLI installs with `uv tool install graphifyy`). `.graphifyignore` keeps the skill's own docs out of the graph.
 
 - For codebase questions, first run `graphify query "<question>"` once `graphify-out/graph.json` exists; `graphify path "<A>" "<B>"` for relationships, `graphify explain "<concept>"` for focused concepts.
 - If `graphify-out/wiki/index.md` exists, use it for broad navigation instead of raw source browsing.
