@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import type { RoundView } from "../../src/game/types";
 
 /**
  * Rooms ("salons", issue #29), for real: a Durable Object per room in the
@@ -16,13 +17,31 @@ test.afterEach(async () => {
   await Promise.all(contexts.splice(0).map((context) => context.close()));
 });
 
+/**
+ * The title's words of the day's song, read off the solo round's dev hints:
+ * the e2e Worker runs with DEV_REVEAL_LYRICS (see CLAUDE.md), and this works
+ * whichever song the day falls on, the emergency one included.
+ */
+let titleWords: string[] = [];
+
 async function openGame(browser: Browser): Promise<Page> {
   const context = await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] });
   contexts.push(context);
   const page = await context.newPage();
+  const roundResponse = page.waitForResponse((res) => res.url().includes("/api/round"));
   await page.goto("/");
+  const round = (await (await roundResponse).json()) as RoundView;
+  titleWords = [...new Set(round.title.tokens.flatMap((token) => (token.devHint ? [token.devHint] : [])))];
   await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
   return page;
+}
+
+async function guess(page: Page, word: string): Promise<void> {
+  const input = page.getByPlaceholder("Propose un mot au groupe…");
+  await input.fill(word);
+  await input.press("Enter");
+  // Empty once the guess has landed; Enter meanwhile is ignored by design.
+  await expect(input).toHaveValue("");
 }
 
 function dialog(page: Page): Locator {
@@ -176,6 +195,60 @@ test("copies the room code, and says so for a moment", async ({ browser }) => {
   await expect(roomCard(page).getByRole("button", { name: "Copié !" })).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(code);
   await expect(roomCard(page).getByRole("button", { name: "Copier le code" })).toBeVisible();
+});
+
+test("plays the day's round together: every find and every miss reaches the whole room", async ({ browser }) => {
+  const host = await openGame(browser);
+  const guest = await openGame(browser);
+  const code = await createRoom(host, "Camille");
+  await joinRoom(guest, code, "Léo");
+  await expect(feedback(host)).toHaveText("Léo a rejoint le salon.");
+  const [firstWord] = titleWords;
+  if (!firstWord) throw new Error("the day's song title has no word");
+
+  await guess(guest, firstWord);
+
+  await expect(feedback(guest)).toHaveText(`« ${firstWord} » trouvé !`);
+  await expect(feedback(host)).toHaveText(`Léo a trouvé « ${firstWord} » !`);
+  await expect(host.locator(".lyrix-title-line .token-word-found", { hasText: firstWord }).first()).toBeVisible();
+  const hostWords = host.getByRole("region", { name: "Mots du groupe" });
+  await expect(hostWords.locator(".lyrix-chip", { hasText: firstWord }).locator(".lyrix-player-dot")).toHaveCount(1);
+
+  await guess(host, "zzqxw");
+  await expect(feedback(guest)).toHaveText("Camille a proposé « zzqxw », sans succès.");
+  await guess(guest, "ZZQXW");
+  await expect(feedback(guest)).toHaveText("« ZZQXW » a déjà été proposé.");
+
+  for (const word of titleWords.slice(1)) await guess(host, word);
+
+  for (const page of [host, guest]) {
+    await expect(page.getByText("Bravo, le groupe l'a trouvée")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Progression" }).locator('[data-stat="tried"]')).toContainText(
+      `${titleWords.length + 1} essais`
+    );
+  }
+});
+
+test("catches a player up on the room's round after a reload, and gives the solo round back on leaving", async ({
+  browser,
+}) => {
+  const host = await openGame(browser);
+  const guest = await openGame(browser);
+  const code = await createRoom(host, "Camille");
+  await joinRoom(guest, code, "Léo");
+  const [firstWord] = titleWords;
+  if (!firstWord) throw new Error("the day's song title has no word");
+  await guess(host, firstWord);
+
+  await guest.reload();
+  const found = guest.locator(".lyrix-title-line .token-word-found", { hasText: firstWord }).first();
+  await expect(found).toBeVisible();
+
+  await roomCard(guest).getByRole("button", { name: "Quitter le salon" }).click();
+
+  await expect(guest.getByPlaceholder("Propose un mot…")).toBeVisible();
+  await expect(guest.locator(".lyrix-title-line .token-word-found")).toHaveCount(0);
+  await expect(guest.getByRole("region", { name: "Tes mots" })).toContainText("Les mots que tu proposes");
 });
 
 test.describe("on a narrow phone", () => {

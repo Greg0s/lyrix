@@ -1,4 +1,4 @@
-import { parseRoomEntry, type RoomEntry } from "../game/room";
+import { parseRoomEntry, parseRoomGuessResult, type RoomEntry, type RoomGuessResult } from "../game/room";
 import { apiUrl } from "./base";
 
 /** Why creating or joining a room didn't work, as the player needs to hear it. */
@@ -53,4 +53,20 @@ export function roomSocketUrl(code: string, token: string): string {
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.searchParams.set("token", token);
   return url.toString();
+}
+
+/**
+ * A guess for the whole room (issue #30). Throws, like submitGuess, when it
+ * couldn't be checked: the dock says so and the player can try again.
+ */
+export async function submitRoomGuess(code: string, token: string, word: string): Promise<RoomGuessResult> {
+  const response = await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/guess`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, word }),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  const result = response.ok ? parseRoomGuessResult(body) : null;
+  if (!result) throw new Error(`room guess failed with status ${response.status}`);
+  return result;
 }
