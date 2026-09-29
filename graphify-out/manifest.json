@@ -18,10 +18,10 @@
     "semantic_hash": "788224757565ad14e3969ca07225b9d8"
   },
   "package.json": {
-    "mtime": 1790675890.5816839,
-    "seen": 1790676078.5152435,
-    "ast_hash": "8e89e48375d15769d8fe956e40fe5e55",
-    "semantic_hash": "8e89e48375d15769d8fe956e40fe5e55"
+    "mtime": 1790676670.1239433,
+    "seen": 1790676702.5458724,
+    "ast_hash": "665fb0ccfdde243d1599399956c9b974",
+    "semantic_hash": ""
   },
   "playwright.config.ts": {
     "mtime": 1790623256.3365593,
@@ -600,10 +600,10 @@
     "semantic_hash": "9053f1ba06ba262316ae430516919eb3"
   },
   "CLAUDE.md": {
-    "mtime": 1790675951.2782836,
-    "seen": 1790676078.5153303,
-    "ast_hash": "b24b63fee8cf15c6a1b23cab992dff37",
-    "semantic_hash": "b24b63fee8cf15c6a1b23cab992dff37"
+    "mtime": 1790676678.6128895,
+    "seen": 1790676702.5459604,
+    "ast_hash": "4846cc35fee1e736a19446c8eeffbd67",
+    "semantic_hash": ""
   },
   "README.md": {
     "mtime": 1790671696.6448345,
@@ -624,10 +624,10 @@
     "semantic_hash": "e7aa7c32394e3904acf568d182cc2726"
   },
   "index.html": {
-    "mtime": 1790671696.6488345,
-    "seen": 1790671884.534343,
-    "ast_hash": "1d16131815c191f4417397f591e4978c",
-    "semantic_hash": "1d16131815c191f4417397f591e4978c"
+    "mtime": 1790676670.1239433,
+    "seen": 1790676702.5459633,
+    "ast_hash": "50890cc682f1c20510aeec63bdd88dda",
+    "semantic_hash": ""
   },
   "scripts/graph-update.ts": {
     "mtime": 1790675883.813002,
@@ -652,5 +652,41 @@
     "seen": 1790676078.5152357,
     "ast_hash": "bf520542cd7339d7c8fbef55dbcd12d3",
     "semantic_hash": "bf520542cd7339d7c8fbef55dbcd12d3"
+  },
+  "scripts/build-favicon.ts": {
+    "mtime": 1790676670.1278176,
+    "seen": 1790676702.5458748,
+    "ast_hash": "7dda2b264baeeb9eda80085f3955e2fc",
+    "semantic_hash": ""
+  },
+  "scripts/lib/favicon.ts": {
+    "mtime": 1790676670.1278176,
+    "seen": 1790676702.5458915,
+    "ast_hash": "5a9bddde275cc1deeec1c0af944d554f",
+    "semantic_hash": ""
+  },
+  "tests/unit/ci/favicon.test.ts": {
+    "mtime": 1790676670.1278176,
+    "seen": 1790676702.5459287,
+    "ast_hash": "ae4bce473f993d9b40aff8d2e48ac490",
+    "semantic_hash": ""
+  },
+  "public/apple-touch-icon.png": {
+    "mtime": 1790676670.1239433,
+    "seen": 1790676702.545964,
+    "ast_hash": "8a13bcd486431b435c5f943ffb783fd8",
+    "semantic_hash": ""
+  },
+  "public/favicon-48.png": {
+    "mtime": 1790676670.1278176,
+    "seen": 1790676702.5459647,
+    "ast_hash": "8abe0f9ed19a96c8a2d0e97fb4dc059f",
+    "semantic_hash": ""
+  },
+  "public/favicon.svg": {
+    "mtime": 1790676670.1278176,
+    "seen": 1790676702.5459657,
+    "ast_hash": "439998bb926dc96ce99f08efb4332187",
+    "semantic_hash": ""
   }
 }
