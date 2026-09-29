@@ -453,7 +453,7 @@
   transition: opacity 0.4s ease;
 }
 
-/* Tapping a bar: how many letters it hides, for a moment (see Blank in WordToken.tsx). */
+/* Tapping or focusing a bar: how many letters it hides, for a moment (see Blank in WordToken.tsx). */
 .token-peek {
   position: absolute;
   bottom: calc(100% + 4px);

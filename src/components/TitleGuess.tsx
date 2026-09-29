@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useRovingBlanks } from "../hooks/useRovingBlanks";
 import type { SlotToken } from "../game/slots";
 import { NextSongCountdown } from "./NextSongCountdown";
 import { TokenRun } from "./TokenRun";
@@ -28,10 +29,12 @@ export const TitleGuess = memo(function TitleGuess({
   revealAllLyrics,
   onToggleRevealAllLyrics,
 }: TitleGuessProps) {
+  // One tab stop into the title's bars, like the lyrics' (see useRovingBlanks).
+  const roving = useRovingBlanks<HTMLHeadingElement>();
   return (
     <div className="lyrix-title-block">
       <p className="lyrix-eyebrow">Titre de chanson à deviner</p>
-      <h1 className="lyrix-title-line">
+      <h1 className="lyrix-title-line" ref={roving.ref} onFocus={roving.onFocus} onKeyDown={roving.onKeyDown}>
         <TokenRun tokens={titleTokens} lastFoundKey={lastFoundKey} />
       </h1>
 

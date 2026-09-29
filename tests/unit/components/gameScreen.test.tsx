@@ -362,14 +362,109 @@ describe("tapping a hidden word", () => {
     await mountGame();
     vi.useFakeTimers();
 
-    const blank = screen.getAllByText("_______", { selector: ".token-blank" })[0] as HTMLElement;
+    const blank = lyricsBlanks()[0] as HTMLElement;
     fireEvent.click(blank);
 
-    expect(blank.textContent).toContain("7 lettres");
+    expect(peekOf(blank)).toBe("2 lettres");
     expect(wordTokenRenders.count).toBe(0);
 
     act(() => vi.advanceTimersByTime(PEEK_SHOW_MS + PEEK_FADE_MS));
-    expect(blank.textContent).toBe("_______");
+    expect(peekOf(blank)).toBeNull();
+  });
+});
+
+/** The lyrics' bars, in reading order. */
+function lyricsBlanks(): HTMLElement[] {
+  const lyrics = screen.getByRole("group", { name: "Paroles" });
+  return Array.from(lyrics.querySelectorAll<HTMLElement>(".token-blank"));
+}
+
+/** The "N lettres" tip currently shown on a bar, if any. */
+function peekOf(blank: HTMLElement): string | null {
+  return blank.querySelector(".token-peek")?.textContent ?? null;
+}
+
+// GitHub issue #33: the letter count, without a mouse or a touchscreen.
+describe("a hidden word, without a mouse", () => {
+  it("is announced by screen readers as its letter count, not as underscores", async () => {
+    await mountGame();
+
+    const blank = lyricsBlanks()[0] as HTMLElement;
+    const face = blank.querySelector(".token-blank-face") as HTMLElement;
+    expect(blank.querySelector(".sr-only")?.textContent).toBe("mot caché, 2 lettres");
+    expect(face.getAttribute("aria-hidden")).toBe("true");
+    expect(face.textContent).toBe("__");
+    expect(screen.getAllByText("mot caché, 7 lettres").length).toBeGreaterThan(0);
+  });
+
+  it("gives the lyrics a single tab stop, and the title its own", async () => {
+    await mountGame();
+
+    const tabStops = Array.from(document.querySelectorAll<HTMLElement>(".token-blank")).filter(
+      (blank) => blank.tabIndex === 0
+    );
+    expect(tabStops).toEqual([document.querySelector(".lyrix-title-line .token-blank"), lyricsBlanks()[0]]);
+    expect(lyricsBlanks().slice(1).every((blank) => blank.tabIndex === -1)).toBe(true);
+  });
+
+  it("moves between bars with the arrow keys, showing each one's tip, re-rendering no lyrics token", async () => {
+    await mountGame();
+    vi.useFakeTimers();
+    const [first, second] = lyricsBlanks() as [HTMLElement, HTMLElement];
+
+    act(() => first.focus());
+    expect(peekOf(first)).toBe("2 lettres");
+
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(second);
+    expect(peekOf(second)).toBe("4 lettres");
+    // The tab stop follows, so leaving and coming back with Tab returns to this bar.
+    expect(second.tabIndex).toBe(0);
+    expect(first.tabIndex).toBe(-1);
+
+    fireEvent.keyDown(second, { key: "End" });
+    const blanks = lyricsBlanks();
+    expect(document.activeElement).toBe(blanks[blanks.length - 1]);
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Home" });
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(first, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(first);
+
+    expect(wordTokenRenders.count).toBe(0);
+  });
+
+  it("keeps the tip's timing identical to a tap, and shows it again on Enter", async () => {
+    await mountGame();
+    vi.useFakeTimers();
+    const blank = lyricsBlanks()[0] as HTMLElement;
+
+    act(() => blank.focus());
+    act(() => vi.advanceTimersByTime(PEEK_SHOW_MS));
+    expect(blank.querySelector(".token-peek.is-out")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(PEEK_FADE_MS));
+    expect(peekOf(blank)).toBeNull();
+
+    fireEvent.keyDown(blank, { key: "Enter" });
+    expect(peekOf(blank)).toBe("2 lettres");
+    expect(wordTokenRenders.count).toBe(0);
+  });
+
+  it("keeps a single tab stop once the bar holding it is found", async () => {
+    submitGuess.mockResolvedValue({
+      ...round("state-1"),
+      sections: [{ label: "Couplet 1", lines: [{ tokens: [...tokens("Le", true), ...tokens(" vent referme").slice(1)] }] }],
+      found: true,
+      key: "le",
+      score: 100,
+      near: [],
+    });
+    const input = await mountGame();
+
+    fireEvent.change(input, { target: { value: "le" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(screen.getByText("Le", { selector: ".token-word-found" })).toBeTruthy());
+
+    expect(lyricsBlanks().map((blank) => blank.tabIndex)).toEqual([0, -1]);
   });
 });
 
