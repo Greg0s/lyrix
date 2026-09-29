@@ -1,4 +1,6 @@
 import { msUntilNextSong } from "./daily";
+import { parseNearSlots } from "./slots";
+import type { NearSlot, RoundView } from "./types";
 
 /**
  * Rooms ("salons", issue #29): a group of players looking for the day's song
@@ -7,7 +9,10 @@ import { msUntilNextSong } from "./daily";
  * the player types and draws the members. Both halves of the contract live
  * here, so they can only disagree by editing one file.
  *
- * Nothing in a room touches the lyrics: sharing a round's progress is #30.
+ * A room also plays the day's round together (issue #30): its object holds
+ * the room's guesses, found words included, and builds the one masked view
+ * every member sees. The found words live there and only there - a member
+ * sends a word, never a list of what they think is found.
  */
 
 /** No 0/O, 1/I/L: a code read aloud or copied off a screen can't be misread. */
@@ -71,6 +76,46 @@ export interface RoomMessage {
   type: "room";
   room: RoomSnapshot;
   event?: RoomEvent;
+}
+
+/** A guess made in a room: who made it, and what it gave. Everyone in the room sees it. */
+export interface RoomGuess {
+  /** Normalized, as the round compares words: one guess per key, per room. */
+  key: string;
+  /** As its player typed it. */
+  display: string;
+  found: boolean;
+  /** Semantic proximity, 0-100; null when unscored (see GuessResult.score). */
+  score: number | null;
+  /** The hidden words it is close to, by position (see GuessResult.near). */
+  near: NearSlot[];
+  /** Kept with the guess, so its colour and name outlive the player leaving. */
+  by: RoomMember;
+}
+
+/**
+ * The room's round as it stands: the masked view everyone sees and every
+ * guess made so far, newest first. A room's guesses only ever grow, so how
+ * many there are orders two of these that arrived out of order.
+ */
+export interface RoomRound {
+  round: RoundView;
+  guesses: RoomGuess[];
+}
+
+/** Sent to a member on (re)connection, and to everyone after each new guess. */
+export interface RoomRoundMessage extends RoomRound {
+  type: "round";
+  /** The key of the guess this message announces; absent on a (re)connection. */
+  latest?: string;
+}
+
+/** What POST /api/rooms/:code/guess answers. */
+export interface RoomGuessResult extends RoomRound {
+  /** The guess the word made, or the one made before when it was already proposed. */
+  guess: RoomGuess;
+  /** True when someone in the room had already proposed the word: nothing changed. */
+  duplicate: boolean;
 }
 
 /** What the player typed, as a code: whitespace dropped, uppercased, capped at the code's length. */
@@ -191,4 +236,58 @@ export function parseRoomMessage(value: unknown): RoomMessage | null {
   const member = parseRoomMember(value.event.member);
   if ((kind !== "joined" && kind !== "left") || !member) return null;
   return { type: "room", room, event: { kind, member } };
+}
+
+/** A light structural check: a RoundView is always built by the Worker, this only guards against garbage. */
+export function isRoundView(value: unknown): value is RoundView {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.songId === "string" &&
+    typeof value.state === "string" &&
+    typeof value.victory === "boolean" &&
+    isRecord(value.title) &&
+    Array.isArray(value.title.tokens) &&
+    Array.isArray(value.sections)
+  );
+}
+
+export function parseRoomGuess(value: unknown): RoomGuess | null {
+  if (!isRecord(value)) return null;
+  const { key, display, found, score } = value;
+  if (typeof key !== "string" || typeof display !== "string" || typeof found !== "boolean") return null;
+  const by = parseRoomMember(value.by);
+  if (!by) return null;
+  return {
+    key,
+    display,
+    found,
+    score: typeof score === "number" && Number.isFinite(score) ? score : null,
+    near: parseNearSlots(value.near),
+    by,
+  };
+}
+
+function parseRoomRound(value: Record<string, unknown>): RoomRound | null {
+  if (!isRoundView(value.round) || !Array.isArray(value.guesses)) return null;
+  const guesses: RoomGuess[] = [];
+  for (const entry of value.guesses) {
+    const guess = parseRoomGuess(entry);
+    if (!guess) return null;
+    guesses.push(guess);
+  }
+  return { round: value.round, guesses };
+}
+
+export function parseRoomRoundMessage(value: unknown): RoomRoundMessage | null {
+  if (!isRecord(value) || value.type !== "round") return null;
+  const parsed = parseRoomRound(value);
+  if (!parsed) return null;
+  return typeof value.latest === "string" ? { type: "round", ...parsed, latest: value.latest } : { type: "round", ...parsed };
+}
+
+export function parseRoomGuessResult(value: unknown): RoomGuessResult | null {
+  if (!isRecord(value) || typeof value.duplicate !== "boolean") return null;
+  const parsed = parseRoomRound(value);
+  const guess = parseRoomGuess(value.guess);
+  return parsed && guess ? { ...parsed, guess, duplicate: value.duplicate } : null;
 }
