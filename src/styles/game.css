@@ -1,89 +1,419 @@
-.lyrix-page {
+/*
+ * Lyrix v3 layout. One breakpoint does most of the work: from 880px up, the
+ * game column and a 300px side column sit side by side; below, they stack,
+ * with the side column (progress, words) first. Every width switch is a media
+ * query, so no JavaScript reads the viewport.
+ */
+
+.lyrix-app {
   min-height: 100vh;
   background: var(--color-page-bg);
   font-family: var(--font-ui);
   color: var(--color-ink);
-  padding: clamp(28px, 6vw, 60px) clamp(16px, 4vw, 32px) clamp(56px, 10vw, 96px);
   display: flex;
   flex-direction: column;
+}
+
+/* ---------- Top bar ---------- */
+
+.lyrix-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--color-page-bg-glass);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--color-border);
+  animation: lyrix-fade-in 0.4s ease both;
+}
+
+.lyrix-topbar-inner {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 14px clamp(16px, 4vw, 32px);
+  display: flex;
   align-items: center;
-  gap: clamp(30px, 5vw, 46px);
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.lyrix-header {
-  text-align: center;
-  max-width: 520px;
+.lyrix-brand,
+.lyrix-topbar-actions {
+  display: flex;
+  align-items: center;
 }
 
-.lyrix-header h1 {
-  margin: 0;
+.lyrix-brand {
+  gap: 10px;
+}
+
+.lyrix-topbar-actions {
+  gap: 8px;
+}
+
+.lyrix-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The mark: three lines of "lyrics", 36px square, some words masked as accent bars. */
+.lyrix-logo-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--color-ink);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3.6px;
+  padding: 0 7.2px;
+  flex-shrink: 0;
+}
+
+.lyrix-logo-row {
+  display: flex;
+  gap: 2.4px;
+}
+
+.lyrix-logo-row > span {
+  height: 4.2px;
+}
+
+.lyrix-logo-row .is-word {
+  border-radius: 2.1px;
+  background: var(--color-on-ink);
+}
+
+.lyrix-logo-row .is-bar {
+  border-radius: 1px;
+  background: var(--accent-solid);
+}
+
+.lyrix-logo-row .is-short {
+  width: 6.6px;
+}
+
+.lyrix-logo-row .is-medium {
+  width: 12px;
+}
+
+.lyrix-logo-row .is-long {
+  width: 14.4px;
+}
+
+.lyrix-logo-row .is-fill {
+  flex: 1;
+}
+
+.lyrix-wordmark {
   font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 28px;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.lyrix-wordmark-i {
+  position: relative;
+  display: inline-block;
+}
+
+.lyrix-wordmark-dot {
+  position: absolute;
+  left: 50%;
+  top: 0.04em;
+  width: 0.36em;
+  height: 0.14em;
+  border-radius: 0.03em;
+  background: var(--accent-solid);
+  transform: translateX(-50%);
+}
+
+.lyrix-slogan {
+  margin-left: 6px;
+  padding-left: 14px;
+  border-left: 1px solid var(--color-border-strong);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: oklch(42% 0.02 55);
+  white-space: nowrap;
+  line-height: 24px;
+}
+
+.lyrix-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
   font-weight: 600;
-  font-size: clamp(2.4rem, 7vw, 3.6rem);
-  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.12s ease;
 }
 
-.lyrix-header p {
-  margin: 8px 0 0;
-  font-size: clamp(1rem, 2.2vw, 1.15rem);
-  color: var(--color-ink-muted);
+.lyrix-pill:active {
+  transform: scale(0.96);
 }
 
-.lyrix-grid {
-  display: grid;
-  grid-template-columns: 230px minmax(0, 1fr) 230px;
-  gap: 28px;
+.lyrix-pill.is-dark {
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  border: none;
+  padding: 9px 16px 9px 13px;
+}
+
+.lyrix-pill.is-dark:hover {
+  background: var(--color-ink-raised);
+}
+
+.lyrix-pill.is-outline {
+  background: transparent;
+  color: var(--color-ink);
+  border: 1px solid var(--color-border-strong);
+  padding: 8px 14px 8px 10px;
+}
+
+.lyrix-pill.is-outline:hover {
+  background: var(--color-surface-hover);
+}
+
+.lyrix-help-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+@media (max-width: 639px) {
+  .lyrix-slogan {
+    display: none;
+  }
+}
+
+@media (max-width: 879px) {
+  .lyrix-pill-label.is-help {
+    display: none;
+  }
+}
+
+@media (max-width: 459px) {
+  .lyrix-pill-label.is-multiplayer {
+    display: none;
+  }
+}
+
+/* ---------- Page layout ---------- */
+
+.lyrix-main {
   width: 100%;
-  max-width: 1180px;
-  align-items: start;
-}
-
-.lyrix-grid.is-mobile {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 20px 16px 32px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  max-width: 640px;
+  gap: 20px;
 }
 
-.lyrix-center-col {
-  order: 2;
+.lyrix-game-col {
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: 20px;
   min-width: 0;
 }
 
-.is-mobile .lyrix-center-col {
-  order: 0;
-  gap: 22px;
+.lyrix-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  order: -1;
 }
 
-.lyrix-title-label {
-  margin: 0 0 6px;
-  font-size: 0.78rem;
+@media (min-width: 880px) {
+  .lyrix-main {
+    max-width: 1160px;
+    padding: 40px 32px 48px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 32px;
+    align-items: start;
+  }
+
+  .lyrix-aside {
+    order: 0;
+    position: sticky;
+    top: 96px;
+  }
+}
+
+.lyrix-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: lyrix-rise 0.55s var(--ease-out) 0.12s both;
+}
+
+.lyrix-card-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.lyrix-message {
+  align-items: flex-start;
+}
+
+.lyrix-message p {
+  margin: 0;
+}
+
+.lyrix-eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   color: var(--color-ink-muted);
+}
+
+/* ---------- The song card ---------- */
+
+.lyrix-song {
+  border-radius: 24px;
+  padding: clamp(24px, 4.5vw, 48px);
+  gap: 0;
+  box-shadow: var(--shadow-card);
+  animation-delay: 0.05s;
+}
+
+.lyrix-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: clamp(24px, 4vw, 36px);
+  border-bottom: 1px solid var(--color-divider);
 }
 
 .lyrix-title-line {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(1.5rem, 4vw, 2.1rem);
-  font-weight: 600;
-  line-height: 1.3;
+  font-size: clamp(2rem, 5.2vw, 3.2rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.45;
+  text-wrap: balance;
 }
 
-.token-word-hidden {
-  color: var(--color-ink-faint);
-  letter-spacing: 0.03em;
+.lyrix-lyrics {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(24px, 4vw, 36px);
+  padding-top: clamp(24px, 4vw, 36px);
 }
 
-/* Dev-only (DEV_REVEAL_LYRICS, never on in production): the real word underneath a still-hidden blank, faint on purpose. */
-.token-word-devhint {
+.lyrix-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 1080px) {
+  .lyrix-section {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+}
+
+.lyrix-section-label {
+  margin: 0;
+  padding-top: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-ink-muted);
+}
+
+.lyrix-section-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lyrix-lyric-line {
+  margin: 0;
+  font-size: clamp(1.06rem, 2.4vw, 1.28rem);
+  line-height: 1.85;
+}
+
+/* ---------- Words ---------- */
+
+/* A word and the punctuation glued to it never wrap apart (see TokenRun.tsx). */
+.token-nowrap {
+  white-space: nowrap;
+}
+
+/* Inline, not inline-block: a bar is exactly as tall as the text, whatever the line height. */
+.token-word-found,
+.token-blank,
+.token-word-revealed {
+  position: relative;
+  border-radius: 0.2em;
+  padding: 0 0.06em;
+  transition:
+    background 0.45s ease,
+    color 0.45s ease,
+    box-shadow 0.45s ease;
+}
+
+.token-word-found {
   color: var(--color-ink);
-  opacity: 0.32;
+}
+
+/* Every occurrence of the word the latest guess found: highlighted, underlined, and popped in. */
+.token-word-found.is-last {
+  /* Inline-block so it can scale; the tighter line height keeps its highlight the height of an inline one. */
+  display: inline-block;
+  line-height: 1.2;
+  background: var(--accent-tint);
+  box-shadow: inset 0 -0.12em 0 var(--accent-solid);
+  animation: lyrix-reveal 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+/*
+ * A still-hidden word is a bar: its masked text keeps the word's width but is
+ * drawn transparent. Accent bars in the title, softer ones in the lyrics.
+ */
+.token-blank {
+  color: transparent;
+  background: var(--accent-soft);
+  user-select: none;
+  cursor: pointer;
+}
+
+.lyrix-title-line .token-blank {
+  background: var(--accent-solid);
+}
+
+/* Dev-only (DEV_REVEAL_LYRICS, never on in production): the real word, faint, on its bar. */
+.token-blank.token-word-devhint {
+  color: oklch(22% 0.02 50 / 0.4);
 }
 
 /* Shown by the post-victory "reveal all lyrics" checkbox - not something the player found, styled distinctly from .token-word-found. */
@@ -92,151 +422,215 @@
   font-style: italic;
 }
 
-.token-word-found {
-  color: var(--color-ink);
-  background: var(--accent-tint);
-  border-radius: 4px;
-  padding: 1px 3px;
-  font-weight: 600;
-  transition: background 0.35s ease;
-}
-
 /*
- * A hidden word holding the closest guess so far. The guess and the word's own
- * blank share one grid cell, with the blank kept invisible rather than removed,
- * so the slot is never narrower than the word it hides and the length hint
- * survives. Dashed, unlike a found word, because it is only a guess.
+ * A hidden word holding the closest guess so far: the bar turns accent, and
+ * the guess is written over it in white, the more opaque the closer it is
+ * (--heat, 0 to 1, set inline from the score by proximityHeat in
+ * src/game/similarity.ts). The word's own masked text stays underneath,
+ * transparent, so the bar keeps the width of the word it hides.
  */
-.token-word-near {
-  display: inline-grid;
-  line-height: 1.2;
-  padding: 0 3px;
-  border: 1px dashed;
-  border-radius: 4px;
-  font-weight: 500;
-}
-
-.token-word-near > * {
-  grid-area: 1 / 1;
+.token-blank.token-word-near {
+  background: var(--accent-solid);
 }
 
 .token-near-blank {
-  visibility: hidden;
-  letter-spacing: 0.03em;
+  color: transparent;
 }
 
 .token-near-guess {
-  justify-self: center;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: calc(0.45 + 0.55 * var(--heat, 0.5));
+  animation: lyrix-hint 0.45s var(--ease-out);
+  transition: opacity 0.4s ease;
 }
 
-/* One colour per tier; where the browser can mix colours, the ramp further down shades every score between them. */
-.token-word-near.tier-hot {
-  background: var(--proximity-hot-bg);
-  border-color: var(--proximity-hot-border);
-  color: var(--proximity-hot-ink);
+/* Tapping a bar: how many letters it hides, for a moment (see Blank in WordToken.tsx). */
+.token-peek {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  z-index: 5;
+  pointer-events: none;
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+  font-style: normal;
+  letter-spacing: 0;
+  line-height: 1;
+  padding: 6px 9px;
+  border-radius: 8px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-tip);
+  animation: lyrix-tip-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.3) forwards;
 }
 
-.token-word-near.tier-warm {
-  background: var(--proximity-warm-bg);
-  border-color: var(--proximity-warm-border);
-  color: var(--proximity-warm-ink);
+.token-peek.is-out {
+  animation: lyrix-tip-out 0.2s ease forwards;
 }
 
-.token-word-near.tier-cold {
-  background: var(--proximity-cold-bg);
-  border-color: var(--proximity-cold-border);
-  color: var(--proximity-cold-ink);
-}
+/* ---------- Victory ---------- */
 
 .lyrix-victory {
-  margin-top: 16px;
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding: 18px 20px;
-  background: var(--color-card-bg);
-  border: 1px solid var(--color-card-border);
-  border-radius: 14px;
-  animation: lyrix-rise 0.5s ease;
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  border-radius: 16px;
+  animation: lyrix-panel-in 0.5s var(--ease-out);
+}
+
+.lyrix-victory-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lyrix-victory-text p {
+  margin: 0;
 }
 
 .lyrix-victory-eyebrow {
-  margin: 0 0 2px;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--color-ink-muted);
+  letter-spacing: 0.1em;
+  color: var(--color-on-ink-accent);
 }
 
-.lyrix-victory-title {
-  margin: 2px 0 4px;
-  font-family: var(--font-display);
-  font-size: clamp(1.3rem, 3.5vw, 1.7rem);
-  font-weight: 600;
+.lyrix-victory-song {
+  font-size: 1rem;
+  color: oklch(86% 0.012 70);
 }
 
-.lyrix-victory-artist {
-  margin: 0 0 10px;
-  font-size: 0.95rem;
-  color: var(--color-ink-muted);
+.lyrix-victory-note {
+  font-size: 0.88rem;
+  color: var(--color-on-ink-muted);
+}
+
+.lyrix-countdown {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--color-on-ink);
+}
+
+.lyrix-link-button {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-on-ink-accent);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .lyrix-reveal-all {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 0 10px;
-  font-size: 0.9rem;
-  color: var(--color-ink-muted);
-  cursor: pointer;
-}
-
-.lyrix-victory-note {
-  margin: 0;
-  font-size: 0.9rem;
-  font-style: italic;
-  color: var(--color-ink-muted);
-}
-
-.lyrix-button {
-  background: var(--color-ink);
-  color: var(--color-page-bg);
-  border: none;
-  border-radius: 10px;
-  padding: 10px 18px;
+  gap: 8px;
+  background: var(--color-ink-raised);
+  border-radius: 12px;
+  padding: 10px 14px;
   font-size: 0.92rem;
   font-weight: 600;
   cursor: pointer;
-  font-family: var(--font-ui);
+}
+
+.lyrix-reveal-all input {
+  accent-color: var(--accent-solid);
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+/* ---------- Guess dock ---------- */
+
+.lyrix-dock {
+  position: sticky;
+  bottom: clamp(12px, 3vw, 24px);
+  z-index: 10;
+  animation: lyrix-rise 0.55s var(--ease-out) 0.15s both;
 }
 
 .lyrix-form {
   display: flex;
-  gap: 10px;
-  width: 100%;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--color-ink);
+  border-radius: 20px;
+  padding: 10px;
+  box-shadow: var(--shadow-dock);
+}
+
+.lyrix-form-row {
+  display: flex;
+  gap: 8px;
+}
+
+.lyrix-form-row.is-shake-a {
+  animation: lyrix-shake-a 0.38s ease;
+}
+
+.lyrix-form-row.is-shake-b {
+  animation: lyrix-shake-b 0.38s ease;
 }
 
 .lyrix-input {
   flex: 1;
   min-width: 0;
   font-family: var(--font-ui);
-  font-size: clamp(1rem, 2.3vw, 1.15rem);
-  padding: 14px 16px;
+  font-size: clamp(1rem, 2.3vw, 1.12rem);
+  padding: 13px 16px;
   border-radius: 12px;
-  border: 1px solid var(--color-input-border);
-  background: var(--color-input-bg);
+  border: none;
+  background: var(--color-page-bg);
   color: var(--color-ink);
+  outline: none;
+  transition: box-shadow 0.2s ease;
+}
+
+.lyrix-input:focus {
+  box-shadow: 0 0 0 3px oklch(68% 0.19 42 / 0.55);
 }
 
 .lyrix-submit {
   flex-shrink: 0;
-  background: var(--color-ink);
-  color: var(--color-page-bg);
+  background: var(--accent-solid);
+  color: var(--color-ink);
   border: none;
   border-radius: 12px;
-  padding: 14px 22px;
-  font-size: clamp(0.95rem, 2.2vw, 1.1rem);
-  font-weight: 600;
+  padding: 13px 22px;
+  font-size: 1rem;
+  font-weight: 700;
   cursor: pointer;
   font-family: var(--font-ui);
+  transition:
+    background 0.15s ease,
+    transform 0.12s ease;
+}
+
+.lyrix-submit:hover {
+  background: var(--accent-hover);
+}
+
+.lyrix-submit:active {
+  transform: scale(0.96);
 }
 
 .lyrix-input:disabled,
@@ -247,159 +641,242 @@
 
 .lyrix-feedback {
   margin: 0;
+  padding: 0 8px 4px;
   font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-on-ink-muted);
+  animation: lyrix-feed 0.3s ease;
 }
 
 .lyrix-feedback.is-found {
-  font-weight: 600;
-  color: var(--accent-deep);
+  font-weight: 700;
+  color: var(--color-on-ink-accent);
 }
 
-.lyrix-feedback.is-missed {
-  font-weight: 400;
+.lyrix-feedback.is-error {
+  font-weight: 600;
+  color: oklch(78% 0.12 30);
+}
+
+/* ---------- Buttons ---------- */
+
+.lyrix-button {
+  align-self: flex-start;
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  border: none;
+  border-radius: 12px;
+  padding: 11px 20px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  transition:
+    background 0.15s ease,
+    transform 0.12s ease;
+}
+
+.lyrix-button:hover {
+  background: var(--color-ink-raised);
+}
+
+.lyrix-button:active {
+  transform: scale(0.97);
+}
+
+.lyrix-button.is-accent {
+  background: var(--accent-solid);
+  color: var(--color-ink);
+}
+
+.lyrix-button.is-accent:hover {
+  background: var(--accent-hover);
+}
+
+.lyrix-button.is-block {
+  align-self: stretch;
+  padding: 13px 20px;
+  font-size: 1rem;
+}
+
+.lyrix-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ---------- Side column ---------- */
+
+.lyrix-progress {
+  animation-delay: 0.12s;
+}
+
+.lyrix-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lyrix-progress-value {
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.lyrix-progress-track {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--color-track);
+  overflow: hidden;
+}
+
+.lyrix-progress-fill {
+  height: 100%;
+  background: var(--accent-solid);
+  border-radius: 5px;
+  transition: width 0.6s var(--ease-out);
+}
+
+.lyrix-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.lyrix-stat {
+  margin: 0;
+  background: var(--color-page-bg);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lyrix-stat-value {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.lyrix-stat-label {
+  font-size: 0.8rem;
   color: var(--color-ink-muted);
 }
 
-.lyrix-lyrics {
+.lyrix-words {
+  animation-delay: 0.18s;
+}
+
+/* The toggle only does anything below 880px; above, the card is always open (see TriedWords.tsx). */
+.lyrix-words-heading {
+  margin: 0;
+}
+
+.lyrix-words-toggle {
   display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lyrix-words-count {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--color-ink-muted);
+}
+
+.lyrix-chevron {
+  color: var(--color-ink-muted);
+  transition: transform 0.2s ease;
+}
+
+.lyrix-words.is-open .lyrix-chevron {
+  transform: rotate(180deg);
+}
+
+.lyrix-words-body {
+  display: none;
   flex-direction: column;
   gap: 14px;
 }
 
-.lyrix-section-label {
-  margin: 10px 0 0;
-  font-size: 0.74rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-ink-muted);
-}
-
-.lyrix-lyric-line {
-  margin: 0;
-  font-size: clamp(1.05rem, 2.6vw, 1.25rem);
-  line-height: 1.75;
-}
-
-.lyrix-side-card {
-  background: var(--color-card-bg);
-  border: 1px solid var(--color-card-border);
-  border-radius: 16px;
-  padding: 18px 20px;
-  box-shadow: var(--card-shadow);
-  position: relative;
-}
-
-.lyrix-side-card.tilt-left {
-  order: 1;
-  transform: rotate(-2deg);
-  margin-top: 36px;
-}
-
-.lyrix-side-card.tilt-right {
-  order: 3;
-  transform: rotate(2deg);
-  margin-top: 64px;
-}
-
-.is-mobile .lyrix-side-card.tilt-left {
-  order: 1;
-  transform: none;
-  margin-top: 0;
-}
-
-.is-mobile .lyrix-side-card.tilt-right {
-  order: 2;
-  transform: none;
-  margin-top: 0;
-}
-
-.lyrix-pin-dot {
-  position: absolute;
-  top: -6px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: var(--accent-solid);
-  box-shadow: 0 1px 3px var(--color-pin-shadow);
-}
-
-.lyrix-card-header {
+.lyrix-words.is-open .lyrix-words-body {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  cursor: default;
-  background: none;
-  border: none;
-  width: 100%;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  text-align: left;
+  animation: lyrix-feed 0.25s ease;
 }
 
-.is-mobile .lyrix-card-header {
-  cursor: pointer;
-}
+@media (min-width: 880px) {
+  .lyrix-words-toggle {
+    cursor: default;
+    pointer-events: none;
+  }
 
-.lyrix-card-header h2 {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
+  .lyrix-words-count,
+  .lyrix-chevron {
+    display: none;
+  }
 
-.lyrix-chevron {
-  display: none;
-  transition: transform 0.2s ease;
-  color: var(--color-ink-muted);
-  font-size: 0.9rem;
-}
-
-.is-mobile .lyrix-chevron {
-  display: inline-block;
-}
-
-.lyrix-chevron.is-open {
-  transform: rotate(180deg);
-}
-
-.lyrix-stats {
-  margin: 8px 0 0;
-  font-size: 0.9rem;
-  color: var(--color-ink-muted);
+  .lyrix-words-body,
+  .lyrix-words.is-open .lyrix-words-body {
+    display: flex;
+    animation: none;
+  }
 }
 
 .lyrix-tried-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
-  margin-top: 14px;
-  max-height: 220px;
+  gap: 6px;
+  max-height: 260px;
   overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-solid) transparent;
 }
 
 .lyrix-chip {
   display: inline-flex;
-  padding: 4px 12px;
-  border-radius: 20px;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
   font-size: 0.88rem;
+  transition: background 0.3s ease;
+}
+
+.lyrix-chip.is-fresh-a {
+  animation: lyrix-pop-a 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
+
+.lyrix-chip.is-fresh-b {
+  animation: lyrix-pop-b 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3);
 }
 
 .lyrix-chip.is-found {
   background: var(--accent-tint);
   color: var(--color-ink);
   font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--accent-soft);
 }
 
 .lyrix-chip.is-missed {
   background: transparent;
-  border: 1px solid var(--color-card-border);
   color: var(--color-ink-muted);
+  box-shadow: inset 0 0 0 1px var(--color-border-input);
   text-decoration: line-through;
 }
 
@@ -415,23 +892,26 @@
   align-items: baseline;
   gap: 7px;
   font-weight: 500;
+  border: 1px solid;
+  box-shadow: none;
+  padding: 4px 11px;
 }
 
 .lyrix-chip.tier-hot {
   background: var(--proximity-hot-bg);
-  border: 1px solid var(--proximity-hot-border);
+  border-color: var(--proximity-hot-border);
   color: var(--proximity-hot-ink);
 }
 
 .lyrix-chip.tier-warm {
   background: var(--proximity-warm-bg);
-  border: 1px solid var(--proximity-warm-border);
+  border-color: var(--proximity-warm-border);
   color: var(--proximity-warm-ink);
 }
 
 .lyrix-chip.tier-cold {
   background: var(--proximity-cold-bg);
-  border: 1px solid var(--proximity-cold-border);
+  border-color: var(--proximity-cold-border);
   color: var(--proximity-cold-ink);
 }
 
@@ -443,9 +923,6 @@
  * nothing rather than to the tier colours above.
  */
 @supports (color: color-mix(in oklch, red, blue)) {
-  .token-word-near.tier-hot,
-  .token-word-near.tier-warm,
-  .token-word-near.tier-cold,
   .lyrix-chip.tier-hot,
   .lyrix-chip.tier-warm,
   .lyrix-chip.tier-cold {
@@ -477,18 +954,14 @@
 }
 
 .lyrix-legend {
-  margin: 14px 0 0;
+  margin: 0;
   font-size: 0.8rem;
   line-height: 1.45;
-  color: var(--color-ink-faint);
-}
-
-.lyrix-legend + .lyrix-tried-list {
-  margin-top: 8px;
+  color: var(--color-ink-muted);
 }
 
 .lyrix-credit {
-  margin: 12px 0 0;
+  margin: 0;
   font-size: 0.72rem;
   line-height: 1.4;
   color: var(--color-ink-faint);
@@ -500,14 +973,335 @@
 
 .lyrix-empty {
   margin: 0;
-  font-size: 0.85rem;
-  color: var(--color-ink-faint);
-  font-style: italic;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: oklch(50% 0.02 55);
 }
 
-.lyrix-explain-body {
-  margin: 14px 0 0;
-  font-size: 0.92rem;
-  line-height: 1.6;
+.lyrix-promo {
+  text-align: left;
+  background: transparent;
+  border: 1.5px dashed var(--color-border-dashed);
+  border-radius: 20px;
+  padding: 18px 20px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  color: var(--color-ink);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.12s ease;
+  animation: lyrix-rise 0.55s var(--ease-out) 0.24s both;
+}
+
+.lyrix-promo:hover {
+  background: oklch(94% 0.015 78);
+  border-color: var(--accent-solid);
+}
+
+.lyrix-promo:active {
+  transform: scale(0.98);
+}
+
+.lyrix-promo-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.lyrix-promo-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lyrix-promo-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.lyrix-promo-text {
+  font-size: 0.88rem;
+  line-height: 1.5;
   color: var(--color-ink-muted);
+}
+
+/* ---------- Dialogs ---------- */
+
+.lyrix-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--color-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: lyrix-fade-in 0.22s ease;
+}
+
+.lyrix-modal-backdrop.is-closing {
+  animation: lyrix-fade-out 0.18s ease forwards;
+}
+
+.lyrix-modal {
+  width: 100%;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-radius: 24px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: var(--shadow-modal);
+  animation: lyrix-panel-in 0.32s var(--ease-out);
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-solid) transparent;
+}
+
+.lyrix-modal:focus {
+  outline: none;
+}
+
+.lyrix-modal.is-narrow {
+  max-width: 460px;
+}
+
+.lyrix-modal.is-wide {
+  max-width: 500px;
+  gap: 20px;
+}
+
+.is-closing .lyrix-modal {
+  animation: lyrix-panel-out 0.18s ease forwards;
+}
+
+.lyrix-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lyrix-modal-header h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.lyrix-modal-close {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.2s ease;
+}
+
+.lyrix-modal-close:hover {
+  background: oklch(90% 0.015 78);
+  transform: rotate(90deg);
+}
+
+.lyrix-help-lead,
+.lyrix-help-text {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.lyrix-help-lead {
+  font-weight: 600;
+}
+
+.lyrix-help-text {
+  color: var(--color-ink-soft);
+}
+
+.lyrix-help-example {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--color-page-bg);
+  border-radius: 14px;
+}
+
+.lyrix-help-example p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--color-ink-soft);
+}
+
+.lyrix-help-sample {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 800;
+  padding: 0 0.18em 0 0.34em;
+  border-radius: 0.2em;
+  background: var(--accent-solid);
+  color: transparent;
+}
+
+.lyrix-help-sample-guess {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0.85;
+  font-weight: 600;
+}
+
+/* Multiplayer (placeholder, see MultiplayerModal.tsx) */
+
+.lyrix-mp {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: lyrix-fade-in 0.25s ease;
+}
+
+.lyrix-soon {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--accent-tint);
+  color: var(--accent-deep);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.lyrix-soon-badge {
+  background: var(--accent-deep);
+  color: var(--color-on-ink);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.lyrix-tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  background: var(--color-surface-muted);
+  border-radius: 14px;
+}
+
+.lyrix-tabs-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 6px);
+  border-radius: 10px;
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px oklch(30% 0.02 50 / 0.14);
+  transition: transform 0.3s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+
+.lyrix-tabs.is-second .lyrix-tabs-indicator {
+  transform: translateX(calc(100% + 4px));
+}
+
+.lyrix-tabs button {
+  position: relative;
+  z-index: 1;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: var(--font-ui);
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+  color: var(--color-ink-muted);
+  transition: color 0.2s ease;
+}
+
+.lyrix-tabs button.is-active {
+  color: var(--color-ink);
+}
+
+.lyrix-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lyrix-field > span {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.lyrix-field-input {
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--color-border-input);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.lyrix-field-input:focus {
+  border-color: var(--accent-solid);
+}
+
+.lyrix-field-input.is-code {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.lyrix-mp-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: lyrix-feed 0.25s ease;
+}
+
+.lyrix-mp-text {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: oklch(40% 0.02 55);
 }

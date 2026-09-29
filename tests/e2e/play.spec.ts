@@ -92,7 +92,7 @@ test("shows feedback for a guess that is not in the lyrics", async ({ page }) =>
   await expect(page.getByText("n’y est pas")).toBeVisible();
 });
 
-test("agrees in number between found and tried counts in the stats text", async ({ page }) => {
+test("agrees in number between found and tried counts in the progress card", async ({ page }) => {
   await page.goto("/");
   const input = page.getByPlaceholder("Propose un mot…");
 
@@ -100,8 +100,23 @@ test("agrees in number between found and tried counts in the stats text", async 
   await input.press("Enter");
 
   // Regression test: the stats text used to always say "trouvés"/"essayés"
-  // (plural), even when the count was 1.
-  await expect(page.getByText("0 trouvés sur 1 essayé", { exact: true })).toBeVisible();
+  // (plural), even when the count was 1. French takes the singular for 0 too.
+  await expect(page.locator('[data-stat="found"]')).toHaveText("0 mot trouvé");
+  await expect(page.locator('[data-stat="tried"]')).toHaveText("1 essai");
+
+  await input.fill("xylophoneautre");
+  await input.press("Enter");
+  await expect(page.locator('[data-stat="tried"]')).toHaveText("2 essais");
+});
+
+test("opens the rules from the header and closes them with Escape", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Comment jouer" }).click();
+  await expect(page.getByRole("dialog", { name: "Comment on joue ?" })).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByPlaceholder("Propose un mot…")).toBeFocused();
 });
 
 test("shows an error message when a guess fails to submit, and recovers on the next one", async ({ page }) => {

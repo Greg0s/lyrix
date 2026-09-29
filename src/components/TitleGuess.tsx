@@ -1,42 +1,55 @@
 import { memo } from "react";
 import type { SlotToken } from "../game/slots";
-import { WordToken } from "./WordToken";
+import { NextSongCountdown } from "./NextSongCountdown";
+import { TokenRun } from "./TokenRun";
 
 interface TitleGuessProps {
   titleTokens: SlotToken[];
   victory: boolean;
   artist?: string;
+  /** See WordToken: highlights every occurrence of the word the latest guess found. */
+  lastFoundKey: string | null;
   /** True once the player has checked "show all lyrics" - see GameScreen. */
   revealAllLyrics: boolean;
   onToggleRevealAllLyrics: () => void;
 }
 
+/**
+ * The masked title, then the victory panel once it is found. Where the v3
+ * mockup offers "Rejouer avec une autre chanson", the panel keeps the daily
+ * model instead: one song a day for everyone, so it counts down to tomorrow's
+ * and offers the "show all lyrics" checkbox (see CLAUDE.md's domain rules).
+ */
 export const TitleGuess = memo(function TitleGuess({
   titleTokens,
   victory,
   artist,
+  lastFoundKey,
   revealAllLyrics,
   onToggleRevealAllLyrics,
 }: TitleGuessProps) {
   return (
-    <div>
-      <p className="lyrix-title-label">Titre à deviner</p>
-      <p className="lyrix-title-line">
-        {titleTokens.map((token, index) => (
-          <WordToken key={index} token={token} />
-        ))}
-      </p>
+    <div className="lyrix-title-block">
+      <p className="lyrix-eyebrow">Titre de chanson à deviner</p>
+      <h1 className="lyrix-title-line">
+        <TokenRun tokens={titleTokens} lastFoundKey={lastFoundKey} />
+      </h1>
 
       {victory ? (
         <div className="lyrix-victory">
-          <p className="lyrix-victory-eyebrow">Bravo, tu l'as trouvée&nbsp;!</p>
-          <p className="lyrix-victory-title">{titleTokens.map((token) => token.text).join("")}</p>
-          <p className="lyrix-victory-artist">{artist}</p>
+          <div className="lyrix-victory-text">
+            <p className="lyrix-victory-eyebrow">Bravo, tu l'as trouvée&nbsp;!</p>
+            <p className="lyrix-victory-song">
+              {titleTokens.map((token) => token.text).join("")}
+              {artist ? ` · ${artist}` : null}
+            </p>
+            <p className="lyrix-victory-note">Reviens demain pour une nouvelle chanson&nbsp;!</p>
+            <NextSongCountdown />
+          </div>
           <label className="lyrix-reveal-all">
             <input type="checkbox" checked={revealAllLyrics} onChange={onToggleRevealAllLyrics} />
             Afficher tous les lyrics
           </label>
-          <p className="lyrix-victory-note">Reviens demain pour une nouvelle chanson&nbsp;!</p>
         </div>
       ) : null}
     </div>

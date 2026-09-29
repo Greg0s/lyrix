@@ -12,7 +12,7 @@ A free web game inspired by Pedantix, built around song lyrics instead of Wikipe
 
 ## Current Phase: MVP (no 3D)
 
-Plain, functional UI — no 3D, no fancy animations. Do not add 3D dependencies (`three`, `@react-three/fiber`, `@react-three/drei`) unless explicitly asked; 3D is a planned post-MVP phase (see "Out of Scope"). MVP scope: masked lyrics (blanks matching word length, punctuation/line breaks preserved), a text input that reveals every occurrence of a correctly guessed word, and a win state once the title is fully uncovered.
+The UI follows the "Lyrix v3" mockup: sticky header, one song card whose hidden words are accent bars, a sticky guess dock, and a side column (progress, tried words). Short CSS animations only, all disabled under `prefers-reduced-motion` — no 3D. Do not add 3D dependencies (`three`, `@react-three/fiber`, `@react-three/drei`) unless explicitly asked; 3D is a planned post-MVP phase (see "Out of Scope"). MVP scope: masked lyrics (blanks matching word length, punctuation/line breaks preserved), a text input that reveals every occurrence of a correctly guessed word, and a win state once the title is fully uncovered.
 
 ## Tech Stack
 
@@ -22,7 +22,7 @@ Plain, functional UI — no 3D, no fancy animations. Do not add 3D dependencies 
 - **Lyrics source**: LRCLIB (lrclib.net), queried server-side via `/api/search` (not `/api/get` — see `docs/LEARNINGS.md`), cleaned before it is ever masked (`worker/src/lyrics.ts`), cached per catalog id with the Workers Cache API (`worker/src/cache.ts`).
 - **Database**: none. Cloudflare D1 is reserved for a later phase (accounts, leaderboard) — do not add it now. Workers KV holds only the precomputed similarity tables (see below), not application data.
 - **Semantic proximity scoring**: French word embeddings, precomputed offline into a per-song score table — see `docs/SIMILARITY.md`.
-- **Planned, not yet in scope**: `@react-three/fiber`/`@react-three/drei` for in-game 3D; team mode; word-usage counter.
+- **Planned, not yet in scope**: `@react-three/fiber`/`@react-three/drei` for in-game 3D; team mode (its v3 entry points exist as a disabled placeholder, `MultiplayerModal.tsx` — see issues #29 and #30); word-usage counter.
 
 ## Working on this project
 
@@ -78,7 +78,7 @@ Never test manually when it can be scripted instead — this applies to the deve
 The game's own logic is cheap; everything that has ever been slow here was correct work repeated for a value that hadn't changed.
 
 - **Nothing in the Worker's per-guess path may scale with the length of the song.** A song is immutable once resolved, so anything derived from it — tokenization (`src/game/analyze.ts`), the resolved song, the parsed similarity table, the HMAC key — is derived once and memoized per isolate. When adding an isolate-level cache, add its `reset*()` and call it from the affected tests' `beforeEach` in the same commit.
-- **Typing a guess must not re-render the lyrics.** Derived state goes through `useMemo` keyed on what it actually reads; components that display it are `memo()`d.
+- **Typing a guess must not re-render the lyrics.** Derived state goes through `useMemo` keyed on what it actually reads; components that display it are `memo()`d. Neither may opening a dialog or tapping a bar (its "N lettres" tip is local state in `WordToken`'s `Blank`).
 - **Measure before and after, and pin the result with a test that counts the work** — tokenization calls, KV reads, tokens re-rendered per keystroke. Never assert on elapsed time; an unpinned fix comes straight back.
 
 ## Continuous Improvement Loop
@@ -106,7 +106,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
 ## Out of Scope (do not implement without an explicit request)
 
 - Any 3D code or dependency (`three`, `@react-three/fiber`, `@react-three/drei`).
-- Team mode, word-usage counter (V2).
+- Team mode, word-usage counter (V2). The multiplayer dialog and "Chercher à plusieurs" card are UI placeholders with their actions disabled; don't wire them up without a go-ahead on #29/#30.
 - User accounts, authentication, leaderboard, Cloudflare D1 (V3).
 - Monetization of any kind.
 
@@ -118,31 +118,40 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   roundStorage.ts        # localStorage persistence so a reload resumes today's round
                           # (deferred/idle writes, flushed on tab hide/close)
   /api/client.ts         # fetch wrapper (fetchRound, submitGuess)
-  /components             # presentational React components
-    GameScreen.tsx        # top-level layout; wires useGame()/useIsMobile(), places close
-                           # guesses onto the round (slots.ts), and owns the "show all
-                           # lyrics" checkbox's local, unsigned reveal-all toggle
-    TitleGuess.tsx         # masked title, victory banner, and the "show all lyrics"
+  /components             # presentational React components (layout: "Lyrix v3" mockup)
+    GameScreen.tsx        # top-level layout; wires useGame(), places close guesses onto the
+                           # round (slots.ts), owns which dialog is open, the input ref, and
+                           # the "show all lyrics" checkbox's local, unsigned reveal-all toggle
+    AppHeader.tsx, Logo.tsx, GroupIcon.tsx  # sticky top bar, CSS logo mark + wordmark
+    TitleGuess.tsx         # masked title, victory panel, and the "show all lyrics"
                            # checkbox once won (RoundView.victory), controlled by GameScreen
+    NextSongCountdown.tsx  # victory panel's countdown to the next UTC midnight (local tick)
     LyricsBody.tsx          # masked lyrics, grouped by section; takes the reveal-all toggle
-    WordToken.tsx           # one token: punctuation, found word, blank, close-guess blank,
-                            # revealed-via-checkbox text (DisplayToken.revealHint), dev hint
+    TokenRun.tsx             # one line: keeps each word on one line with its punctuation
+    WordToken.tsx           # one token: found word (last found highlighted), bar, close-guess
+                            # bar, revealed-via-checkbox text (DisplayToken.revealHint), dev
+                            # hint; a tapped bar shows its letter count (local state)
     heatStyle.ts             # inline --heat a scored word is shaded with
-    GuessForm.tsx             # word-guess input
-    TriedWords.tsx             # past guesses, sorted by score; credits the embedding model
-    SideCard.tsx, HowToPlay.tsx # collapsible panel shell, static rules text
+    GuessForm.tsx             # sticky guess dock: input, feedback line, shake on a miss
+    ProgressCard.tsx, TriedWords.tsx  # side column: % revealed + counts; past guesses,
+                                      # sorted by score, crediting the embedding model
+                                      # (collapsed by default below 880px)
+    Modal.tsx, HowToPlay.tsx   # dialog shell (Escape/backdrop, exit animation); the rules
+    MultiplayerModal.tsx, MultiplayerPromo.tsx  # PLACEHOLDER team-mode entry points (#29, #30)
   /hooks
     useGame.ts              # round/guess state machine; hydrates from roundStorage before network
-    useIsMobile.ts            # 760px breakpoint via matchMedia, drives SideCard collapse
   /game                       # masking/matching/normalization — framework-agnostic, unit-tested,
                                # imported by BOTH the frontend and the Worker
     types.ts, tokenize.ts, normalize.ts  # wire contract; word/non-word tokenizer (elisions,
                                           # digit runs); case/accent-insensitive matching key
     analyze.ts               # one tokenize+normalize pass per song, memoized (see "Performance")
     mask.ts                   # masked DisplayToken views + victory check
+    progress.ts                # share of word occurrences revealed (progress card)
+    daily.ts                    # time until the next song (UTC midnight), countdown format
     similarity.ts, functionWords.ts, slots.ts  # 0-100 proximity scale; excluded function words;
                                                 # addressing hidden words by position
-  /styles                    # tokens.css, global.css, game.css
+  /styles                    # tokens.css (v3 palette), global.css (keyframes), game.css
+                             # (layout; breakpoints are CSS media queries, never JS)
 /worker/src
   index.ts                  # Hono app: GET /api/round, POST /api/guess
   catalog.ts                  # curated {id, artist, title} list + deterministic daily pick

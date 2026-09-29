@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { normalize } from "../game/normalize";
 import { proximityTier } from "../game/similarity";
 import type { SlotToken } from "../game/slots";
 import { heatStyle } from "./heatStyle";
@@ -6,6 +8,62 @@ interface WordTokenProps {
   token: SlotToken;
   /** True once the player has checked "show all lyrics" on a won round - see TitleGuess and GameScreen. */
   revealAll?: boolean;
+  /** Normalized key of the word the latest guess found, if it found one: every occurrence of it is highlighted. */
+  lastFoundKey?: string | null;
+}
+
+/** How long a tapped blank shows its letter count, then how long that tip takes to fade out. */
+export const PEEK_SHOW_MS = 1500;
+export const PEEK_FADE_MS = 200;
+
+interface BlankProps {
+  letters: number;
+  className: string;
+  style?: CSSProperties;
+  title?: string;
+  children: ReactNode;
+}
+
+/**
+ * A still-hidden word, drawn as a bar. Tapping it shows how many letters it
+ * has for a moment - the same thing its width already says, so nothing that
+ * isn't on screen yet. The tip's state is local, so a tap re-renders this one
+ * word and not the lyrics around it.
+ */
+function Blank({ letters, className, style, title, children }: BlankProps) {
+  const [peek, setPeek] = useState<"in" | "out" | null>(null);
+  const timers = useRef<number[]>([]);
+
+  useEffect(() => () => timers.current.forEach((timer) => window.clearTimeout(timer)), []);
+
+  const onClick = () => {
+    timers.current.forEach((timer) => window.clearTimeout(timer));
+    setPeek("in");
+    timers.current = [
+      window.setTimeout(() => setPeek("out"), PEEK_SHOW_MS),
+      window.setTimeout(() => setPeek(null), PEEK_SHOW_MS + PEEK_FADE_MS),
+    ];
+  };
+
+  return (
+    <span className={`token-blank ${className}`} style={style} title={title} onClick={onClick}>
+      {children}
+      {peek ? (
+        <span className={`token-peek${peek === "out" ? " is-out" : ""}`} role="status">
+          {letters} lettre{letters === 1 ? "" : "s"}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * A guess longer than the word it sits on shrinks to fit the bar, down to 60 %
+ * of the text size, rather than widening the slot and giving its length away.
+ */
+function fitGuess(guess: string, letters: number): CSSProperties | undefined {
+  if (guess.length <= letters) return undefined;
+  return { fontSize: `${Math.max(0.6, letters / guess.length).toFixed(2)}em` };
 }
 
 /**
@@ -19,9 +77,12 @@ interface WordTokenProps {
  * to read the actual song, so it takes over from a close-guess placement and
  * the dev hint, never the other way round.
  */
-export function WordToken({ token, revealAll = false }: WordTokenProps) {
+export function WordToken({ token, revealAll = false, lastFoundKey = null }: WordTokenProps) {
   if (!token.isWord) return <span>{token.text}</span>;
-  if (token.revealed) return <span className="token-word-found">{token.text}</span>;
+  if (token.revealed) {
+    const isLast = lastFoundKey !== null && normalize(token.text) === lastFoundKey;
+    return <span className={`token-word-found${isLast ? " is-last" : ""}`}>{token.text}</span>;
+  }
 
   if (revealAll && token.revealHint) {
     return (
@@ -31,31 +92,43 @@ export function WordToken({ token, revealAll = false }: WordTokenProps) {
     );
   }
 
+  const letters = token.text.length;
+
   if (token.near) {
     const { text, score } = token.near;
-    const letters = token.text.length;
     return (
-      <span
+      <Blank
+        letters={letters}
         className={`token-word-near tier-${proximityTier({ found: false, score })}`}
         style={heatStyle(score)}
-        title={`« ${text} » est proche de ce mot (${score}/100) — ${letters} lettre${letters === 1 ? "" : "s"}`}
+        title={`« ${text} » est proche de ce mot (${score}/100)`}
       >
-        {/* The word's own blank stays in the layout, invisible, so the slot is never narrower than the word it hides. */}
+        {/* The word's own blank sizes the bar; the guess is laid over it, never wider. */}
         <span className="token-near-blank" aria-hidden="true">
           {token.text}
         </span>
-        <span className="token-near-guess">{text}</span>
-      </span>
+        <span className="token-near-guess" style={fitGuess(text, letters)}>
+          {text}
+        </span>
+      </Blank>
     );
   }
 
   if (token.devHint) {
     return (
-      <span className="token-word-devhint" title="Indice de dev (DEV_REVEAL_LYRICS) : mot pas encore trouvé">
+      <Blank
+        letters={letters}
+        className="token-word-devhint"
+        title="Indice de dev (DEV_REVEAL_LYRICS) : mot pas encore trouvé"
+      >
         {token.devHint}
-      </span>
+      </Blank>
     );
   }
 
-  return <span className="token-word-hidden">{token.text}</span>;
+  return (
+    <Blank letters={letters} className="token-word-hidden">
+      {token.text}
+    </Blank>
+  );
 }

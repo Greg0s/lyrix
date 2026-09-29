@@ -4,6 +4,14 @@ A running log of gotchas, root causes, and anything that cost real time to figur
 
 Each entry: date, short title, what happened, how it was resolved.
 
+## 2026-09-28 — In a cloud sandbox with no LRCLIB access, 9 e2e tests fail on any branch
+
+While integrating the v3 mockup in a Claude Code cloud container, 9 of the 25 e2e tests failed with `unknown song id from /api/round: le-refuge-de-novembre`. That is the Worker's emergency song: the sandbox's egress proxy blocks lrclib.net, so every catalog entry falls through to it, and the specs that look the day's song up in `catalog` can't find it. The same 9 failed on the untouched base commit, so the failures weren't caused by the change. To still exercise those flows (win, reload, reveal all), append a local, **uncommitted** catalog entry with the emergency song's id, title and artist, run the suite, then restore `worker/src/catalog.ts`. All 25 passed that way.
+
+Also in that container: the preinstalled Chromium (`/opt/pw-browsers/chromium`) isn't the build `@playwright/test` expects, so every test fails at launch with "Executable doesn't exist". Point a throwaway config that re-exports `playwright.config.ts` at it with `use.launchOptions.executablePath`, instead of editing the committed config.
+
+**Takeaway**: before blaming a change for an e2e failure in a restricted environment, run the same specs on the base commit first. A test that depends on the day's real song is only as reliable as the network path to LRCLIB.
+
 ## 2026-09-15 — "Similarity is too strict": nobody had seen a real score yet, and the real design had blind spots
 
 The report: "demain" wasn't shown as close to "lendemains", nor "eau" to "nager" or "eaux", while Pedantix links much more loosely ("2000" to "2015", "france" to "allemagne", "grec" to "latin").

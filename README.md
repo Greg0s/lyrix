@@ -56,7 +56,7 @@ it counts renders rather than timing anything.
 
 ## Semantic Proximity Scoring
 
-A guess that isn't in the lyrics still comes back with a 0-100 score saying how semantically close it is, Cemantix-style — and when it is close to hidden words, it shows up in their place in the lyrics, Pedantix-style, shaded from orange to green as it gets closer (the Worker only ever says *where*, never which word is there). A score is a rank: 80 means the guess is among a hidden word's 10 nearest neighbours in the embedding model, 60 among its 100, 40 among its 1,000 — which is also how close a guess has to be to show up in the lyrics. Grammatical words (articles, pronouns, prepositions…) never count, and numbers are compared by value, so 2000 is close to 2015.
+A guess that isn't in the lyrics still comes back with a 0-100 score saying how semantically close it is, Cemantix-style — and when it is close to hidden words, it shows up in their place in the lyrics, Pedantix-style, written in white over the hidden word's bar and sharper the closer it gets (the Worker only ever says *where*, never which word is there). A score is a rank: 80 means the guess is among a hidden word's 10 nearest neighbours in the embedding model, 60 among its 100, 40 among its 1,000 — which is also how close a guess has to be to show up in the lyrics. Grammatical words (articles, pronouns, prepositions…) never count, and numbers are compared by value, so 2000 is close to 2015.
 
 The scoring is precomputed offline — the Worker only ever does a key lookup — so it needs a one-time setup before it does anything in production:
 

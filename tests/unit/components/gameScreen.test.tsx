@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GuessResult, RoundView } from "../../../src/game/types";
 
@@ -27,6 +27,7 @@ const submitGuess = vi.hoisted(() => vi.fn());
 vi.mock("../../../src/api/client", () => ({ fetchRound, submitGuess }));
 
 const { GameScreen } = await import("../../../src/components/GameScreen");
+const { PEEK_FADE_MS, PEEK_SHOW_MS } = await import("../../../src/components/WordToken");
 
 function tokens(text: string, revealed = false) {
   return text.split(" ").flatMap((word, index) => {
@@ -67,17 +68,11 @@ beforeEach(() => {
   window.localStorage.clear();
   fetchRound.mockReset().mockResolvedValue(round());
   submitGuess.mockReset();
-  // jsdom has no matchMedia; useIsMobile asks for one.
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: false,
-    media: query,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  }));
 });
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -236,5 +231,197 @@ describe("submitting a guess", () => {
 
     await waitFor(() => expect(input.value).toBe(""));
     expect(submitGuess).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the dialogs (v3 header)", () => {
+  it("opens the rules without re-rendering a single lyrics token, and gives the input back on Escape", async () => {
+    const input = await mountGame();
+
+    fireEvent.click(screen.getByRole("button", { name: "Comment jouer" }));
+    expect(screen.getByRole("dialog", { name: "Comment on joue ?" })).toBeTruthy();
+    expect(wordTokenRenders.count).toBe(0);
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(input);
+    expect(wordTokenRenders.count).toBe(0);
+  });
+
+  it("closes the rules from their own button too", async () => {
+    await mountGame();
+    fireEvent.click(screen.getByRole("button", { name: "Comment jouer" }));
+    fireEvent.click(screen.getByRole("button", { name: "C'est parti" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  // Placeholder until rooms exist (GitHub issues #29 and #30): reachable, but it must not pretend to work.
+  it("opens the multiplayer dialog from the header and the side card, with its actions disabled", async () => {
+    await mountGame();
+
+    fireEvent.click(screen.getByRole("button", { name: "Jouer à plusieurs" }));
+    const dialog = screen.getByRole("dialog", { name: "Jouer à plusieurs" });
+    expect(dialog.textContent).toContain("Bientôt disponible");
+    expect((screen.getByRole("button", { name: "Créer le salon" }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Rejoindre" }));
+    const code = screen.getByPlaceholderText("6 caractères") as HTMLInputElement;
+    fireEvent.change(code, { target: { value: "abc123" } });
+    expect(code.value).toBe("ABC123");
+    expect((screen.getByRole("button", { name: "Rejoindre le salon" }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Fermer" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: /Chercher à plusieurs/ }));
+    expect(screen.getByRole("dialog", { name: "Jouer à plusieurs" })).toBeTruthy();
+  });
+});
+
+describe("the progress card", () => {
+  it("counts revealed word occurrences, found words and guesses, in agreeing French", async () => {
+    const title = tokens("Le refuge de novembre");
+    title[0] = { text: "Le", isWord: true, revealed: true };
+    submitGuess.mockResolvedValue({
+      ...round("state-1"),
+      title: { tokens: title },
+      sections: [{ label: "Couplet 1", lines: [{ tokens: tokens("Le vent", true) }, { tokens: tokens("Les feuilles") }] }],
+      found: true,
+      key: "le",
+      score: 100,
+      near: [],
+    });
+
+    const input = await mountGame();
+    expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("0");
+    expect(document.querySelector('[data-stat="found"]')?.textContent).toBe("0 mot trouvé");
+    expect(document.querySelector('[data-stat="tried"]')?.textContent).toBe("0 essai");
+
+    fireEvent.change(input, { target: { value: "le" } });
+    fireEvent.submit(input);
+
+    // 3 of the 8 words (4 in the title, 4 in the lyrics) are out.
+    await waitFor(() => expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("37"));
+    expect(document.querySelector('[data-stat="found"]')?.textContent).toBe("1 mot trouvé");
+    expect(document.querySelector('[data-stat="tried"]')?.textContent).toBe("1 essai");
+  });
+});
+
+describe("feedback on a guess", () => {
+  it("says so when the word was already tried, and shakes the input", async () => {
+    submitGuess.mockResolvedValue({ ...round("state-1"), found: false, key: "vent", score: 12, near: [] });
+
+    const input = await mountGame();
+    fireEvent.change(input, { target: { value: "vent" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(screen.getByText("« vent » n’y est pas.")).toBeTruthy());
+    const row = input.parentElement as HTMLElement;
+    const firstShake = row.className;
+    expect(firstShake).toMatch(/is-shake-/);
+
+    fireEvent.change(input, { target: { value: "Vent" } });
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(screen.getByText("« Vent » a déjà été proposé.")).toBeTruthy());
+    // The other copy of the animation, so the second miss shakes too.
+    expect(row.className).toMatch(/is-shake-/);
+    expect(row.className).not.toBe(firstShake);
+  });
+
+  it("highlights every occurrence of the word just found, until the next guess", async () => {
+    const found: GuessResult = {
+      ...round("state-1"),
+      sections: [
+        { label: "Couplet 1", lines: [{ tokens: tokens("vent", true) }, { tokens: tokens("le vent", true) }] },
+      ],
+      found: true,
+      key: "vent",
+      score: 100,
+      near: [],
+    };
+    submitGuess.mockResolvedValueOnce(found);
+
+    const input = await mountGame();
+    fireEvent.change(input, { target: { value: "vent" } });
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(document.querySelectorAll(".token-word-found.is-last")).toHaveLength(2));
+    expect(screen.getByText("le", { selector: ".token-word-found" }).className).not.toMatch(/is-last/);
+
+    submitGuess.mockResolvedValueOnce({ ...found, state: "state-2", found: false, key: "pluie", score: 3 });
+    fireEvent.change(input, { target: { value: "pluie" } });
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(screen.getByText("« pluie » n’y est pas.")).toBeTruthy());
+    expect(document.querySelectorAll(".token-word-found.is-last")).toHaveLength(0);
+  });
+});
+
+describe("tapping a hidden word", () => {
+  it("tells its letter count for a moment, re-rendering no lyrics token", async () => {
+    await mountGame();
+    vi.useFakeTimers();
+
+    const blank = screen.getAllByText("_______", { selector: ".token-blank" })[0] as HTMLElement;
+    fireEvent.click(blank);
+
+    expect(blank.textContent).toContain("7 lettres");
+    expect(wordTokenRenders.count).toBe(0);
+
+    act(() => vi.advanceTimersByTime(PEEK_SHOW_MS + PEEK_FADE_MS));
+    expect(blank.textContent).toBe("_______");
+  });
+});
+
+describe("the countdown to tomorrow's song (won round)", () => {
+  function wonRound(): RoundView {
+    return { ...round("state-victory"), title: { tokens: tokens("Novembre", true) }, victory: true, artist: "Fixture" };
+  }
+
+  beforeEach(() => {
+    // Only the clock and the interval: waitFor keeps its real setTimeout.
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    vi.setSystemTime(Date.UTC(2026, 8, 29, 22, 30, 0));
+    fetchRound.mockResolvedValue(wonRound());
+  });
+
+  it("ticks every second to the next UTC midnight, re-rendering no lyrics token", async () => {
+    await mountGame();
+    expect(screen.getByText("01:30:00", { selector: ".lyrix-countdown" })).toBeTruthy();
+
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.getByText("01:29:59", { selector: ".lyrix-countdown" })).toBeTruthy();
+    expect(wordTokenRenders.count).toBe(0);
+  });
+
+  it("offers the new song once midnight has passed", async () => {
+    await mountGame();
+    act(() => vi.advanceTimersByTime(90 * 60 * 1000));
+    expect(screen.getByText("La nouvelle chanson est prête", { exact: false })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Jouer" })).toBeTruthy();
+  });
+
+  it("is not shown before the round is won", async () => {
+    fetchRound.mockResolvedValue(round());
+    await mountGame();
+    expect(document.querySelector(".lyrix-countdown")).toBeNull();
+  });
+});
+
+describe("the tried words card", () => {
+  // Collapsed on mobile only: CSS hides the body, so the toggle's state is what can be checked here.
+  it("toggles open and closed without re-rendering a single lyrics token", async () => {
+    await mountGame();
+    const toggle = screen.getByRole("button", { name: /Tes mots/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.textContent).toContain("0 mot");
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle.closest(".lyrix-words")?.className).toMatch(/is-open/);
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(wordTokenRenders.count).toBe(0);
   });
 });

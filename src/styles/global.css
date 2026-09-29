@@ -11,6 +11,15 @@
 
 body {
   margin: 0;
+  background: var(--color-page-bg);
+}
+
+a {
+  color: oklch(50% 0.16 42);
+}
+
+a:hover {
+  color: oklch(40% 0.14 42);
 }
 
 ::selection {
@@ -24,6 +33,7 @@ body {
 
 input::placeholder {
   color: var(--color-ink-faint);
+  letter-spacing: normal;
 }
 
 @keyframes lyrix-rise {
@@ -34,5 +44,142 @@ input::placeholder {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes lyrix-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes lyrix-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes lyrix-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+}
+
+@keyframes lyrix-panel-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes lyrix-reveal {
+  0% {
+    transform: scale(0.82);
+  }
+  55% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes lyrix-hint {
+  from {
+    opacity: 0;
+    transform: translateY(-35%);
+  }
+}
+
+/* Two identical copies of a replayable animation: alternating between them restarts it on an element that stays mounted. */
+@keyframes lyrix-pop-a {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+
+@keyframes lyrix-pop-b {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+
+@keyframes lyrix-feed {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes lyrix-shake-a {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes lyrix-shake-b {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes lyrix-tip-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@keyframes lyrix-tip-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.01ms !important;
   }
 }
