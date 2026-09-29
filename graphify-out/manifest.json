@@ -120,9 +120,9 @@
     "semantic_hash": ""
   },
   "src/components/GameScreen.tsx": {
-    "mtime": 1790681699.0918565,
-    "seen": 1790681750.2758722,
-    "ast_hash": "13e2d7945c3c2cee86d6bbeb78f384c8",
+    "mtime": 1790682525.876865,
+    "seen": 1790682770.3136256,
+    "ast_hash": "862b4eb54c3af8e132ed15be2fd5c9a7",
     "semantic_hash": ""
   },
   "src/components/GroupIcon.tsx": {
@@ -276,9 +276,9 @@
     "semantic_hash": "645e5bf7a0cb0510eb401c92a6339b7c"
   },
   "src/hooks/useGame.ts": {
-    "mtime": 1790681699.0938423,
-    "seen": 1790681750.2758954,
-    "ast_hash": "a9017748577b0a6d9a7393f334255c21",
+    "mtime": 1790682505.8665972,
+    "seen": 1790682770.313647,
+    "ast_hash": "57715722751c6de2d930a10bd2440994",
     "semantic_hash": ""
   },
   "src/main.tsx": {
@@ -600,9 +600,9 @@
     "semantic_hash": "9053f1ba06ba262316ae430516919eb3"
   },
   "CLAUDE.md": {
-    "mtime": 1790681746.041227,
-    "seen": 1790681750.2759492,
-    "ast_hash": "2191b809ef5f08462f5ad0ffd35b1ff8",
+    "mtime": 1790682768.146438,
+    "seen": 1790682770.3136966,
+    "ast_hash": "62924efc9b7cac29324b13ade5f0cd63",
     "semantic_hash": ""
   },
   "README.md": {
@@ -612,9 +612,9 @@
     "semantic_hash": ""
   },
   "docs/LEARNINGS.md": {
-    "mtime": 1790681746.04184,
-    "seen": 1790681750.275951,
-    "ast_hash": "123187db21f638d246ec6f229a8cdbd2",
+    "mtime": 1790681757.5483751,
+    "seen": 1790682145.297871,
+    "ast_hash": "599b41e91ba43b83e2cfbcd66c4b949d",
     "semantic_hash": ""
   },
   "docs/SIMILARITY.md": {
@@ -708,9 +708,9 @@
     "semantic_hash": ""
   },
   "src/api/rooms.ts": {
-    "mtime": 1790681699.0918565,
-    "seen": 1790681750.2758698,
-    "ast_hash": "5c64ab988a1f0c1f01c4513c164d52ad",
+    "mtime": 1790682482.1179142,
+    "seen": 1790682770.3136232,
+    "ast_hash": "bf0d62da446b408a1e63d7050ab853b1",
     "semantic_hash": ""
   },
   "src/components/CopyCodeButton.tsx": {
@@ -738,9 +738,9 @@
     "semantic_hash": ""
   },
   "src/game/room.ts": {
-    "mtime": 1790681123.1595118,
-    "seen": 1790681750.2758908,
-    "ast_hash": "04ef40896cf9d642f601acd631333c35",
+    "mtime": 1790682431.8956008,
+    "seen": 1790682770.3136437,
+    "ast_hash": "1524b4312b69f9f13a6229b7a89adacd",
     "semantic_hash": ""
   },
   "src/hooks/useRoom.ts": {
@@ -750,15 +750,15 @@
     "semantic_hash": ""
   },
   "src/roomStorage.ts": {
-    "mtime": 1790680925.7790241,
-    "seen": 1790681750.2758985,
-    "ast_hash": "3607af06db576405b35ded080cf71513",
+    "mtime": 1790682482.1180346,
+    "seen": 1790682770.31365,
+    "ast_hash": "62622b7ad3be34bd1c29c40b3576019b",
     "semantic_hash": ""
   },
   "tests/e2e/rooms.spec.ts": {
-    "mtime": 1790681699.0938423,
-    "seen": 1790681750.2759044,
-    "ast_hash": "e1cb81d38492a0aa5b43ad027936b8eb",
+    "mtime": 1790682711.016846,
+    "seen": 1790682770.313656,
+    "ast_hash": "a9596f92b2ce6493a91883cd9c3f8c6e",
     "semantic_hash": ""
   },
   "tests/unit/api/rooms.test.ts": {
@@ -768,9 +768,9 @@
     "semantic_hash": ""
   },
   "tests/unit/components/rooms.test.tsx": {
-    "mtime": 1790681699.0961828,
-    "seen": 1790681750.2759113,
-    "ast_hash": "ec6947c254d6a722f351ea804432d7b7",
+    "mtime": 1790682613.1420615,
+    "seen": 1790682770.3136625,
+    "ast_hash": "fdd33716f86ed1f994f0822cdfa60edf",
     "semantic_hash": ""
   },
   "tests/unit/game/room.test.ts": {
@@ -786,27 +786,33 @@
     "semantic_hash": ""
   },
   "tests/unit/worker/room.test.ts": {
-    "mtime": 1790681231.7717738,
-    "seen": 1790681750.27593,
-    "ast_hash": "d5feb30a99b85b6f2565517efae1c177",
+    "mtime": 1790682455.2061439,
+    "seen": 1790682770.3136802,
+    "ast_hash": "9989565fe98f11be93406dc5cc3c86a2",
     "semantic_hash": ""
   },
   "worker/src/room.ts": {
-    "mtime": 1790681168.0125926,
-    "seen": 1790681750.2759404,
-    "ast_hash": "f9f76c368c8e2134baf938fed8024b53",
+    "mtime": 1790682431.891874,
+    "seen": 1790682770.3136897,
+    "ast_hash": "6ff46301cd4a5c1cda49fed3afa97a57",
     "semantic_hash": ""
   },
   "worker/src/roomRoutes.ts": {
-    "mtime": 1790681168.0130959,
-    "seen": 1790681750.2759411,
-    "ast_hash": "7caefa20d4f722d99f68265406ff130b",
+    "mtime": 1790682431.8953242,
+    "seen": 1790682770.3136902,
+    "ast_hash": "fc72877fdddeb71c659bf8fe918833a5",
     "semantic_hash": ""
   },
   "worker/src/round.ts": {
     "mtime": 1790681107.061941,
     "seen": 1790681750.275942,
     "ast_hash": "215d80f29557323c97090cca8a6722e8",
+    "semantic_hash": ""
+  },
+  "src/components/GroupFoundBanner.tsx": {
+    "mtime": 1790682532.8734362,
+    "seen": 1790682770.3136265,
+    "ast_hash": "853a7664e846b4df8f7fd95165aa305d",
     "semantic_hash": ""
   }
 }
