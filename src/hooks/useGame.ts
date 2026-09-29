@@ -156,7 +156,9 @@ export function useGame() {
       setState((prev) => ({
         ...prev,
         round: result,
-        inputValue: "",
+        // The input stays editable while a guess is in flight (disabling it
+        // would close a phone's keyboard): keep whatever was typed meanwhile.
+        inputValue: prev.inputValue === inputValue ? "" : prev.inputValue,
         submitting: false,
         feedback: {
           word: raw,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type FormEvent, type RefObject } from "react";
+import type { FormEvent, MouseEvent, RefObject } from "react";
 
 export interface GuessFeedback {
   text: string;
@@ -13,32 +13,27 @@ interface GuessFormProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  disabled: boolean;
+  /** A guess is in flight: "Valider" is inert until it lands. */
+  submitting: boolean;
   feedback: GuessFeedback | null;
   /** Owned by GameScreen, which puts focus back here when a dialog closes. */
   inputRef: RefObject<HTMLInputElement | null>;
 }
 
 /** The dark dock pinned to the bottom of the game column: the guess input, "Valider", and the latest feedback. */
-export function GuessForm({ value, onChange, onSubmit, disabled, feedback, inputRef }: GuessFormProps) {
-  const wasDisabled = useRef(disabled);
-
+export function GuessForm({ value, onChange, onSubmit, submitting, feedback, inputRef }: GuessFormProps) {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSubmit();
-    // Clicking "Valider" (as opposed to pressing Enter) moves focus to the
-    // button; bring it back so the player can keep typing without reclicking.
+    if (!submitting) onSubmit();
+    // Activating "Valider" from the keyboard moves focus to the button;
+    // bring it back so the player can keep typing without reclicking.
     inputRef.current?.focus();
   };
 
-  // The input is briefly disabled while a guess is in flight, which forces a
-  // native blur; once it's enabled again, restore focus for the same reason.
-  useEffect(() => {
-    if (wasDisabled.current && !disabled) {
-      inputRef.current?.focus();
-    }
-    wasDisabled.current = disabled;
-  }, [disabled, inputRef]);
+  // A tap or click on "Valider" must never take focus from the input: on a
+  // phone, the input losing focus closes the on-screen keyboard, and handing
+  // focus back in handleSubmit reopens it — a flicker on every guess.
+  const keepInputFocus = (event: MouseEvent<HTMLButtonElement>) => event.preventDefault();
 
   // Two identical shake animations, alternated, so two misses in a row both shake (see global.css).
   const parity = feedback && feedback.seq % 2 ? "a" : "b";
@@ -56,9 +51,16 @@ export function GuessForm({ value, onChange, onSubmit, disabled, feedback, input
             placeholder="Propose un mot…"
             autoComplete="off"
             spellCheck={false}
-            disabled={disabled}
           />
-          <button type="submit" className="lyrix-submit" disabled={disabled}>
+          {/* Never `disabled`, on the input or the button: disabling the
+              focused input blurs it (closing a phone's keyboard), and a
+              disabled button can't cancel the mousedown that moves focus. */}
+          <button
+            type="submit"
+            className="lyrix-submit"
+            aria-disabled={submitting}
+            onMouseDown={keepInputFocus}
+          >
             Valider
           </button>
         </div>

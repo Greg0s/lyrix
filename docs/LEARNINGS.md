@@ -206,3 +206,11 @@ Installing the third-party [Graphify](https://github.com/Graphify-Labs/graphify)
 - **`echo ... > file` in Windows PowerShell 5.1 writes UTF-16LE with a BOM, not UTF-8.** Redirecting `{}` into `.claude/settings.json` this way produced a file that read back as garbled bytes — invalid JSON. Graphify's own `SKILL.md` documents this exact trap for its generated files and works around it with `[System.IO.File]::WriteAllText(path, content, (New-Object System.Text.UTF8Encoding $false))`, which writes plain UTF-8 with no BOM and no extra newline.
 
 **Takeaway**: never hand a Windows/PowerShell user a bare `echo >` or `Out-File` command to produce a file another tool will parse (JSON, YAML, etc.) — Windows PowerShell 5.1 defaults both to UTF-16LE-with-BOM. Use `[System.IO.File]::WriteAllText(...)` with an explicit BOM-less `UTF8Encoding`, or just have them paste the content directly in an editor.
+
+## 2026-09-29 — The phone keyboard closed and reopened on every guess
+
+Root cause: `GuessForm` set `disabled` on the input (and "Valider") while a guess was in flight, to stop a double submit. Disabling a focused input blurs it natively, and on a phone losing focus closes the on-screen keyboard; the effect that handed focus back once the answer landed reopened it — a flicker on every guess. Tapping "Valider" did the same on its own: the tap's `mousedown` moved focus to the button before `handleSubmit` refocused the input.
+
+Fix: nothing in the dock is ever `disabled` any more. The input stays editable in flight (`useGame` only clears it if it still holds the submitted word, so text typed meanwhile survives); "Valider" is `aria-disabled` and `handleSubmit` ignores it while `submitting` (`useGame.submit` keeps its own guard); the button cancels `mousedown`, so neither a click nor a tap takes focus from the input. A `disabled` button couldn't do that last part — it doesn't get the `mousedown` to cancel. Regression tests: "a guess in flight" / "the Valider button" in `tests/unit/components/gameScreen.test.tsx`, and the blur-counting tests (mouse and `hasTouch` tap) at the end of `tests/e2e/play.spec.ts`.
+
+**Takeaway**: never toggle `disabled` on a text field that has focus to mean "busy" — on mobile it costs the keyboard. Gate the action instead (guard in the handler, `aria-disabled` on the button).

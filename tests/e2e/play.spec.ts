@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { catalog } from "../../worker/src/catalog";
 import { tokenize } from "../../src/game/tokenize";
 import type { RoundView } from "../../src/game/types";
@@ -151,7 +151,7 @@ test("offers a retry when the initial round fails to load, and recovers", async 
   await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
 });
 
-test("disables the form while a guess is in flight, so a fast double submit can't race", async ({ page }) => {
+test("makes Valider inert while a guess is in flight, so a fast double submit can't race", async ({ page }) => {
   let guessRequests = 0;
   await page.route("**/api/guess", async (route) => {
     guessRequests += 1;
@@ -161,16 +161,18 @@ test("disables the form while a guess is in flight, so a fast double submit can'
 
   await page.goto("/");
   const input = page.getByPlaceholder("Propose un mot…");
+  const button = page.getByRole("button", { name: "Valider" });
 
   await input.fill("premiere");
   await input.press("Enter");
 
-  await expect(input).toBeDisabled();
-  // A disabled input can't receive real keystrokes, but a stray Enter at
-  // the page level (e.g. a queued keydown) must still not fire a 2nd request.
-  await page.keyboard.press("Enter");
+  await expect(button).toBeDisabled();
+  // The input itself stays enabled (see the focus tests below), so a second
+  // Enter really reaches it, and must still not fire a 2nd request.
+  await expect(input).toBeEnabled();
+  await input.press("Enter");
 
-  await expect(input).toBeEnabled({ timeout: 5000 });
+  await expect(button).toBeEnabled({ timeout: 5000 });
   expect(guessRequests).toBe(1);
   await expect(input).toHaveValue("");
 });
@@ -188,4 +190,61 @@ test("keeps the guess input focused after submitting, whether by Enter or by cli
   await input.fill("xylophoneautre");
   await page.getByRole("button", { name: "Valider" }).click();
   await expect(input).toBeFocused();
+});
+
+/** Counts every time the guess input loses focus - on a phone, each one closes the keyboard. */
+async function countInputBlurs(page: Page) {
+  await page.getByPlaceholder("Propose un mot…").evaluate((input) => {
+    (window as unknown as { inputBlurs: number }).inputBlurs = 0;
+    input.addEventListener("blur", () => (window as unknown as { inputBlurs: number }).inputBlurs++);
+  });
+  return () => page.evaluate(() => (window as unknown as { inputBlurs: number }).inputBlurs);
+}
+
+async function slowGuesses(page: Page) {
+  await page.route("**/api/guess", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await route.continue();
+  });
+}
+
+test("never blurs the guess input while a guess is submitted, by Enter or by clicking Valider", async ({ page }) => {
+  // Regression test: the input used to be disabled while a guess was in
+  // flight, which blurs it natively - on a phone, the keyboard closed on
+  // every guess and reopened once focus was handed back.
+  await slowGuesses(page);
+  await page.goto("/");
+  const input = page.getByPlaceholder("Propose un mot…");
+  await input.focus();
+  const blurs = await countInputBlurs(page);
+
+  await input.fill("xylophoneinexistant");
+  await input.press("Enter");
+  await expect(page.locator('[data-stat="tried"]')).toHaveText("1 essai");
+
+  await input.fill("xylophoneautre");
+  await page.getByRole("button", { name: "Valider" }).click();
+  await expect(page.locator('[data-stat="tried"]')).toHaveText("2 essais");
+
+  expect(await blurs()).toBe(0);
+  await expect(input).toBeFocused();
+});
+
+test.describe("on a touch screen", () => {
+  test.use({ hasTouch: true });
+
+  test("tapping Valider submits without the input ever losing focus", async ({ page }) => {
+    await slowGuesses(page);
+    await page.goto("/");
+    const input = page.getByPlaceholder("Propose un mot…");
+    await input.tap();
+    const blurs = await countInputBlurs(page);
+
+    await input.fill("xylophoneinexistant");
+    await page.getByRole("button", { name: "Valider" }).tap();
+    await expect(page.locator('[data-stat="tried"]')).toHaveText("1 essai");
+
+    expect(await blurs()).toBe(0);
+    await expect(input).toBeFocused();
+  });
 });

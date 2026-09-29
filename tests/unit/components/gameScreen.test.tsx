@@ -234,6 +234,74 @@ describe("submitting a guess", () => {
   });
 });
 
+describe("a guess in flight", () => {
+  // Regression: the input used to be `disabled` until the answer came back,
+  // which blurs it natively. On a phone that closed the keyboard on every
+  // guess, and handing focus back reopened it.
+  function pendingGuess() {
+    let answer: (result: GuessResult) => void = () => {};
+    submitGuess.mockReturnValue(new Promise<GuessResult>((resolve) => (answer = resolve)));
+    return (result: GuessResult) => act(() => answer(result));
+  }
+  const missed: GuessResult = { ...round("state-1"), found: false, key: "vent", score: 12, near: [] };
+
+  it("leaves the input enabled and focused, with only Valider inert", async () => {
+    const answer = pendingGuess();
+    const input = await mountGame();
+    input.focus();
+    fireEvent.change(input, { target: { value: "vent" } });
+    fireEvent.submit(input);
+
+    const button = screen.getByRole("button", { name: "Valider" }) as HTMLButtonElement;
+    await waitFor(() => expect(button.getAttribute("aria-disabled")).toBe("true"));
+    expect(input.disabled).toBe(false);
+    expect(button.disabled).toBe(false);
+    expect(document.activeElement).toBe(input);
+
+    await answer(missed);
+    expect(button.getAttribute("aria-disabled")).toBe("false");
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe("");
+  });
+
+  it("does not send a second guess until the first one lands", async () => {
+    const answer = pendingGuess();
+    const input = await mountGame();
+    fireEvent.change(input, { target: { value: "vent" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(submitGuess).toHaveBeenCalledTimes(1));
+
+    fireEvent.submit(input);
+    fireEvent.click(screen.getByRole("button", { name: "Valider" }));
+
+    await answer(missed);
+    expect(submitGuess).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps what the player typed meanwhile instead of clearing it", async () => {
+    const answer = pendingGuess();
+    const input = await mountGame();
+    fireEvent.change(input, { target: { value: "vent" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(submitGuess).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(input, { target: { value: "port" } });
+    await answer(missed);
+
+    expect(input.value).toBe("port");
+    expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy();
+  });
+});
+
+describe("the Valider button", () => {
+  it("cancels the mousedown a tap starts, so the input keeps focus (and a phone its keyboard)", async () => {
+    await mountGame();
+    const button = screen.getByRole("button", { name: "Valider" });
+    // fireEvent returns false when a handler called preventDefault().
+    expect(fireEvent.mouseDown(button)).toBe(false);
+  });
+});
+
 describe("the dialogs (v3 header)", () => {
   it("opens the rules without re-rendering a single lyrics token, and gives the input back on Escape", async () => {
     const input = await mountGame();
