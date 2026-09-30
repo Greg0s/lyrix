@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from "@playwright/test";
-import { normalize } from "../../src/game/normalize";
 import type { RoundView } from "../../src/game/types";
+import { lyricsOnlyWord, titleWords as titleWordsOf } from "./titleWords";
 
 /**
  * Rooms ("salons", issue #29), for real: a Durable Object per room in the
@@ -24,12 +24,7 @@ test.afterEach(async () => {
  * whichever song the day falls on, the emergency one included.
  */
 let titleWords: string[] = [];
-
-/**
- * A hidden lyrics word that is not a title word, from the same dev hints: a
- * find that never completes the round, whatever the day's title - with a
- * one-word title ("Dommage"), guessing its first word wins it.
- */
+/** A lyrics word outside the title, same source: a find that never wins the round. */
 let lyricsWord = "";
 
 async function openGame(browser: Browser): Promise<Page> {
@@ -39,13 +34,8 @@ async function openGame(browser: Browser): Promise<Page> {
   const roundResponse = page.waitForResponse((res) => res.url().includes("/api/round"));
   await page.goto("/");
   const round = (await (await roundResponse).json()) as RoundView;
-  titleWords = [...new Set(round.title.tokens.flatMap((token) => (token.devHint ? [token.devHint] : [])))];
-  const titleKeys = new Set(titleWords.map(normalize));
-  lyricsWord =
-    round.sections
-      .flatMap((section) => section.lines)
-      .flatMap((line) => line.tokens)
-      .find((token) => typeof token.devHint === "string" && !titleKeys.has(normalize(token.devHint)))?.devHint ?? "";
+  titleWords = titleWordsOf(round);
+  lyricsWord = lyricsOnlyWord(round);
   await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
   return page;
 }
@@ -217,8 +207,8 @@ test("plays the day's round together: every find and every miss reaches the whol
   const code = await createRoom(host, "Camille");
   await joinRoom(guest, code, "Léo");
   await expect(feedback(host)).toHaveText("Léo a rejoint le salon.");
-  if (!lyricsWord) throw new Error("the day's song has no hidden lyrics word outside its title");
 
+  // A lyrics word, not a title word: on a one-word title, that find would win the round.
   await guess(guest, lyricsWord);
 
   await expect(feedback(guest)).toHaveText(`« ${lyricsWord} » trouvé !`);
@@ -234,7 +224,7 @@ test("plays the day's round together: every find and every miss reaches the whol
 
   for (const word of titleWords) await guess(host, word);
 
-  // Whoever completed the title sees the victory; the other is offered the
+  // Camille completed the title and sees the victory; Léo is offered the
   // answer, or to keep looking (see "when a teammate completes the title").
   await expect(host.getByText("Bravo, le groupe l'a trouvée")).toBeVisible();
   await expect(host.getByRole("region", { name: "Progression" }).locator('[data-stat="tried"]')).toContainText(
@@ -250,7 +240,7 @@ test("catches a player up on the room's round after a reload, and gives the solo
   const guest = await openGame(browser);
   const code = await createRoom(host, "Camille");
   await joinRoom(guest, code, "Léo");
-  if (!lyricsWord) throw new Error("the day's song has no hidden lyrics word outside its title");
+  // Not a title word: on a one-word title, finding it would end the round instead.
   await guess(host, lyricsWord);
 
   await guest.reload();

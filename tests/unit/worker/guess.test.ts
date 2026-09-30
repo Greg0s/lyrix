@@ -6,7 +6,9 @@ import type { DisplayToken, GuessResult, RoundView, Song } from "../../../src/ga
 import app from "../../../worker/src/index";
 import { resetSimilarityMemo, SIMILARITY_TABLE_VERSION, type SimilarityKv } from "../../../worker/src/similarity";
 import { getSongById, resetSongMemo } from "../../../worker/src/songs";
+import { openState } from "../../../worker/src/state";
 import { encodeNear, type ReadableNear } from "./similarityTableFixture";
+import { titleLeaks } from "./titleLeak";
 
 const env = { STATE_SECRET: "test-secret" };
 
@@ -85,8 +87,15 @@ async function getRound(): Promise<RoundView> {
   return (await res.json()) as RoundView;
 }
 
+/** The song a round is played on, as only the Worker can read it: from its sealed state. */
+async function songIdOf(round: RoundView): Promise<string> {
+  const payload = await openState(round.state, env.STATE_SECRET);
+  if (!payload) throw new Error("round state does not open");
+  return payload.songId;
+}
+
 async function playedSong(round: RoundView): Promise<Song> {
-  const song = await getSongById(round.songId);
+  const song = await getSongById(await songIdOf(round));
   if (!song) throw new Error("round song not found");
   return song;
 }
@@ -136,7 +145,7 @@ describe("GET /api/round", () => {
   it("returns the same song for repeated calls the same day", async () => {
     const first = await getRound();
     const second = await getRound();
-    expect(second.songId).toBe(first.songId);
+    expect(await songIdOf(second)).toBe(await songIdOf(first));
   });
 
   it("falls back to the next catalog entry when LRCLIB fails for the daily pick", async () => {
@@ -155,8 +164,36 @@ describe("GET /api/round", () => {
     );
 
     const round = await getRound();
-    expect(round.songId).toBeTruthy();
+    expect(await songIdOf(round)).toBeTruthy();
     expect(callCount).toBeGreaterThan(1);
+  });
+});
+
+// Regression tests for #40: catalog ids are slugs of the title, and the round
+// used to send the id as \`songId\` and inside a signed-but-readable \`state\`, so
+// DevTools named the day's song before a single guess.
+describe("the song's identity", () => {
+  it("is in no response before victory, state included", async () => {
+    const round = await getRound();
+    const song = await playedSong(round);
+    const miss = await guess(round.state, "xylophoneinexistant");
+    const hit = await guess(miss.body.state, "ligne");
+    expect(hit.body.found).toBe(true);
+    expect(hit.body.victory).toBe(false);
+
+    const sent = [round, miss.body, hit.body].map((body) => JSON.stringify(body)).join("\n");
+    expect(titleLeaks(sent, song)).toEqual([]);
+  });
+
+  it("is in no response for the emergency song either", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 500 })));
+    const round = await getRound();
+    const song = await playedSong(round);
+    expect(song.id).toBe("le-refuge-de-novembre");
+
+    const miss = await guess(round.state, "xylophoneinexistant");
+    const sent = [round, miss.body].map((body) => JSON.stringify(body)).join("\n");
+    expect(titleLeaks(sent, song)).toEqual([]);
   });
 });
 
@@ -212,12 +249,11 @@ describe("POST /api/guess", () => {
 
   it("rejects a tampered state token", async () => {
     const round = await getRound();
-    // Flip the signature's first character, not its last: the last one of a
-    // 32-byte signature carries 2 padding bits base64 decoding ignores, so
-    // swapping it could leave the signature intact on some days' tokens.
-    const dot = round.state.indexOf(".");
-    const first = round.state[dot + 1];
-    const tampered = round.state.slice(0, dot + 1) + (first === "a" ? "b" : "a") + round.state.slice(dot + 2);
+    // Flip the token's first character (its IV), not its last: the last
+    // character of a base64url token can carry padding bits decoding ignores,
+    // so swapping it could leave the token's bytes intact on some days.
+    const first = round.state[0];
+    const tampered = (first === "a" ? "b" : "a") + round.state.slice(1);
     const { status } = await guess(tampered, "le");
     expect(status).toBe(400);
   });
@@ -279,7 +315,7 @@ describe("POST /api/guess — proximity score", () => {
     const round = await getRound();
     const scoring = {
       ...env,
-      SIMILARITY: similarityKv({ scores: { xylophoneinexistant: 12 }, songId: round.songId }),
+      SIMILARITY: similarityKv({ scores: { xylophoneinexistant: 12 }, songId: await songIdOf(round) }),
     };
     expect((await guess(round.state, "xylophoneinexistant", scoring)).body.score).toBe(12);
   });
@@ -320,7 +356,6 @@ describe("POST /api/guess — proximity score", () => {
       "near",
       "score",
       "sections",
-      "songId",
       "state",
       "title",
       "victory",
@@ -455,7 +490,7 @@ describe("DEV_REVEAL_LYRICS", () => {
     const devEnv = { ...env, DEV_REVEAL_LYRICS: "1" };
     const res = await app.request("/api/round", {}, devEnv);
     const round = (await res.json()) as RoundView;
-    const song = await getSongById(round.songId);
+    const song = await getSongById(await songIdOf(round));
     if (!song) throw new Error("round song not found");
 
     const words = allTokens(round).filter((t) => t.isWord);
@@ -473,7 +508,7 @@ describe("DEV_REVEAL_LYRICS", () => {
   it("never sends devHint for a word that is already found", async () => {
     const devEnv = { ...env, DEV_REVEAL_LYRICS: "1" };
     const round = (await (await app.request("/api/round", {}, devEnv)).json()) as RoundView;
-    const song = await getSongById(round.songId);
+    const song = await getSongById(await songIdOf(round));
     if (!song) throw new Error("round song not found");
     const titleWord = tokenize(song.title).find((t) => t.isWord);
     if (!titleWord) throw new Error("song title has no word tokens");

@@ -4,7 +4,7 @@ import type { GuessResult } from "../../src/game/types";
 import { buildRoundView, evaluateGuess, MAX_WORD_LENGTH, parseGuessWord, type RoundEnv } from "./round";
 import { roomRoutes, type RoomsEnv } from "./roomRoutes";
 import { getSongById, getTodaysSong } from "./songs";
-import { verifyState } from "./state";
+import { openState } from "./state";
 
 type Env = RoundEnv & RoomsEnv;
 
@@ -21,9 +21,10 @@ const PREFLIGHT_MAX_AGE_SECONDS = 86_400;
 
 app.use("/api/*", cors({ maxAge: PREFLIGHT_MAX_AGE_SECONDS }));
 
-// Without this, a missing STATE_SECRET surfaces as an opaque Web Crypto
-// "Imported HMAC key length (0)" DataError from signState, several frames
-// deep and saying nothing about the actual problem - a config file that was
+// Without this, a missing STATE_SECRET used to surface as an opaque Web Crypto
+// "Imported HMAC key length (0)" DataError, several frames deep (sealState
+// now throws its own error, still from deep inside a request) and saying
+// nothing about the actual problem - a config file that was
 // never created. That has cost real time twice (see docs/LEARNINGS.md), so
 // the misconfiguration now names itself in the Worker's own log.
 app.use("/api/*", async (c, next) => {
@@ -64,7 +65,7 @@ app.post("/api/guess", async (c) => {
     return c.json({ error: `word must be between 1 and ${MAX_WORD_LENGTH} characters` }, 400);
   }
 
-  const payload = await verifyState(state, c.env.STATE_SECRET);
+  const payload = await openState(state, c.env.STATE_SECRET);
   if (!payload) {
     return c.json({ error: "invalid or expired round state" }, 400);
   }

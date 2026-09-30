@@ -26,7 +26,6 @@ function fakeStorage(initial: Record<string, string> = {}): Storage {
 }
 
 const round: RoundView = {
-  songId: "papaoutai",
   state: "signed-state",
   title: { tokens: [{ text: "____", isWord: true, revealed: false }] },
   sections: [],

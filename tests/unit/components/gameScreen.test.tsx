@@ -38,7 +38,6 @@ function tokens(text: string, revealed = false) {
 
 function round(state = "state-0"): RoundView {
   return {
-    songId: "fixture",
     state,
     title: { tokens: tokens("Le refuge de novembre") },
     sections: [
