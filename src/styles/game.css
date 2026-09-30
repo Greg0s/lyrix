@@ -1528,10 +1528,19 @@
   background: color-mix(in oklch, var(--color-on-ink) 16%, transparent);
 }
 
-/* The Salon card's invite link: a full row under the code. */
-.lyrix-copy.is-block {
-  width: 100%;
-  padding: 9px 14px;
+/* The Salon card's copy-code and invite-link buttons, inside the code's bubble. */
+.lyrix-copy.is-icon {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.lyrix-room-code-actions {
+  display: flex;
+  gap: 6px;
 }
 
 /* The dialog's link and code buttons, side by side, wrapping on a narrow phone. */
@@ -1683,7 +1692,7 @@
   letter-spacing: 0.14em;
 }
 
-.lyrix-room-code-row .lyrix-copy {
+.lyrix-room-code-row .lyrix-copy:not(.is-icon) {
   padding: 6px 12px;
 }
 

@@ -23,15 +23,17 @@ export const RoomCard = memo(function RoomCard({ room, onLeave }: RoomCardProps)
       </div>
       <div className="lyrix-room-code-row">
         <span className="lyrix-room-code">{room.code}</span>
-        <CopyButton value={room.code} label="Copier le code" tone="dark" />
+        <div className="lyrix-room-code-actions">
+          <CopyButton value={room.code} label="Copier le code" tone="dark" icon="copy" />
+          <CopyButton
+            value={inviteUrl(room.code, window.location.origin)}
+            label="Copier le lien d’invitation"
+            shareLabel="Partager le lien d’invitation"
+            tone="dark"
+            icon="link"
+          />
+        </div>
       </div>
-      <CopyButton
-        value={inviteUrl(room.code, window.location.origin)}
-        label="Copier le lien d’invitation"
-        shareLabel="Partager le lien d’invitation"
-        tone="dark"
-        className="is-block"
-      />
       <RoomMembers room={room} variant="grid" />
       <p className={`lyrix-room-waiting${room.connected ? "" : " is-offline"}`} role="status">
         {room.connected ? "En attente de joueurs…" : "Connexion au salon perdue, nouvelle tentative…"}
