@@ -155,4 +155,64 @@ describe("the palette", () => {
     const undefinedTokens = [...used].filter((name) => !light.has(name) && !inline.has(name));
     expect(undefinedTokens).toEqual([]);
   });
+
+  it("never writes a raw colour in a component stylesheet", () => {
+    const raw = styleSheets
+      .slice(1)
+      .flatMap((css) => [...css.matchAll(/#[0-9a-f]{3,8}\b|\b(?:oklch|rgba?|hsla?)\(|\b(?:white|black)\b(?!-)/gi)])
+      .map((m) => m[0]);
+    expect(raw).toEqual([]);
+  });
+});
+
+/** WCAG 2 relative luminance of a tokens.css colour (plain hex or oklch). */
+function luminance(color: string): number {
+  const hex = cssColorToHex(color);
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrast(a: string, b: string): number {
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+describe.each(["light", "dark"] as const)("text contrast in the %s theme (WCAG AA, 4.5:1)", (theme) => {
+  const light = declaredTokens(block(tokensCss, ":root"));
+  const dark = declaredTokens(block(tokensCss, ':root[data-theme="dark"]'));
+  const tokens = theme === "light" ? light : new Map([...light, ...dark]);
+  const token = (name: string) => {
+    const value = tokens.get(name);
+    if (!value) throw new Error(`no ${name} in tokens.css`);
+    return value;
+  };
+
+  // Every text token, on every surface it is written on.
+  const pairs: [text: string, surfaces: string[]][] = [
+    ["--color-ink", ["--color-page-bg", "--color-surface", "--color-surface-muted", "--color-sunken", "--color-field"]],
+    ["--color-ink-soft", ["--color-page-bg", "--color-surface", "--color-surface-muted"]],
+    ["--color-ink-muted", ["--color-page-bg", "--color-surface", "--color-surface-muted", "--color-sunken"]],
+    // The model credit and the guess input's placeholder.
+    ["--color-ink-faint", ["--color-page-bg", "--color-surface", "--color-field"]],
+    ["--color-error", ["--color-page-bg", "--color-surface"]],
+    ["--color-link", ["--color-page-bg", "--color-surface"]],
+    ["--accent-deep", ["--color-surface", "--color-sunken"]],
+    ["--color-on-ink", ["--color-solid", "--color-solid-raised", "--accent-near-cold", "--accent-near-hot"]],
+    ["--color-on-ink-soft", ["--color-solid"]],
+    ["--color-on-ink-muted", ["--color-solid"]],
+    ["--color-on-ink-accent", ["--color-solid"]],
+    ["--color-on-ink-error", ["--color-solid"]],
+    ["--color-on-bright", ["--accent-solid"]],
+    ["--proximity-hot-ink", ["--proximity-hot-bg"]],
+    ["--proximity-warm-ink", ["--proximity-warm-bg"]],
+    ["--proximity-cold-ink", ["--proximity-cold-bg"]],
+  ];
+  const cases = pairs.flatMap(([text, surfaces]) => surfaces.map((surface) => [text, surface] as const));
+
+  it.each(cases)("%s on %s", (text, surface) => {
+    expect(contrast(token(text), token(surface))).toBeGreaterThanOrEqual(4.5);
+  });
 });

@@ -249,8 +249,11 @@ describe("POST /api/guess", () => {
 
   it("rejects a tampered state token", async () => {
     const round = await getRound();
-    const lastChar = round.state.at(-1);
-    const tampered = round.state.slice(0, -1) + (lastChar === "a" ? "b" : "a");
+    // Flip the token's first character (its IV), not its last: the last
+    // character of a base64url token can carry padding bits decoding ignores,
+    // so swapping it could leave the token's bytes intact on some days.
+    const first = round.state[0];
+    const tampered = (first === "a" ? "b" : "a") + round.state.slice(1);
     const { status } = await guess(tampered, "le");
     expect(status).toBe(400);
   });

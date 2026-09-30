@@ -15,8 +15,8 @@ describe("sealState / openState", () => {
 
   it("rejects a tampered token", async () => {
     const token = await sealState({ songId: "abc", foundKeys: [] }, "secret");
-    const lastChar = token.at(-1);
-    const tampered = token.slice(0, -1) + (lastChar === "a" ? "b" : "a");
+    // The first character, not the last: that one can hold padding bits base64 decoding drops.
+    const tampered = (token[0] === "a" ? "b" : "a") + token.slice(1);
     expect(await openState(tampered, "secret")).toBeNull();
   });
 
