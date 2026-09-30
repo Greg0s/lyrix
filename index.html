@@ -3,7 +3,73 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lyrix</title>
+    <title>Lyrix — retrouve la chanson du jour à partir de ses paroles</title>
+    <!--
+      Search and link-preview metadata. Every URL is absolute and points at the
+      production site: crawlers and link unfurlers never resolve a relative one
+      against the page. tests/unit/ci/richSnippets.test.ts keeps them, the
+      JSON-LD below, public/robots.txt and public/sitemap.xml in step.
+    -->
+    <meta
+      name="description"
+      content="Jeu gratuit : une chanson par jour, la même pour tout le monde. Propose des mots pour dévoiler ses paroles cachées et retrouve son titre, seul ou à plusieurs."
+    />
+    <link rel="canonical" href="https://lyrix-eyg.pages.dev/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Lyrix" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:url" content="https://lyrix-eyg.pages.dev/" />
+    <meta property="og:title" content="Lyrix — retrouve la chanson du jour" />
+    <meta
+      property="og:description"
+      content="Une chanson par jour, ses paroles cachées : propose des mots pour les dévoiler et retrouve le titre."
+    />
+    <!-- Generated with the favicon by `npm run favicon:build`. -->
+    <meta property="og:image" content="https://lyrix-eyg.pages.dev/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Le logo Lyrix et des paroles dont certains mots sont masqués par des barres orange."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <!--
+      Structured data (schema.org): the site's name for search results, and
+      the game itself. No rating or review: there are none to cite, and
+      Google's policy forbids inventing them.
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://lyrix-eyg.pages.dev/#website",
+            "name": "Lyrix",
+            "url": "https://lyrix-eyg.pages.dev/",
+            "inLanguage": "fr"
+          },
+          {
+            "@type": ["VideoGame", "WebApplication"],
+            "@id": "https://lyrix-eyg.pages.dev/#game",
+            "name": "Lyrix",
+            "url": "https://lyrix-eyg.pages.dev/",
+            "description": "Jeu de mots quotidien : retrouve le titre d'une chanson en dévoilant ses paroles cachées, mot après mot, seul ou dans un salon avec tes amis.",
+            "image": "https://lyrix-eyg.pages.dev/og-image.png",
+            "inLanguage": "fr",
+            "genre": ["Jeu de mots", "Quiz musical"],
+            "gamePlatform": "Navigateur web",
+            "applicationCategory": "GameApplication",
+            "operatingSystem": "Tous (navigateur web)",
+            "playMode": ["SinglePlayer", "CoOp"],
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+            "isPartOf": { "@id": "https://lyrix-eyg.pages.dev/#website" }
+          }
+        ]
+      }
+    </script>
     <!-- Generated from the logo mark by `npm run favicon:build`; theme-color is --color-page-bg. -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-48.png" type="image/png" sizes="48x48" />
