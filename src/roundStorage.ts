@@ -38,7 +38,6 @@ function isRoundView(value: unknown): value is RoundView {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
   return (
-    typeof candidate.songId === "string" &&
     typeof candidate.state === "string" &&
     typeof candidate.victory === "boolean" &&
     typeof candidate.title === "object" &&

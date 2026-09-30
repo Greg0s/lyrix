@@ -248,7 +248,6 @@ export function parseRoomMessage(value: unknown): RoomMessage | null {
 export function isRoundView(value: unknown): value is RoundView {
   if (!isRecord(value)) return false;
   return (
-    typeof value.songId === "string" &&
     typeof value.state === "string" &&
     typeof value.victory === "boolean" &&
     isRecord(value.title) &&

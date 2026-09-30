@@ -3,7 +3,7 @@ import { normalize } from "../../src/game/normalize";
 import { MAX_PROXIMITY_SCORE } from "../../src/game/similarity";
 import type { NearSlot, RoundView, Song } from "../../src/game/types";
 import { proximityHint, type SimilarityEnv } from "./similarity";
-import { signState } from "./state";
+import { sealState } from "./state";
 
 /**
  * What a guess does to a round, wherever it is played: alone (POST /api/guess,
@@ -56,10 +56,9 @@ export async function buildRoundView(song: Song, foundKeys: Iterable<string>, en
   const foundSet = new Set(foundKeys);
   const devReveal = devRevealOn(env);
   const victory = isVictory(song, foundSet);
-  const state = await signState({ songId: song.id, foundKeys: [...foundSet] }, env.STATE_SECRET);
+  const state = await sealState({ songId: song.id, foundKeys: [...foundSet] }, env.STATE_SECRET);
 
   return {
-    songId: song.id,
     state,
     // Once the round is won, every still-hidden word's real text rides along
     // as `revealHint` (see DisplayToken and CLAUDE.md's anti-cheat section):

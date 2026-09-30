@@ -19,8 +19,9 @@ import type { DisplayToken, RoundView } from "../../../src/game/types";
 import app from "../../../worker/src/index";
 import { Room, type RoomContext, type RoomSocket } from "../../../worker/src/room";
 import type { RateLimiter, RoomNamespace } from "../../../worker/src/roomRoutes";
-import { resetSongMemo } from "../../../worker/src/songs";
-import { signState, verifyState } from "../../../worker/src/state";
+import { getSongById, resetSongMemo } from "../../../worker/src/songs";
+import { sealState, openState } from "../../../worker/src/state";
+import { titleLeaks } from "./titleLeak";
 
 /**
  * Rooms, end to end under plain Node: the Worker's routes in front of real
@@ -642,6 +643,20 @@ describe("the room's round (#30)", () => {
     );
   });
 
+  // #40: a catalog id is a slug of the title, so neither it nor a readable state may reach a member.
+  it("never names the song before the round is won, not even by id or in its state", async () => {
+    const host = await createRoom("Camille");
+    const socket = await connect(host);
+    const miss = await guessIn(host, "guitare");
+    const hit = await guessIn(host, "vent");
+
+    const song = await getSongById("le-refuge-de-novembre");
+    if (!song) throw new Error("the emergency song can't be resolved");
+    const sent = [...socket.sent, JSON.stringify(miss), JSON.stringify(hit)].join("\n");
+    expect(socket.lastRound().round.victory).toBe(false);
+    expect(titleLeaks(sent, song)).toEqual([]);
+  });
+
   it("refuses a guess the same way for a wrong token, an unknown room, and a malformed code", async () => {
     const host = await createRoom();
 
@@ -745,7 +760,7 @@ describe("keeping looking alone once the group has won", () => {
     expect(revealed(view)).not.toContain("novembre");
     expect(revealed(view)).toEqual(expect.arrayContaining(["Le", "refuge", "de", "vent"]));
     expect(words(view).some((token) => token.revealHint !== undefined)).toBe(false);
-    const payload = await verifyState(view.state, env.STATE_SECRET);
+    const payload = await openState(view.state, env.STATE_SECRET);
     expect(new Set(payload?.foundKeys)).toEqual(new Set(["le", "refuge", "de", "vent"]));
   });
 
@@ -753,14 +768,15 @@ describe("keeping looking alone once the group has won", () => {
     const host = await createRoom("Camille");
     const guest = await joinRoom(host.room.code, "Léo");
     await winTogether(host, guest);
-    const songId = (await connect(host)).lastRound().round.songId;
+    const songId = (await openState((await connect(host)).lastRound().round.state, env.STATE_SECRET))?.songId;
+    if (!songId) throw new Error("the room's round state does not open");
 
-    const own = await signState({ songId, foundKeys: ["jardin"] }, env.STATE_SECRET);
-    const otherSong = await signState({ songId: "another-song", foundKeys: ["lampe"] }, env.STATE_SECRET);
-    const forged = await signState({ songId, foundKeys: ["maison"] }, "not-the-secret");
+    const own = await sealState({ songId, foundKeys: ["jardin"] }, env.STATE_SECRET);
+    const otherSong = await sealState({ songId: "another-song", foundKeys: ["lampe"] }, env.STATE_SECRET);
+    const forged = await sealState({ songId, foundKeys: ["maison"] }, "not-the-secret");
 
     const keys = async (state: string) =>
-      (await verifyState(((await (await alone(guest, state)).json()) as RoundView).state, env.STATE_SECRET))
+      (await openState(((await (await alone(guest, state)).json()) as RoundView).state, env.STATE_SECRET))
         ?.foundKeys ?? [];
     expect(await keys(own)).toContain("jardin");
     expect(await keys(otherSong)).not.toContain("lampe");
