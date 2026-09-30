@@ -81,6 +81,30 @@ async function joinRoom(page: Page, code: string, pseudo: string): Promise<void>
   await dialog(page).getByRole("button", { name: "Rejoindre le salon" }).click();
 }
 
+/** The dialog's box once every animation in it has settled. */
+async function settledBox(page: Page): Promise<{ x: number; y: number; width: number; height: number }> {
+  await dialog(page).evaluate((element) =>
+    Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished)),
+  );
+  const box = await dialog(page).boundingBox();
+  if (box === null) throw new Error("The dialog isn't laid out.");
+  return box;
+}
+
+test("switching between the create and join tabs doesn't move the dialog", async ({ browser }) => {
+  const page = await openGame(browser);
+  await page.getByRole("button", { name: "Jouer à plusieurs" }).click();
+  const onCreate = await settledBox(page);
+
+  await dialog(page).getByRole("tab", { name: "Rejoindre" }).click();
+  await expect(dialog(page).getByLabel("Code du salon")).toBeVisible();
+  expect(await settledBox(page)).toEqual(onCreate);
+
+  await dialog(page).getByRole("tab", { name: "Créer un salon" }).click();
+  await expect(dialog(page).getByRole("button", { name: "Créer le salon" })).toBeVisible();
+  expect(await settledBox(page)).toEqual(onCreate);
+});
+
 test("creates a room: its code, its host, and the room everywhere on the page", async ({ browser }) => {
   const page = await openGame(browser);
   await page.getByRole("button", { name: "Jouer à plusieurs" }).click();

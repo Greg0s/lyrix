@@ -9,6 +9,16 @@
   box-sizing: border-box;
 }
 
+/*
+ * Mobile Chromium (Chrome, Brave, Samsung Internet on Android) flashes a blue
+ * box over whatever is tapped. It is not the focus ring and nothing reads it:
+ * keyboard focus keeps its outline through :focus-visible below, and every
+ * control has its own :active style for a press.
+ */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   margin: 0;
   background: var(--color-page-bg);
