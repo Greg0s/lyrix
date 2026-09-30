@@ -462,10 +462,10 @@
     "semantic_hash": "ebbbb0dbcc9b69deafc36d6224036fed"
   },
   "tests/unit/worker/guess.test.ts": {
-    "mtime": 1790623256.340184,
-    "seen": 1790671884.5343254,
-    "ast_hash": "89cd226c72a36a11358de28e71f53bf9",
-    "semantic_hash": "89cd226c72a36a11358de28e71f53bf9"
+    "mtime": 1790783571.4539967,
+    "seen": 1790783608.5382795,
+    "ast_hash": "b5584faba38f6e70c6032ad64101afbf",
+    "semantic_hash": ""
   },
   "tests/unit/worker/lrclib.test.ts": {
     "mtime": 1790623256.340184,
@@ -612,9 +612,9 @@
     "semantic_hash": ""
   },
   "docs/LEARNINGS.md": {
-    "mtime": 1790782930.4510827,
-    "seen": 1790782933.830847,
-    "ast_hash": "d9447b104fedb442af02a98259b0332c",
+    "mtime": 1790783604.4484565,
+    "seen": 1790783608.5383017,
+    "ast_hash": "e00d93d9d9ddb4097fbc82b8aca0553c",
     "semantic_hash": ""
   },
   "docs/SIMILARITY.md": {

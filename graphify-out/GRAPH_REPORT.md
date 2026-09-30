@@ -1,7 +1,7 @@
 # Graph Report - lyrix  (2026-09-30)
 
 ## Corpus Check
-- 135 files · ~90,492 words
+- 135 files · ~90,683 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 8 file(s) not represented in the graph (top: .example 2, (none) 2, .css 2)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d48867e8`
+- Built from commit: `20295433`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -268,9 +268,9 @@ Nodes (5): README, Debug mode (npm run dev:debug), frWac2Vec model (CC BY 3.0), 
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `vitest` connect `vitest` to `catalogAudit.ts`, `package.json`, `dev-debug.ts`, `src/similarity.ts`, `resolveSong.ts`, `useGame.ts`, `e2e-servers.test.ts`, `LEARNINGS.md`, `theme.test.ts`, `worker/room.test.ts`, `types.ts`, `similarityTable.test.ts`, `rooms.test.tsx`, `catalog.ts`, `game/room.ts`, `guess.test.ts`, `roomStorage.test.ts`, `useRoom.ts`, `NextSongCountdown.tsx`?**
-  _High betweenness centrality (0.228) - this node is a cross-community bridge._
+  _High betweenness centrality (0.229) - this node is a cross-community bridge._
 - **Why does `react` connect `react` to `GameScreen.tsx`, `package.json`, `RoomCard.tsx`, `RoomMembers.tsx`, `TitleGuess.tsx`, `Modal.tsx`, `useGame.ts`, `useRoom.ts`, `CLAUDE.md project instructions`, `theme.test.ts`, `NextSongCountdown.tsx`, `WordToken.tsx`, `game/room.ts`?**
-  _High betweenness centrality (0.056) - this node is a cross-community bridge._
+  _High betweenness centrality (0.058) - this node is a cross-community bridge._
 - **Why does `devDependencies` connect `devDependencies` to `package.json`?**
   _High betweenness centrality (0.047) - this node is a cross-community bridge._
 - **What connects `session-start.sh script`, `name`, `version` to the rest of the system?**
