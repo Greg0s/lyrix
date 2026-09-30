@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import type { RoundView } from "../../src/game/types";
-import { titleWords as titleWordsOf } from "./titleWords";
+import { lyricsOnlyWord, titleWords as titleWordsOf } from "./titleWords";
 
 /**
  * Rooms ("salons", issue #29), for real: a Durable Object per room in the
@@ -24,6 +24,8 @@ test.afterEach(async () => {
  * whichever song the day falls on, the emergency one included.
  */
 let titleWords: string[] = [];
+/** A lyrics word outside the title, same source: a find that never wins the round. */
+let lyricsWord = "";
 
 async function openGame(browser: Browser): Promise<Page> {
   const context = await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] });
@@ -33,6 +35,7 @@ async function openGame(browser: Browser): Promise<Page> {
   await page.goto("/");
   const round = (await (await roundResponse).json()) as RoundView;
   titleWords = titleWordsOf(round);
+  lyricsWord = lyricsOnlyWord(round);
   await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
   return page;
 }
@@ -204,33 +207,30 @@ test("plays the day's round together: every find and every miss reaches the whol
   const code = await createRoom(host, "Camille");
   await joinRoom(guest, code, "Léo");
   await expect(feedback(host)).toHaveText("Léo a rejoint le salon.");
-  const [firstWord] = titleWords;
-  if (!firstWord) throw new Error("the day's song title has no word");
 
-  await guess(guest, firstWord);
+  // A lyrics word, not a title word: on a one-word title, that find would win the round.
+  await guess(guest, lyricsWord);
 
-  await expect(feedback(guest)).toHaveText(`« ${firstWord} » trouvé !`);
-  await expect(feedback(host)).toHaveText(`Léo a trouvé « ${firstWord} » !`);
-  await expect(host.locator(".lyrix-title-line .token-word-found", { hasText: firstWord }).first()).toBeVisible();
+  await expect(feedback(guest)).toHaveText(`« ${lyricsWord} » trouvé !`);
+  await expect(feedback(host)).toHaveText(`Léo a trouvé « ${lyricsWord} » !`);
+  await expect(host.locator(".token-word-found", { hasText: lyricsWord }).first()).toBeVisible();
   const hostWords = host.getByRole("region", { name: "Mots du groupe" });
-  await expect(hostWords.locator(".lyrix-chip", { hasText: firstWord }).locator(".lyrix-player-dot")).toHaveCount(1);
+  await expect(hostWords.locator(".lyrix-chip", { hasText: lyricsWord }).locator(".lyrix-player-dot")).toHaveCount(1);
 
   await guess(host, "zzqxw");
   await expect(feedback(guest)).toHaveText("Camille a proposé « zzqxw », sans succès.");
   await guess(guest, "ZZQXW");
   await expect(feedback(guest)).toHaveText("« ZZQXW » a déjà été proposé.");
 
-  for (const word of titleWords.slice(1)) await guess(host, word);
+  for (const word of titleWords) await guess(host, word);
 
-  // Whoever completed the title sees the victory (Camille, unless the title is
-  // one word and Léo's first find completed it); the other is offered the
+  // Camille completed the title and sees the victory; Léo is offered the
   // answer, or to keep looking (see "when a teammate completes the title").
-  const [finder, other] = titleWords.length > 1 ? [host, guest] : [guest, host];
-  await expect(finder.getByText("Bravo, le groupe l'a trouvée")).toBeVisible();
-  await expect(finder.getByRole("region", { name: "Progression" }).locator('[data-stat="tried"]')).toContainText(
-    `${titleWords.length + 1} essais`
+  await expect(host.getByText("Bravo, le groupe l'a trouvée")).toBeVisible();
+  await expect(host.getByRole("region", { name: "Progression" }).locator('[data-stat="tried"]')).toContainText(
+    `${titleWords.length + 2} essais`
   );
-  await expect(other.getByRole("button", { name: "Afficher la réponse" })).toBeVisible();
+  await expect(guest.getByRole("button", { name: "Afficher la réponse" })).toBeVisible();
 });
 
 test("catches a player up on the room's round after a reload, and gives the solo round back on leaving", async ({
@@ -240,18 +240,17 @@ test("catches a player up on the room's round after a reload, and gives the solo
   const guest = await openGame(browser);
   const code = await createRoom(host, "Camille");
   await joinRoom(guest, code, "Léo");
-  const [firstWord] = titleWords;
-  if (!firstWord) throw new Error("the day's song title has no word");
-  await guess(host, firstWord);
+  // Not a title word: on a one-word title, finding it would end the round instead.
+  await guess(host, lyricsWord);
 
   await guest.reload();
-  const found = guest.locator(".lyrix-title-line .token-word-found", { hasText: firstWord }).first();
+  const found = guest.locator(".token-word-found", { hasText: lyricsWord }).first();
   await expect(found).toBeVisible();
 
   await roomCard(guest).getByRole("button", { name: "Quitter le salon" }).click();
 
   await expect(guest.getByPlaceholder("Propose un mot…")).toBeVisible();
-  await expect(guest.locator(".lyrix-title-line .token-word-found")).toHaveCount(0);
+  await expect(guest.locator(".token-word-found")).toHaveCount(0);
   await expect(guest.getByRole("region", { name: "Tes mots" })).toContainText("Les mots que tu proposes");
 });
 

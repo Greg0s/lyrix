@@ -263,6 +263,12 @@ Fix: nothing in the dock is ever `disabled` any more. The input stays editable i
 - **The `songId` is the catalog slug of the title** (e.g. `alors-on-danse`), and it rides on every `RoundView` and inside the signed state, solo and room alike. A leak-checking test must not look for title words in a whole response: found while writing the room's "never sends a still-hidden word" test, which checks lyrics words instead. Fixed in #40 by sealing the state and dropping `songId` (see 2026-09-30).
 - **In the cloud sandbox, LRCLIB is unreachable**, so the e2e Worker serves the emergency song, which isn't in the catalog: specs that look the day's title up in `catalog` fail there. Read the title off the round's `devHint`s instead (the e2e Worker runs with `DEV_REVEAL_LYRICS`), as `tests/e2e/rooms.spec.ts` does.
 
+## 2026-09-30 — Room e2e specs assumed a title of several words
+
+CI on PR #48 failed two `rooms.spec.ts` tests the day the song was "Dommage": they had one member find the title's first word and expected a plain "Léo a trouvé « … » !", but on a one-word title that find completes it ("Léo a trouvé la chanson !"). Unrelated to the PR — the specs depend on the day's real song, and every earlier day had a longer title. Fix: a find that must not win is a lyrics word outside the title (`lyricsOnlyWord`, `tests/e2e/titleWords.ts`). Checked by running the suite against a temporarily one-word emergency title.
+
+**Takeaway**: an e2e spec that plays the day's real song must hold for any song: one-word titles, title words repeated in the lyrics, short songs. Before trusting it, run it against a deliberately awkward stand-in.
+
 ## 2026-09-30 — The round named its song (#40)
 
 Catalog ids are slugs of the title (`alors-on-danse`), and every `RoundView` sent the id as `songId`, while the `state` — HMAC-signed, not encrypted — carried it again in plain base64url. DevTools (Network tab, or `localStorage["lyrix:round"]`) gave the day's title before a single guess, solo and in rooms. Root cause: signing was chosen to stop *forged* progress and was then treated as if it also made the state *opaque*; it doesn't.
