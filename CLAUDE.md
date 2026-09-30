@@ -102,6 +102,7 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 - **Search and link previews**: `index.html` carries the description, canonical URL, Open Graph/Twitter tags and schema.org JSON-LD (`WebSite` + `VideoGame`), all as absolute `https://lyrix-eyg.pages.dev/` URLs, in step with `public/robots.txt` and `public/sitemap.xml` (`tests/unit/ci/richSnippets.test.ts`). Never add a rating or review to the JSON-LD that no real player gave. If the production domain changes, change every one of them together.
 - **Theming**: light and dark palettes, both in `src/styles/tokens.css` (dark under `:root[data-theme="dark"]`). Components use tokens only, never a raw colour, and a text token is never a surface: dark fills use `--color-solid*` and stay dark in both themes (text on them is `--color-on-ink*`), bright fills take `--color-on-bright` text. The theme follows the system until the player picks one with the header's toggle (`src/theme.ts`, stored in localStorage); `index.html`'s inline script applies it before first paint and must stay in step with `initialTheme()` (`tests/unit/theme.test.ts`).
 - **Rooms** (#29): a room knows its code, its members, and its round. Its wire contract, codes (`ABCDEFGHJKMNPQRSTUVWXYZ23456789`, 6 characters) and pseudo sanitizing live in `src/game/room.ts`, shared by both sides. Two rules keep codes from being enumerated: every join attempt is rate-limited, and no other route may answer differently for a live code than for a dead one (an unknown token and an unknown room close the socket the same way, and get the same 404 from `/guess`; leave always answers 204). A pseudo is personal data: stored only in its room's Durable Object, deleted with the room, never logged.
+- **Invite links** (`/salon/<code>`, `src/game/room.ts`): opening one offers to join that room with the code typed in, through the same rate-limited join as a typed code — the link itself asks the server nothing. It is answered with the invite page, index.html under an invitation's link preview (`scripts/lib/invitePage.ts`, emitted by the build as `dist/salon/index.html`, served by `public/_redirects`; the dev server does it on the fly). That preview is the same for every code: never look the room up for it, nor show its host's pseudo.
 - **A room's round lives in its Durable Object** (#30), never on a client: a member sends a word (`POST /api/rooms/:code/guess`), the object checks it with the same code as the solo route (`worker/src/round.ts`), keeps it, and sends every member the room's masked view plus its guess list — over the socket on (re)connection and after each guess. The song is pinned the first time the room needs it. Victory, and with it `revealHint`, is the room's, but only the member who completed the title (`RoomRound.winningKey`) sees it straight away: everyone else keeps looking alone, on a solo round the room signs for them (`POST /api/rooms/:code/alone`: the group's finds but the winning word, plus their own verified solo state), until they win it or press "Afficher la réponse" (remembered per room, `roomStorage`). While they look alone, the room's later finds are never announced to them. A teammate's close guesses are placed in everyone's lyrics. While in a room, the solo round (`roundStorage`) is set aside untouched and comes back on leaving; the room's round is never saved locally. An answer and a broadcast can cross: a view only replaces one with fewer guesses.
 - **LRCLIB data isn't guaranteed clean**: `plainLyrics`/`syncedLyrics` are LRC-format text, not prose. Everything unsung is dropped before masking (`cleanLyrics`) — a player must never be asked to guess `[Refrain]`, `♪`, or the artist out of an `[ar:…]` tag — and a result too thin to be a puzzle is refused (`MIN_LYRIC_WORDS`) so the day's pick falls through to the next catalog entry. The catalog is only as good as LRCLIB's copy of it and the suite mocks the network on purpose, so run `npm run catalog:check` after editing `worker/src/catalog.ts`, and whenever a day's round looks wrong.
 
@@ -121,9 +122,10 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
 ## Project Structure
 
 ```
-/public                  # favicon.svg, favicon-48.png, apple-touch-icon.png, og-image.png (link
-                          # preview) — generated from the logo mark + tokens.css by
-                          # `npm run favicon:build`, never edited by hand; robots.txt, sitemap.xml
+/public                  # favicon.svg, favicon-48.png, apple-touch-icon.png, og-image.png and
+                          # og-invite.png (link previews) — generated from the logo mark + tokens.css
+                          # by `npm run favicon:build`, never edited by hand; robots.txt, sitemap.xml;
+                          # _redirects (Pages: invite links -> the invite page)
 /src
   main.tsx, App.tsx     # React entry point, top-level render of GameScreen
   roundStorage.ts        # localStorage persistence so a reload resumes today's round
@@ -155,9 +157,11 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                                       # "Mots du groupe" in a room, a colour dot per chip
                                       # (collapsed by default below 880px)
     Modal.tsx, HowToPlay.tsx   # dialog shell (Escape/backdrop, exit animation); the rules
-    MultiplayerModal.tsx      # rooms (#29): "Créer un salon" / "Rejoindre" tabs, or the room once in one
-    RoomCard.tsx, RoomMembers.tsx, CopyCodeButton.tsx, playerColor.ts  # dark "Salon" card, member
-                              # list/grid, "Copié !" flash, a player's stable colour
+    MultiplayerModal.tsx      # rooms (#29): "Créer un salon" / "Rejoindre" tabs, or the room once in one;
+                              # opened on "Rejoindre" by an invite link (GameScreen reads the path)
+    RoomCard.tsx, RoomMembers.tsx, CopyButton.tsx, playerColor.ts  # dark "Salon" card, member
+                              # list/grid, code/invite link copy ("Copié !" flash; share sheet on
+                              # a phone), a player's stable colour
     MultiplayerPromo.tsx       # "Chercher à plusieurs" card, hidden while in a room
   /hooks
     useGame.ts              # round/guess state machine; hydrates from roundStorage before network;
@@ -176,7 +180,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     daily.ts                    # time until the next song (UTC midnight), countdown format
     similarity.ts, functionWords.ts, slots.ts  # 0-100 proximity scale; excluded function words;
                                                 # addressing hidden words by position
-    room.ts                     # rooms' wire contract: codes, pseudos, close codes, room round, message parsing
+    room.ts                     # rooms' wire contract: codes, pseudos, close codes, room round, message
+                                 # parsing; invite link paths
   /styles                    # tokens.css (v3 light + dark palettes), global.css (keyframes), game.css
                              # (layout; breakpoints are CSS media queries, never JS)
 /worker/src
@@ -199,7 +204,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   ensure-dev-vars.ts, check-catalog.ts, convert-embeddings.ts, build-similarity-table.ts,
   dev-debug.ts, inspect-similarity-table.ts, build-favicon.ts, graph-update.ts
   /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, debugMode.ts, devVars.ts, catalogAudit.ts,
-       favicon.ts, socialImage.ts, graphFixes.ts, graphSeed.ts
+       favicon.ts, socialImage.ts, invitePage.ts (+ its Vite plugin), graphFixes.ts, graphSeed.ts
 /tests
   /unit/game, /unit/worker, /unit/scripts, /unit/storage, /unit/components, /unit/api, /unit/ci
   /e2e                        # Playwright; fixtures/similarity-table.json stands in for a built table

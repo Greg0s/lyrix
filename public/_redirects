@@ -1,0 +1,4 @@
+# Cloudflare Pages. An invite link (/salon/<code>, src/game/room.ts) is
+# answered with the invite page, the app under an invitation's link preview
+# (scripts/lib/invitePage.ts): a rewrite, so the address keeps its code.
+/salon/:code  /salon/  200

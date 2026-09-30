@@ -1,14 +1,26 @@
 import { useId, useState, type FormEvent } from "react";
 import type { RoomFailure } from "../api/rooms";
-import { isRoomCode, normalizeRoomCodeInput, PSEUDO_MAX_LENGTH, ROOM_CODE_LENGTH } from "../game/room";
+import {
+  inviteUrl,
+  isRoomCode,
+  normalizeRoomCodeInput,
+  PSEUDO_MAX_LENGTH,
+  ROOM_CODE_LENGTH,
+} from "../game/room";
 import type { RoomOutcome, RoomView } from "../hooks/useRoom";
-import { CopyCodeButton } from "./CopyCodeButton";
+import { CopyButton } from "./CopyButton";
 import { Modal } from "./Modal";
 import { RoomMembers } from "./RoomMembers";
 
 interface MultiplayerModalProps {
   /** The room the player is in, if any: the dialog then shows it instead of the create/join forms. */
   room: RoomView | null;
+  /**
+   * The code of the invite link the page was opened with, if any: the dialog
+   * opens on "Rejoindre" with it typed in — even in another room, which
+   * joining it leaves.
+   */
+  invite: string | null;
   onCreate: (pseudo: string) => Promise<RoomOutcome>;
   onJoin: (code: string, pseudo: string) => Promise<RoomOutcome>;
   onClosed: () => void;
@@ -35,15 +47,16 @@ interface FormError {
 
 /**
  * "Jouer à plusieurs" (issue #29). Out of a room: the "Créer un salon" /
- * "Rejoindre" tabs. In one: its code to share and who is there. Creating a
+ * "Rejoindre" tabs. In one: its code and invite link to share, and who is
+ * there. An invite link to another room shows the forms again. Creating a
  * room keeps the dialog open on the new room; joining one closes it, and the
  * guess dock says whose room it was (see useRoom).
  */
-export function MultiplayerModal({ room, onCreate, onJoin, onClosed }: MultiplayerModalProps) {
+export function MultiplayerModal({ room, invite, onCreate, onJoin, onClosed }: MultiplayerModalProps) {
   // After a join the dialog closes; the form stays up while it animates out,
   // rather than flashing the in-room view on the way.
   const [joined, setJoined] = useState(false);
-  const inRoom = room !== null && !joined;
+  const inRoom = room !== null && !joined && (invite === null || invite === room.code);
 
   return (
     <Modal title="Jouer à plusieurs" onClosed={onClosed} size="wide">
@@ -52,6 +65,8 @@ export function MultiplayerModal({ room, onCreate, onJoin, onClosed }: Multiplay
           <InRoom room={room} onDone={requestClose} />
         ) : (
           <RoomForms
+            invite={invite}
+            currentRoom={room?.code ?? null}
             onCreate={onCreate}
             onJoin={onJoin}
             onJoined={() => {
@@ -66,15 +81,18 @@ export function MultiplayerModal({ room, onCreate, onJoin, onClosed }: Multiplay
 }
 
 interface RoomFormsProps {
+  invite: string | null;
+  /** The room the player is in while an invite offers another one. */
+  currentRoom: string | null;
   onCreate: (pseudo: string) => Promise<RoomOutcome>;
   onJoin: (code: string, pseudo: string) => Promise<RoomOutcome>;
   onJoined: () => void;
 }
 
-function RoomForms({ onCreate, onJoin, onJoined }: RoomFormsProps) {
-  const [tab, setTab] = useState<Tab>("create");
+function RoomForms({ invite, currentRoom, onCreate, onJoin, onJoined }: RoomFormsProps) {
+  const [tab, setTab] = useState<Tab>(invite ? "join" : "create");
   const [pseudo, setPseudo] = useState("");
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(invite ?? "");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<FormError | null>(null);
   const errorId = useId();
@@ -148,8 +166,8 @@ function RoomForms({ onCreate, onJoin, onJoined }: RoomFormsProps) {
         {tab === "create" ? (
           <div className="lyrix-mp-pane is-create" key="create">
             <p className="lyrix-mp-text">
-              Tu deviens l'hôte. Un code de salon est généré&nbsp;: partage-le aux autres joueurs pour qu'ils te
-              rejoignent. Le salon n'a pas de limite de joueurs.
+              Tu deviens l'hôte. Un code de salon et un lien d'invitation sont générés&nbsp;: partage-les aux autres
+              joueurs pour qu'ils te rejoignent. Le salon n'a pas de limite de joueurs.
             </p>
             {error ? (
               <p className="lyrix-mp-error" role="alert">
@@ -180,6 +198,13 @@ function RoomForms({ onCreate, onJoin, onJoined }: RoomFormsProps) {
                 aria-describedby={error ? errorId : undefined}
               />
             </label>
+            {invite !== null && code === invite ? (
+              <p className="lyrix-mp-text">
+                {currentRoom !== null
+                  ? `On t’invite dans ce salon. Le rejoindre te fera quitter le salon ${currentRoom}.`
+                  : "On t’invite dans ce salon : choisis un pseudo et rejoins-le."}
+              </p>
+            ) : null}
             {error ? (
               <p className="lyrix-mp-error" id={errorId} role="alert">
                 {error.text}
@@ -206,11 +231,19 @@ function InRoom({ room, onDone }: InRoomProps) {
       <div className="lyrix-room-code-block">
         <p className="lyrix-eyebrow">Code du salon</p>
         <p className="lyrix-room-code is-large">{room.code}</p>
-        <CopyCodeButton code={room.code} tone="light" />
+        <div className="lyrix-room-share">
+          <CopyButton
+            value={inviteUrl(room.code, window.location.origin)}
+            label="Copier le lien"
+            shareLabel="Partager le lien"
+            tone="light"
+          />
+          <CopyButton value={room.code} label="Copier le code" tone="light" />
+        </div>
       </div>
       <p className="lyrix-mp-text">
-        Partage ce code&nbsp;: chaque joueur qui le saisit dans «&nbsp;Rejoindre&nbsp;» arrive dans ce salon, jusqu'à
-        minuit (heure UTC), quand la chanson du jour change.
+        Partage le lien, ou ce code à saisir dans «&nbsp;Rejoindre&nbsp;»&nbsp;: chaque joueur qui l'ouvre arrive dans
+        ce salon, jusqu'à minuit (heure UTC), quand la chanson du jour change.
       </p>
       <p className="lyrix-soon" role="note">
         <span className="lyrix-soon-badge">Bientôt</span>

@@ -517,6 +517,150 @@ describe("the multiplayer dialog", () => {
   });
 });
 
+describe("an invite link", () => {
+  const INVITE_URL = "http://localhost:3000/salon/ABC234";
+
+  function inviteTo(code: string): void {
+    window.history.replaceState(null, "", `/salon/${code}`);
+  }
+
+  function dialog(): HTMLElement {
+    return screen.getByRole("dialog", { name: "Jouer à plusieurs" });
+  }
+
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  it("opens the dialog on « Rejoindre », the code typed in, and asks nothing of the server until the player joins", async () => {
+    inviteTo("ABC234");
+    await mountGame();
+
+    const code = within(dialog()).getByLabelText("Code du salon") as HTMLInputElement;
+    expect(code.value).toBe("ABC234");
+    expect(within(dialog()).getByRole("tab", { name: "Rejoindre" }).getAttribute("aria-selected")).toBe("true");
+    expect(dialog().textContent).toContain("On t’invite dans ce salon");
+    // Once opened, the address is the game's again: a reload doesn't offer the room twice.
+    expect(window.location.pathname).toBe("/");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    answer(201, entry(leo.id, [camille, leo]));
+    fireEvent.change(within(dialog()).getByLabelText("Ton pseudo"), { target: { value: "Léo" } });
+    fireEvent.submit(code);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://localhost:3000/api/rooms/ABC234/members");
+    latestSocket().receive(roundMessage());
+    expect(feedbackText()).toBe("Tu as rejoint le salon de Camille.");
+  });
+
+  it("is only offered once: closing the dialog drops it", async () => {
+    inviteTo("ABC234");
+    await mountGame();
+
+    fireEvent.keyDown(dialog(), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Jouer à plusieurs" }));
+
+    expect(within(dialog()).getByRole("tab", { name: "Créer un salon" }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("does nothing for the room the player is already in", async () => {
+    seedRoom();
+    inviteTo("ABC234");
+    await mountGame();
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("ignores a path that can't be a room's", async () => {
+    inviteTo("ABC0I1");
+    await mountGame();
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("from inside another room, says joining leaves it, and leaves it only once in the new one", async () => {
+    seedRoom();
+    inviteTo("XYZ789");
+    await mountGame();
+    const oldSocket = latestSocket();
+    oldSocket.open();
+
+    expect(within(dialog()).getByLabelText<HTMLInputElement>("Code du salon").value).toBe("XYZ789");
+    expect(dialog().textContent).toContain("Le rejoindre te fera quitter le salon ABC234.");
+
+    const next: RoomEntry = { you: "m9", token: "token-m9", room: { ...snapshot([camille]), code: "XYZ789" } };
+    answer(201, next);
+    answer(204);
+    fireEvent.submit(within(dialog()).getByLabelText("Code du salon"));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://localhost:3000/api/rooms/XYZ789/members");
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe("http://localhost:3000/api/rooms/ABC234/leave");
+    expect(sentBody(1)).toEqual({ token: "token-m1" });
+    expect(oldSocket.readyState).toBe(SOCKET_CLOSED);
+    expect(latestSocket().url).toContain("/api/rooms/XYZ789/ws");
+  });
+
+  it("keeps a player in their room when the invited one turns them away", async () => {
+    seedRoom();
+    inviteTo("XYZ789");
+    await mountGame();
+
+    answer(404);
+    fireEvent.submit(within(dialog()).getByLabelText("Code du salon"));
+
+    await waitFor(() => expect(within(dialog()).getByRole("alert").textContent).toMatch(/Aucun salon/));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(window.localStorage.getItem("lyrix:room")).toContain("ABC234");
+  });
+
+  it("is copied from the Salon card and from the dialog", async () => {
+    seedRoom();
+    await mountGame();
+    const card = roomCard() as HTMLElement;
+
+    fireEvent.click(within(card).getByRole("button", { name: "Copier le lien d’invitation" }));
+    await waitFor(() => expect(within(card).getByRole("button", { name: "Copié !" })).toBeTruthy());
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(INVITE_URL);
+
+    fireEvent.click(screen.getByRole("button", { name: "Salon · 1 joueur" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Copier le lien" }));
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledTimes(2));
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(INVITE_URL);
+  });
+
+  it("goes to the share sheet on a phone, and to the clipboard only if sharing fails", async () => {
+    const share = vi.fn(async () => {});
+    vi.stubGlobal("navigator", { ...navigator, share });
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) =>
+        ({
+          matches: query === "(pointer: coarse)",
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }) as unknown as MediaQueryList
+    );
+    seedRoom();
+    await mountGame();
+    const card = roomCard() as HTMLElement;
+
+    fireEvent.click(within(card).getByRole("button", { name: "Partager le lien d’invitation" }));
+    await waitFor(() => expect(share).toHaveBeenCalledWith({ url: INVITE_URL }));
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+
+    share.mockRejectedValueOnce(new DOMException("closed", "AbortError"));
+    fireEvent.click(within(card).getByRole("button", { name: "Partager le lien d’invitation" }));
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(2));
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+
+    share.mockRejectedValueOnce(new DOMException("not allowed", "NotAllowedError"));
+    fireEvent.click(within(card).getByRole("button", { name: "Partager le lien d’invitation" }));
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(INVITE_URL));
+  });
+});
+
 function lyricsText(): string {
   return document.querySelector(".lyrix-song")?.textContent ?? "";
 }

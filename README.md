@@ -90,7 +90,7 @@ Without a model it says so, names where it looked, and stops; `npm run dev:all` 
 
 ## Playing together: rooms
 
-"Jouer à plusieurs" creates a room ("salon") with a 6-character code to share, or joins one with its code. Everyone in a room sees who else is there, live; sharing the round's found words across the room comes next ([#30](https://github.com/Greg0s/lyrix/issues/30)).
+"Jouer à plusieurs" creates a room ("salon") with a 6-character code and an invite link (`/salon/<code>`) to share, or joins one with its code. Opening an invite link offers to join that room, the code already typed in; the link previews in chat apps as an invitation (`public/og-invite.png`), the same for every room. Everyone in a room sees who else is there, live; sharing the round's found words across the room comes next ([#30](https://github.com/Greg0s/lyrix/issues/30)).
 
 Nothing to set up, locally or in production. Each room is a Cloudflare Durable Object (`worker/src/room.ts`), declared in `worker/wrangler.toml` together with two rate limits on creating and joining rooms, and deployed with the Worker: `npm run dev:all` runs all of it locally, WebSockets included. A room lasts until the next UTC midnight, when the day's song changes, and then it is deleted with everything in it — pseudos are kept nowhere else.
 

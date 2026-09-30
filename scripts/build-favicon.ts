@@ -2,11 +2,11 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import { PNG_ICONS, faviconColors, faviconSvg } from "./lib/favicon";
-import { SOCIAL_IMAGE, SOCIAL_IMAGE_FONTS, socialImageHtml } from "./lib/socialImage";
+import { INVITE_IMAGE, SOCIAL_IMAGE, SOCIAL_IMAGE_FONTS, socialImageHtml } from "./lib/socialImage";
 
 /**
- * Regenerates public/favicon.svg, its PNG fallbacks and the link-preview image
- * (public/og-image.png) from the logo mark's geometry and the palette in
+ * Regenerates public/favicon.svg, its PNG fallbacks and the link-preview images
+ * (public/og-image.png, public/og-invite.png) from the logo mark's geometry and the palette in
  * tokens.css. Run after changing either;
  * tests/unit/ci/favicon.test.ts fails while the committed files are stale.
  *
@@ -63,16 +63,22 @@ try {
     console.log(`wrote public/${icon.file}`);
   }
 
-  const page = await browser.newPage({ viewport: { width: SOCIAL_IMAGE.width, height: SOCIAL_IMAGE.height } });
-  await page.setContent(socialImageHtml(colors, await inlinedFontCss()));
-  const loaded = await page.evaluate(async () => {
-    await document.fonts.ready;
-    return document.fonts.check('800 150px "Bricolage Grotesque"') && document.fonts.check('500 44px "Figtree"');
-  });
-  if (!loaded) throw new Error("the social image's web fonts did not load");
-  await page.screenshot({ path: fileURLToPath(new URL(`public/${SOCIAL_IMAGE.file}`, root)) });
-  await page.close();
-  console.log(`wrote public/${SOCIAL_IMAGE.file}`);
+  const fontCss = await inlinedFontCss();
+  for (const [image, variant] of [
+    [SOCIAL_IMAGE, "game"],
+    [INVITE_IMAGE, "invite"],
+  ] as const) {
+    const page = await browser.newPage({ viewport: { width: image.width, height: image.height } });
+    await page.setContent(socialImageHtml(colors, fontCss, variant));
+    const loaded = await page.evaluate(async () => {
+      await document.fonts.ready;
+      return document.fonts.check('800 150px "Bricolage Grotesque"') && document.fonts.check('500 44px "Figtree"');
+    });
+    if (!loaded) throw new Error(`${image.file}'s web fonts did not load`);
+    await page.screenshot({ path: fileURLToPath(new URL(`public/${image.file}`, root)) });
+    await page.close();
+    console.log(`wrote public/${image.file}`);
+  }
 } finally {
   await browser.close();
 }

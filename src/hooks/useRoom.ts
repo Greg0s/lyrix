@@ -153,11 +153,15 @@ export function useRoom(
     async (roomCode: string, pseudo: string): Promise<RoomOutcome> => {
       const result = await joinRoom(roomCode, sanitizePseudo(pseudo));
       if (!result.ok) return result;
+      // An invite link can bring a player from one room to another: they are
+      // only ever in one, so the other one hears they left. Only once the new
+      // room has let them in, so a failed join keeps them where they were.
+      if (entry && entry.room.code !== result.entry.room.code) leaveRoom(entry.room.code, entry.token);
       enter(result.entry);
       announce(`Tu as rejoint le salon de ${memberName(result.entry.room.host, result.entry.you)}.`);
       return { ok: true };
     },
-    [announce, enter]
+    [announce, enter, entry]
   );
 
   const leave = useCallback(() => {
