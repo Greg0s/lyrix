@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   generateRoomCode,
+  inviteUrl,
   isRoomCode,
   memberName,
   normalizeRoomCodeInput,
+  parseInvitePath,
   parseRoomEntry,
   parseRoomMessage,
   parseRoomSnapshot,
@@ -173,5 +175,24 @@ describe("parsing what comes off the network", () => {
   it("reads an empty pseudo as unnamed", () => {
     const parsed = parseRoomSnapshot({ ...snapshot, host: { id: "m1", name: "", number: 1 } });
     expect(parsed?.host.name).toBeNull();
+  });
+});
+
+describe("invite links", () => {
+  it("puts the code under /salon/ on the site's own origin", () => {
+    expect(inviteUrl("ABC234", "https://lyrix-eyg.pages.dev")).toBe("https://lyrix-eyg.pages.dev/salon/ABC234");
+    expect(inviteUrl("ABC234", "http://localhost:5173")).toBe("http://localhost:5173/salon/ABC234");
+  });
+
+  it("reads the code back, forgiving case and a trailing slash", () => {
+    expect(parseInvitePath(new URL(inviteUrl("ABC234", "https://example.test")).pathname)).toBe("ABC234");
+    expect(parseInvitePath("/salon/abc234")).toBe("ABC234");
+    expect(parseInvitePath("/salon/ABC234/")).toBe("ABC234");
+  });
+
+  it("is no invite for any other path, or a code that can't exist", () => {
+    for (const path of ["/", "/salon/", "/salon", "/ABC234", "/salon/ABC23", "/salon/ABC0I1", "/salon/ABC234/x"]) {
+      expect(parseInvitePath(path)).toBeNull();
+    }
   });
 });

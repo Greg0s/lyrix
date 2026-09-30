@@ -1528,6 +1528,20 @@
   background: color-mix(in oklch, var(--color-on-ink) 16%, transparent);
 }
 
+/* The Salon card's invite link: a full row under the code. */
+.lyrix-copy.is-block {
+  width: 100%;
+  padding: 9px 14px;
+}
+
+/* The dialog's link and code buttons, side by side, wrapping on a narrow phone. */
+.lyrix-room-share {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
 .lyrix-copy.is-done,
 .lyrix-copy.is-done:hover {
   background: var(--color-presence);

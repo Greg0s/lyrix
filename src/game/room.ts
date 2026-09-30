@@ -138,6 +138,32 @@ export function isRoomCode(value: string): boolean {
   return true;
 }
 
+/**
+ * Invite links: `/salon/<code>`. Opening one offers to join that room, the
+ * code already typed in; nothing is asked of the server until the player
+ * confirms, so the link goes through the same rate-limited join as a typed
+ * code. The path is served its own page, whose link preview says it is an
+ * invitation (scripts/lib/invitePage.ts), and that page never looks the code
+ * up: a preview must read the same for a live code as for a dead one.
+ */
+export const INVITE_PATH = "/salon/";
+
+/** The link that invites a player into this room, on the site at `origin`. */
+export function inviteUrl(code: string, origin: string): string {
+  return new URL(`${INVITE_PATH}${code}`, origin).toString();
+}
+
+/**
+ * The room code an invite link carries, if `pathname` is one. Forgiving about
+ * case and a trailing slash (a code retyped from a chat); null for any other
+ * path, and for a code that can't exist.
+ */
+export function parseInvitePath(pathname: string): string | null {
+  if (!pathname.startsWith(INVITE_PATH)) return null;
+  const code = pathname.slice(INVITE_PATH.length).replace(/\/$/, "").toUpperCase();
+  return isRoomCode(code) ? code : null;
+}
+
 function cryptoBytes(count: number): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(count));
 }

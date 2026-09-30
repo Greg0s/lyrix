@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { revealedPercent } from "../game/progress";
+import { parseInvitePath } from "../game/room";
 import { closestGuessBySlot, placeNearGuesses } from "../game/slots";
 import { useGame, type Feedback } from "../hooks/useGame";
 import { useRoom } from "../hooks/useRoom";
@@ -38,7 +39,18 @@ export function GameScreen() {
   // dock's feedback line; the room's round replaces the solo one (#30).
   const room = useRoom(game.announce, game.receiveRoomRound, game.setRoomSession);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [dialog, setDialog] = useState<Dialog>(null);
+  // An invite link (/salon/<code>) opens the dialog on that room, unless the
+  // player is in it already. It is only offered once: closing the dialog drops it.
+  const [invite, setInvite] = useState(() => parseInvitePath(window.location.pathname));
+  const [dialog, setDialog] = useState<Dialog>(() =>
+    invite !== null && invite !== room.view?.code ? "multiplayer" : null
+  );
+  // The address goes back to the home page, so a reload doesn't offer the room
+  // again, and what the player copies from the address bar is the game's URL.
+  useEffect(() => {
+    if (parseInvitePath(window.location.pathname) === null) return;
+    window.history.replaceState(window.history.state, "", `/${window.location.search}${window.location.hash}`);
+  }, []);
   const [revealAllLyrics, setRevealAllLyrics] = useState(false);
   // What had focus when a dialog opened (its button), to hand it back on a touch screen.
   const openerRef = useRef<HTMLElement | null>(null);
@@ -54,6 +66,7 @@ export function GameScreen() {
   // button that opened the dialog, and the player taps the input when ready.
   const closeDialog = useCallback(() => {
     setDialog(null);
+    setInvite(null);
     const opener = openerRef.current;
     openerRef.current = null;
     if (!isTouchScreen()) inputRef.current?.focus();
@@ -88,7 +101,13 @@ export function GameScreen() {
     <>
       {dialog === "help" ? <HowToPlay onClosed={closeDialog} /> : null}
       {dialog === "multiplayer" ? (
-        <MultiplayerModal room={room.view} onCreate={room.create} onJoin={room.join} onClosed={closeDialog} />
+        <MultiplayerModal
+          room={room.view}
+          invite={invite}
+          onCreate={room.create}
+          onJoin={room.join}
+          onClosed={closeDialog}
+        />
       ) : null}
     </>
   );

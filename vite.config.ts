@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { invitePagePlugin } from "./scripts/lib/invitePage";
 
 // Where the dev server forwards /api/*: by default the Worker `npm run dev:all`
 // starts on wrangler's default port. playwright.config.ts points it at the
@@ -8,7 +9,8 @@ import react from "@vitejs/plugin-react";
 const apiProxyTarget = process.env.API_PROXY_TARGET || "http://localhost:8787";
 
 export default defineConfig({
-  plugins: [react()],
+  // invitePagePlugin: the page invite links (/salon/<code>) answer with, and its link preview.
+  plugins: [react(), invitePagePlugin()],
   server: {
     proxy: {
       // ws: rooms keep their members live over a WebSocket on /api/rooms/:code/ws.

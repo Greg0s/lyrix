@@ -189,6 +189,36 @@ test("names a player who gave no pseudo « Toi » for themselves and « Joueur N
   await expect(roomCard(guest).locator(".lyrix-member-name")).toHaveText(["Joueur 1", "Toi"]);
 });
 
+test("invites a player with a link: an invitation's preview, then the room's code typed in for them", async ({
+  browser,
+}) => {
+  const host = await openGame(browser);
+  const code = await createRoom(host, "Camille");
+  await roomCard(host).getByRole("button", { name: "Copier le lien d’invitation" }).click();
+  await expect(roomCard(host).getByRole("button", { name: "Copié !" })).toBeVisible();
+  const link = await host.evaluate(() => navigator.clipboard.readText());
+  expect(new URL(link).pathname).toBe(`/salon/${code}`);
+
+  // What a chat app's unfurler reads: the HTML, never the app.
+  const response = await host.request.get(link);
+  const html = await response.text();
+  expect(html).toContain('<meta property="og:title" content="Rejoins mon salon Lyrix" />');
+  expect(html).toContain("og-invite.png");
+  expect(html).not.toContain(code);
+
+  const guest = await (await browser.newContext()).newPage();
+  contexts.push(guest.context());
+  await guest.goto(link);
+  await expect(dialog(guest).getByLabel("Code du salon")).toHaveValue(code);
+  await expect(guest).toHaveURL(/\/$/);
+  await dialog(guest).getByLabel("Ton pseudo").fill("Léo");
+  await dialog(guest).getByRole("button", { name: "Rejoindre le salon" }).click();
+
+  await expect(dialog(guest)).toBeHidden();
+  await expect(feedback(guest)).toHaveText("Tu as rejoint le salon de Camille.");
+  await expect(feedback(host)).toHaveText("Léo a rejoint le salon.");
+});
+
 test("copies the room code, and says so for a moment", async ({ browser }) => {
   const page = await openGame(browser);
   const code = await createRoom(page, "Camille");

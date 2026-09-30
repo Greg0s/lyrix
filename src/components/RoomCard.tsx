@@ -1,7 +1,7 @@
 import { memo } from "react";
-import { playerCountLabel } from "../game/room";
+import { inviteUrl, playerCountLabel } from "../game/room";
 import type { RoomView } from "../hooks/useRoom";
-import { CopyCodeButton } from "./CopyCodeButton";
+import { CopyButton } from "./CopyButton";
 import { RoomMembers } from "./RoomMembers";
 
 interface RoomCardProps {
@@ -11,7 +11,7 @@ interface RoomCardProps {
 
 /**
  * The dark "Salon" card at the top of the side column while the player is in
- * a room: its code to share, who is there, and the way out. Memoized: the
+ * a room: its code and invite link to share, who is there, and the way out. Memoized: the
  * room only changes when someone arrives or leaves, never on a keystroke.
  */
 export const RoomCard = memo(function RoomCard({ room, onLeave }: RoomCardProps) {
@@ -23,8 +23,15 @@ export const RoomCard = memo(function RoomCard({ room, onLeave }: RoomCardProps)
       </div>
       <div className="lyrix-room-code-row">
         <span className="lyrix-room-code">{room.code}</span>
-        <CopyCodeButton code={room.code} tone="dark" />
+        <CopyButton value={room.code} label="Copier le code" tone="dark" />
       </div>
+      <CopyButton
+        value={inviteUrl(room.code, window.location.origin)}
+        label="Copier le lien d’invitation"
+        shareLabel="Partager le lien d’invitation"
+        tone="dark"
+        className="is-block"
+      />
       <RoomMembers room={room} variant="grid" />
       <p className={`lyrix-room-waiting${room.connected ? "" : " is-offline"}`} role="status">
         {room.connected ? "En attente de joueurs…" : "Connexion au salon perdue, nouvelle tentative…"}

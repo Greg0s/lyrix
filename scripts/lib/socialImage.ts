@@ -1,13 +1,25 @@
-import { type FaviconColors, faviconSvg } from "./favicon";
+import { PLAYER_HUES } from "../../src/components/playerColor";
+import { type FaviconColors, cssColorToHex, faviconSvg } from "./favicon";
 
 /**
- * The link-preview image (`og:image` in index.html): the logo mark, the
- * wordmark and a few lines of "lyrics" masked the way the game masks them.
- * Rasterized to public/og-image.png by `npm run favicon:build`, alongside the
- * favicon and from the same palette.
+ * The link-preview images: the logo mark, the wordmark and a few lines of
+ * "lyrics" masked the way the game masks them. Rasterized to public/ by
+ * `npm run favicon:build`, alongside the favicon and from the same palette.
+ *
+ * - SOCIAL_IMAGE, index.html's `og:image`: the game.
+ * - INVITE_IMAGE, the invite page's (scripts/lib/invitePage.ts): a room
+ *   invitation, its bars in the colours a room's players get.
  */
 
 export const SOCIAL_IMAGE = { file: "og-image.png", width: 1200, height: 630 } as const;
+export const INVITE_IMAGE = { file: "og-invite.png", width: 1200, height: 630 } as const;
+
+export type SocialImageVariant = "game" | "invite";
+
+const TAGLINES: Record<SocialImageVariant, string> = {
+  game: "Retrouve la chanson du jour à partir de ses paroles cachées.",
+  invite: "Rejoins mon salon et trouvons ensemble la chanson du jour.",
+};
 
 /** The faces the image draws with: index.html's, at the weights used here. */
 export const SOCIAL_IMAGE_FONTS =
@@ -20,11 +32,18 @@ const LINES: number[][] = [
   [4, -9, 3, 5],
 ];
 
-function line(words: number[], colors: FaviconColors): string {
+/** The bars' colours: the accent, and on an invitation, a few players' colours too (src/components/playerColor.ts). */
+function barColors(colors: FaviconColors, variant: SocialImageVariant): string[] {
+  if (variant === "game") return [colors.accent];
+  return [colors.accent, ...PLAYER_HUES.slice(0, 3).map((hue) => cssColorToHex(`oklch(74% 0.13 ${hue})`))];
+}
+
+function line(words: number[], palette: string[], offset: number): string {
+  let bars = offset;
   return words
     .map((length) =>
       length < 0
-        ? `<span class="bar" style="width:${-length * 0.62}em;background:${colors.accent}"></span>`
+        ? `<span class="bar" style="width:${-length * 0.62}em;background:${palette[bars++ % palette.length]}"></span>`
         : `<span class="word" style="width:${length * 0.62}em"></span>`
     )
     .join("");
@@ -34,7 +53,15 @@ function line(words: number[], colors: FaviconColors): string {
  * `fontCss`: SOCIAL_IMAGE_FONTS's stylesheet with the font files inlined, so
  * the page needs no network of its own (see scripts/build-favicon.ts).
  */
-export function socialImageHtml(colors: FaviconColors, fontCss: string): string {
+export function socialImageHtml(colors: FaviconColors, fontCss: string, variant: SocialImageVariant = "game"): string {
+  const palette = barColors(colors, variant);
+  // Each line starts its bars where the previous one left off, so the colours don't line up in columns.
+  let offset = 0;
+  const lines = LINES.map((words) => {
+    const html = `<div class="line">${line(words, palette, offset)}</div>`;
+    offset += words.filter((length) => length < 0).length;
+    return html;
+  }).join("");
   const mark = faviconSvg(colors, { rounded: true }).replace("<svg ", `<svg width="132" height="132" `);
   return `<!doctype html>
 <html lang="fr">
@@ -62,8 +89,8 @@ ${fontCss}
 </head>
 <body>
   <div class="brand">${mark}<span class="wordmark">Lyr<span class="i">ı<span class="dot"></span></span>x</span></div>
-  <p class="tagline">Retrouve la chanson du jour à partir de ses paroles cachées.</p>
-  <div class="lyrics">${LINES.map((words) => `<div class="line">${line(words, colors)}</div>`).join("")}</div>
+  <p class="tagline">${TAGLINES[variant]}</p>
+  <div class="lyrics">${lines}</div>
 </body>
 </html>
 `;
