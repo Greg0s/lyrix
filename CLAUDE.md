@@ -82,7 +82,7 @@ Never test manually when it can be scripted instead — this applies to the deve
 The game's own logic is cheap; everything that has ever been slow here was correct work repeated for a value that hadn't changed.
 
 - **Nothing in the Worker's per-guess path may scale with the length of the song.** A song is immutable once resolved, so anything derived from it — tokenization (`src/game/analyze.ts`), the resolved song, the parsed similarity table, the HMAC key — is derived once and memoized per isolate. When adding an isolate-level cache, add its `reset*()` and call it from the affected tests' `beforeEach` in the same commit.
-- **Typing a guess must not re-render the lyrics.** Derived state goes through `useMemo` keyed on what it actually reads; components that display it are `memo()`d. Neither may opening a dialog, tapping a bar (its "N lettres" tip is local state in `WordToken`'s `Blank`), or moving between bars with the arrow keys (the roving tab stop lives in the DOM — `useRovingBlanks`).
+- **Typing a guess must not re-render the lyrics.** Derived state goes through `useMemo` keyed on what it actually reads; components that display it are `memo()`d. Neither may opening a dialog, tapping a bar (its "N lettres" tip is local state in `WordToken`'s `Blank`), moving between bars with the arrow keys (the roving tab stop lives in the DOM — `useRovingBlanks`), or the win's confetti falling (its state is `Celebration`'s own).
 - **Measure before and after, and pin the result with a test that counts the work** — tokenization calls, KV reads, tokens re-rendered per keystroke. Never assert on elapsed time; an unpinned fix comes straight back.
 
 ## Continuous Improvement Loop
@@ -98,6 +98,7 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 
 - **Anti-cheat is a hard requirement**, even in the MVP: the Worker is the only thing that knows the actual lyrics. It receives a guessed word and returns which positions match — never the full text before the round is won. The one exception is `DEV_REVEAL_LYRICS` (`worker/src/index.ts`), which attaches each hidden word's real text as `devHint` for local debugging (`WordToken.tsx`); wired only into `dev:worker`/`dev:all`/`test:e2e`, never in `wrangler.toml` or production.
 - **The "show all lyrics" checkbox reuses that same mechanism, gated on `victory` instead of a dev flag.** Once `RoundView.victory` is true — recomputed by the Worker itself from sealed state, never client-supplied — `buildRoundView` attaches every still-hidden lyrics word's real text as `DisplayToken.revealHint`, riding along on the normal round/guess response (no extra endpoint or round trip). The checkbox itself is local, unsigned UI state owned by `GameScreen`, rendered only once won (`TitleGuess`); `WordToken` shows `revealHint` in place of a blank only while checked, ahead of a close-guess placement and the dev hint.
+- **The win is celebrated once, live** (#42): the title's words pop in turn, the victory panel comes in after them, and confetti (`Celebration.tsx`) bursts from the title — only when the answer to a guess of the player's own completes the title of the round on screen (`useGame`'s `celebration`). Never for a round that comes back won (storage, a room's round on connection), a teammate's win, or "Afficher la réponse". The confetti is portalled into `<body>` (the song card keeps a transform, and `position: fixed` inside it would be fixed to the card), lets every click through, is `aria-hidden`, and isn't rendered at all under reduced motion.
 - **French text matching**: normalize both the guess and the stored lyrics before comparing (case/accent-insensitive, œ/æ spelled out) and account for elisions ("j'aime" vs "je aime", "qu'il", "l'amour"). `LETTER_CLASS` (`src/game/tokenize.ts`) must cover every letter French lyrics use. A run of digits is a word too.
 - **Search and link previews**: `index.html` carries the description, canonical URL, Open Graph/Twitter tags and schema.org JSON-LD (`WebSite` + `VideoGame`), all as absolute `https://lyrix-eyg.pages.dev/` URLs, in step with `public/robots.txt` and `public/sitemap.xml` (`tests/unit/ci/richSnippets.test.ts`). Never add a rating or review to the JSON-LD that no real player gave. If the production domain changes, change every one of them together.
 - **Theming**: light and dark palettes, both in `src/styles/tokens.css` (dark under `:root[data-theme="dark"]`). Components use tokens only, never a raw colour, and a text token is never a surface: dark fills use `--color-solid*` and stay dark in both themes (text on them is `--color-on-ink*`), bright fills take `--color-on-bright` text. The theme follows the system until the player picks one with the header's toggle (`src/theme.ts`, stored in localStorage); `index.html`'s inline script applies it before first paint and must stay in step with `initialTheme()` (`tests/unit/theme.test.ts`).
@@ -142,7 +143,10 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     ThemeToggle.tsx         # header's sun/moon button; the theme is its own local state
     GroupFoundBanner.tsx   # "X a trouvé la chanson pour le groupe" + "Afficher la réponse" (#30)
     TitleGuess.tsx         # masked title, victory panel, and the "show all lyrics"
-                           # checkbox once won (RoundView.victory), controlled by GameScreen
+                           # checkbox once won (RoundView.victory), controlled by GameScreen;
+                           # on a live win, its words pop in turn (`is-celebrating`, #42)
+    Celebration.tsx, confetti.ts  # the win's confetti burst (portalled, fixed, aria-hidden), mounted
+                                  # by TitleGuess on a live win only; none under reduced motion
     NextSongCountdown.tsx  # victory panel's countdown to the next UTC midnight (local tick)
     LyricsBody.tsx          # masked lyrics, grouped by section; takes the reveal-all toggle
     TokenRun.tsx             # one line: keeps each word on one line with its punctuation
@@ -165,7 +169,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     MultiplayerPromo.tsx       # "Chercher à plusieurs" card, hidden while in a room
   /hooks
     useGame.ts              # round/guess state machine; hydrates from roundStorage before network;
-                            # in a room, plays the room's round instead (fed by useRoom, #30)
+                            # in a room, plays the room's round instead (fed by useRoom, #30);
+                            # `celebration`: a guess of the player's own just completed the title (#42)
     useRovingBlanks.ts       # one tab stop per title/lyrics, arrow keys move between bars (#33)
     useRoom.ts                # room state, its WebSocket (reconnect with backoff, keep-alive); room
                               # events reach the dock's feedback line through useGame's announce(),

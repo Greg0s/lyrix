@@ -150,8 +150,23 @@ describe("the palette", () => {
 
   it("defines every token the stylesheets use", () => {
     const used = new Set(styleSheets.flatMap((css) => [...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1])));
-    // Set inline by components, per element: a player's colour, a score's heat.
-    const inline = new Set(["--player", "--heat", "--to-warm", "--to-hot"]);
+    // Set inline by components, per element: a player's colour, a score's heat,
+    // a title word's rank and the title's word count on a win, a confetti piece's flight.
+    const inline = new Set([
+      "--player",
+      "--heat",
+      "--to-warm",
+      "--to-hot",
+      "--word",
+      "--words",
+      "--dx",
+      "--rise",
+      "--fall",
+      "--spin",
+      "--flip",
+      "--delay",
+      "--time",
+    ]);
     const undefinedTokens = [...used].filter((name) => !light.has(name) && !inline.has(name));
     expect(undefinedTokens).toEqual([]);
   });

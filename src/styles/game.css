@@ -581,7 +581,8 @@
   background: var(--color-solid);
   color: var(--color-on-ink);
   border-radius: 16px;
-  animation: lyrix-panel-in 0.5s var(--ease-out);
+  /* Scales up past its size and settles back: a small bounce. */
+  animation: lyrix-victory-in 0.6s cubic-bezier(0.34, 1.45, 0.64, 1) both;
 }
 
 .lyrix-victory-text {
@@ -594,12 +595,15 @@
   margin: 0;
 }
 
+/* "Bravo, tu l'as trouvée !" pops in once the panel is there. */
 .lyrix-victory-eyebrow {
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--color-on-ink-accent);
+  transform-origin: left center;
+  animation: lyrix-bravo 0.5s cubic-bezier(0.34, 1.8, 0.64, 1) 0.25s both;
 }
 
 .lyrix-victory-song {
@@ -646,6 +650,108 @@
   width: 16px;
   height: 16px;
   margin: 0;
+}
+
+/*
+ * The win itself, never a reload of it (TitleGuess, #42): the title's words
+ * pop one after another (--word, each one's rank, set by TokenRun), then the
+ * panel and its "Bravo" come in once the last word has (--words, how many
+ * there are). Only delays change here, so the class going away later never
+ * replays the panel. The confetti is Celebration.tsx.
+ */
+.is-celebrating .lyrix-title-line .token-nowrap {
+  /* Inline-block, so it can scale; a word is never broken across lines anyway. */
+  display: inline-block;
+  animation: lyrix-title-pop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3) calc(var(--word) * 90ms) both;
+}
+
+/* The winning word pops with the others, not twice. */
+.is-celebrating .lyrix-title-line .token-word-found.is-last {
+  animation: none;
+}
+
+.is-celebrating .lyrix-victory {
+  animation-delay: calc(var(--words) * 90ms + 0.2s);
+}
+
+.is-celebrating .lyrix-victory-eyebrow {
+  animation-delay: calc(var(--words) * 90ms + 0.45s);
+}
+
+/* ---------- Confetti (Celebration.tsx) ---------- */
+
+/* Over the whole screen, header and dock included, under a dialog, and never in the way of a click. */
+.lyrix-confetti {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Laid along the title line by Celebration; this is only where it would sit if the title couldn't be measured. */
+.lyrix-confetti-burst {
+  position: absolute;
+  top: 30%;
+  left: 0;
+  width: 100%;
+}
+
+/*
+ * Each piece flies on its own (confetti.ts), set inline: --dx sideways, --rise
+ * then --fall, over --time from --delay. Sideways it slows down like paper in
+ * the air; its paper spins by --spin and flips every --flip.
+ */
+.lyrix-confetti-piece {
+  position: absolute;
+  top: 0;
+  animation:
+    lyrix-confetti-drift var(--time) cubic-bezier(0.1, 0.7, 0.3, 1) var(--delay) both,
+    lyrix-confetti-fall var(--time) linear var(--delay) both,
+    lyrix-confetti-fade var(--time) linear var(--delay) both;
+}
+
+.lyrix-confetti-paper {
+  display: block;
+  border-radius: 2px;
+  animation:
+    lyrix-confetti-spin var(--time) linear var(--delay) both,
+    lyrix-confetti-flip var(--flip) ease-in-out var(--delay) infinite alternate;
+}
+
+.lyrix-confetti-paper.is-bar {
+  width: 16px;
+  height: 6px;
+}
+
+.lyrix-confetti-paper.is-chip {
+  width: 9px;
+  height: 9px;
+}
+
+.lyrix-confetti-paper.is-strip {
+  width: 6px;
+  height: 14px;
+}
+
+.lyrix-confetti-paper.tone-solid {
+  background: var(--accent-solid);
+}
+
+.lyrix-confetti-paper.tone-hover {
+  background: var(--accent-hover);
+}
+
+.lyrix-confetti-paper.tone-soft {
+  background: var(--accent-soft);
+}
+
+.lyrix-confetti-paper.tone-deep {
+  background: var(--accent-deep);
+}
+
+.lyrix-confetti-paper.tone-near-hot {
+  background: var(--accent-near-hot);
 }
 
 /* ---------- Guess dock ---------- */

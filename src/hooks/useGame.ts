@@ -140,6 +140,14 @@ interface GameState {
   loading: boolean;
   submitting: boolean;
   error: string | null;
+  /**
+   * Bumped when a guess of the player's own completes the title of the round
+   * on screen, so the win is celebrated (TitleGuess, #42); never by a round
+   * that comes back already won, from storage or from a room. Back to 0
+   * whenever the player's room changes or the group's answer is shown, so a
+   * celebration never plays over a round the player didn't just win.
+   */
+  celebration: number;
 }
 
 const initialState: GameState = {
@@ -152,6 +160,7 @@ const initialState: GameState = {
   loading: true,
   submitting: false,
   error: null,
+  celebration: 0,
 };
 
 function hydratedState(): GameState | null {
@@ -167,7 +176,13 @@ function hydratedState(): GameState | null {
     loading: false,
     submitting: false,
     error: null,
+    celebration: 0,
   };
+}
+
+/** The solo round is the one on screen: out of a room, or looking alone in one. */
+function showsSoloRound(state: GameState): boolean {
+  return !state.shared || lookingAlone(state.shared);
 }
 
 export function useGame() {
@@ -255,6 +270,9 @@ export function useGame() {
       if (shared) {
         const result = await submitRoomGuess(shared.code, shared.token, raw);
         const { guess } = result;
+        // This very guess completed the title (RoomRound.winningKey): the
+        // group's win is the player's. A teammate's, landing first, is not.
+        const won = !result.duplicate && !round.victory && result.round.victory && result.winningKey === guess.key;
         setState((prev) => ({
           ...prev,
           // Unless the player left the room while the guess was on its way.
@@ -271,6 +289,7 @@ export function useGame() {
             seq: nextSeq(prev.feedback),
             by: guess.by,
           },
+          celebration: won && prev.shared?.code === shared.code ? prev.celebration + 1 : prev.celebration,
         }));
         return;
       }
@@ -286,6 +305,8 @@ export function useGame() {
       // Deferred: serializing the whole masked round is the one heavy thing
       // between the answer arriving and the player seeing it (see roundStorage).
       saveRoundSoon(result, newTriedWords);
+      // This very guess completed the title: the one moment the win is celebrated.
+      const won = result.victory && !round.victory;
       setState((prev) => ({
         ...prev,
         round: result,
@@ -303,6 +324,8 @@ export function useGame() {
           seq: nextSeq(prev.feedback),
         },
         triedWords: newTriedWords,
+        // Unless another round took the screen while the guess was on its way.
+        celebration: won && showsSoloRound(prev) ? prev.celebration + 1 : prev.celebration,
       }));
     } catch (error) {
       setState((prev) => ({
@@ -322,7 +345,7 @@ export function useGame() {
   const setRoomSession = useCallback((session: RoomSession | null) => {
     setState((prev) => {
       const current = prev.shared;
-      if (!session) return current ? { ...prev, shared: null, submitting: false } : prev;
+      if (!session) return current ? { ...prev, shared: null, submitting: false, celebration: 0 } : prev;
       if (current && current.code === session.code && current.token === session.token) return prev;
       const shared: SharedRound = {
         ...session,
@@ -332,7 +355,7 @@ export function useGame() {
         revealed: isAnswerRevealed(session.code),
         aloneRequested: false,
       };
-      return { ...prev, shared, submitting: false, error: null };
+      return { ...prev, shared, submitting: false, error: null, celebration: 0 };
     });
   }, []);
 
@@ -361,7 +384,7 @@ export function useGame() {
     setState((prev) => {
       if (!prev.shared) return prev;
       saveAnswerRevealed(prev.shared.code);
-      return { ...prev, shared: { ...prev.shared, revealed: true }, notice: null, feedback: null, error: null };
+      return { ...prev, shared: { ...prev.shared, revealed: true }, notice: null, feedback: null, error: null, celebration: 0 };
     });
   }, []);
 

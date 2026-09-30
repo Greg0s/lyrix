@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CELEBRATION_MS } from "../../../src/components/confetti";
 import type { GuessResult, RoundView } from "../../../src/game/types";
+import { saveRound } from "../../../src/roundStorage";
 
 /**
  * What the player feels between keystrokes.
@@ -646,5 +648,117 @@ describe("the tried words card", () => {
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(wordTokenRenders.count).toBe(0);
+  });
+});
+
+// GitHub issue #42: confetti, the title's words popping in turn, the panel bouncing in.
+describe("celebrating the win", () => {
+  /** The Worker's answer to a guess once the title is complete: every title word out, the lyrics as they were. */
+  function won(state: string, key: string): GuessResult {
+    return {
+      ...round(state),
+      title: { tokens: tokens("Le refuge de novembre", true) },
+      victory: true,
+      artist: "Anaïs Verger",
+      found: true,
+      key,
+      score: 100,
+      near: [],
+    };
+  }
+
+  /** Every word on the page, the title's and the lyrics'. */
+  const WORDS = 4 + 7 + 6 + 6;
+
+  function confetti(): HTMLElement | null {
+    return document.querySelector<HTMLElement>(".lyrix-confetti");
+  }
+
+  function titleBlock(): HTMLElement {
+    return document.querySelector<HTMLElement>(".lyrix-title-block") as HTMLElement;
+  }
+
+  /** Proposes `word` and lets the answer land. Not through waitFor, which polls with the setTimeout these tests fake. */
+  async function propose(input: HTMLInputElement, word: string): Promise<void> {
+    fireEvent.change(input, { target: { value: word } });
+    await act(async () => {
+      fireEvent.submit(input);
+    });
+  }
+
+  it("bursts once, the moment the guess completing the title lands, and is gone once it has fallen", async () => {
+    submitGuess.mockResolvedValueOnce(won("state-won", "novembre"));
+    const input = await mountGame();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+
+    await propose(input, "novembre");
+
+    expect(screen.getByText("Bravo, tu l'as trouvée !")).toBeTruthy();
+    const layer = confetti();
+    expect(layer?.querySelectorAll(".lyrix-confetti-piece").length).toBeGreaterThan(0);
+    // Left alone by screen readers, which read the victory text instead.
+    expect(layer?.getAttribute("aria-hidden")).toBe("true");
+    // Straight under <body>: in the song card, which its entrance animation
+    // leaves transformed, `position: fixed` would be fixed to the card.
+    expect(layer?.parentElement).toBe(document.body);
+    expect(titleBlock().className).toContain("is-celebrating");
+
+    // A lyrics word found while it falls: the same burst goes on, it doesn't start over.
+    submitGuess.mockResolvedValueOnce(won("state-won-2", "vent"));
+    await propose(input, "vent");
+    expect(confetti()).toBe(layer);
+
+    act(() => vi.advanceTimersByTime(CELEBRATION_MS));
+    expect(confetti()).toBeNull();
+
+    submitGuess.mockResolvedValueOnce(won("state-won-3", "porte"));
+    await propose(input, "porte");
+    expect(confetti()).toBeNull();
+  });
+
+  it("re-renders no word beyond what the win itself does, from the burst to its end", async () => {
+    submitGuess.mockResolvedValueOnce(won("state-won", "novembre"));
+    const input = await mountGame();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+
+    await propose(input, "novembre");
+    // Each word once, for the round that changed, and nothing more for the celebration.
+    expect(wordTokenRenders.count).toBe(WORDS);
+
+    wordTokenRenders.count = 0;
+    act(() => vi.advanceTimersByTime(CELEBRATION_MS));
+    expect(confetti()).toBeNull();
+    expect(wordTokenRenders.count).toBe(0);
+  });
+
+  it.each([
+    [
+      "restored from storage",
+      () => saveRound(won("state-won", "novembre"), [{ key: "novembre", display: "novembre", found: true, score: 100, near: [] }]),
+    ],
+    ["loaded from the Worker", () => void fetchRound.mockResolvedValue(won("state-won", "novembre"))],
+  ])("never plays for a round that comes back already won: %s", async (_, setUp) => {
+    setUp();
+    await mountGame();
+
+    expect(screen.getByText("Bravo, tu l'as trouvée !")).toBeTruthy();
+    expect(confetti()).toBeNull();
+    expect(titleBlock().className).not.toContain("is-celebrating");
+  });
+
+  it("plays no confetti at all under reduced motion, and still shows the victory", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(prefers-reduced-motion: reduce)",
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    submitGuess.mockResolvedValueOnce(won("state-won", "novembre"));
+    const input = await mountGame();
+
+    await propose(input, "novembre");
+
+    expect(screen.getByText("Bravo, tu l'as trouvée !")).toBeTruthy();
+    expect(confetti()).toBeNull();
   });
 });
