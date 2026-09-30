@@ -163,58 +163,67 @@ function RoomForms({ invite, currentRoom, onCreate, onJoin, onJoined }: RoomForm
           />
         </label>
 
-        {tab === "create" ? (
-          <div className="lyrix-mp-pane is-create" key="create">
-            <p className="lyrix-mp-text">
-              Tu deviens l'hôte. Un code de salon et un lien d'invitation sont générés&nbsp;: partage-les aux autres
-              joueurs pour qu'ils te rejoignent. Le salon n'a pas de limite de joueurs.
-            </p>
-            {error ? (
-              <p className="lyrix-mp-error" role="alert">
-                {error.text}
-              </p>
-            ) : null}
-            <button type="submit" className="lyrix-button is-block" aria-disabled={pending}>
-              {pending ? "Création du salon…" : "Créer le salon"}
-            </button>
-          </div>
-        ) : (
-          <div className="lyrix-mp-pane is-join" key="join">
-            <label className="lyrix-field">
-              <span>Code du salon</span>
-              <input
-                type="text"
-                className={`lyrix-field-input is-code${shake}`}
-                value={code}
-                onChange={(event) => {
-                  setCode(normalizeRoomCodeInput(event.target.value));
-                  setError(null);
-                }}
-                placeholder={`${ROOM_CODE_LENGTH} caractères`}
-                autoComplete="off"
-                autoCapitalize="characters"
-                spellCheck={false}
-                aria-invalid={error?.onCode ?? false}
-                aria-describedby={error ? errorId : undefined}
-              />
-            </label>
-            {invite !== null && code === invite ? (
+        {/* Both panes stay laid out, stacked in one cell, so the dialog is as tall as the taller one
+            whichever tab is open: switching tabs never resizes it, and so never moves it. */}
+        <div className="lyrix-mp-panes">
+            <div
+              className={`lyrix-mp-pane is-create${tab === "create" ? " is-active" : ""}`}
+              inert={tab !== "create"}
+              aria-hidden={tab !== "create"}
+            >
               <p className="lyrix-mp-text">
-                {currentRoom !== null
-                  ? `On t’invite dans ce salon. Le rejoindre te fera quitter le salon ${currentRoom}.`
-                  : "On t’invite dans ce salon : choisis un pseudo et rejoins-le."}
+                Tu deviens l'hôte. Un code de salon et un lien d'invitation sont générés&nbsp;: partage-les aux autres
+                joueurs pour qu'ils te rejoignent. Le salon n'a pas de limite de joueurs.
               </p>
-            ) : null}
-            {error ? (
-              <p className="lyrix-mp-error" id={errorId} role="alert">
-                {error.text}
-              </p>
-            ) : null}
-            <button type="submit" className="lyrix-button is-accent is-block" aria-disabled={pending}>
-              {pending ? "Connexion au salon…" : "Rejoindre le salon"}
-            </button>
-          </div>
-        )}
+              {error && tab === "create" ? (
+                <p className="lyrix-mp-error" role="alert">
+                  {error.text}
+                </p>
+              ) : null}
+              <button type="submit" className="lyrix-button is-block" aria-disabled={pending}>
+                {pending ? "Création du salon…" : "Créer le salon"}
+              </button>
+            </div>
+            <div
+              className={`lyrix-mp-pane is-join${tab === "join" ? " is-active" : ""}`}
+              inert={tab !== "join"}
+              aria-hidden={tab !== "join"}
+            >
+              <label className="lyrix-field">
+                <span>Code du salon</span>
+                <input
+                  type="text"
+                  className={`lyrix-field-input is-code${shake}`}
+                  value={code}
+                  onChange={(event) => {
+                    setCode(normalizeRoomCodeInput(event.target.value));
+                    setError(null);
+                  }}
+                  placeholder={`${ROOM_CODE_LENGTH} caractères`}
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  aria-invalid={error?.onCode ?? false}
+                  aria-describedby={error ? errorId : undefined}
+                />
+              </label>
+              {invite !== null && code === invite ? (
+                <p className="lyrix-mp-text">
+                  {currentRoom !== null
+                    ? `On t’invite dans ce salon. Le rejoindre te fera quitter le salon ${currentRoom}.`
+                    : "On t’invite dans ce salon : choisis un pseudo et rejoins-le."}
+                </p>
+              ) : null}
+              {error && tab === "join" ? (
+                <p className="lyrix-mp-error" id={errorId} role="alert">
+                  {error.text}
+                </p>
+              ) : null}
+              <button type="submit" className="lyrix-button is-accent is-block" aria-disabled={pending}>
+                {pending ? "Connexion au salon…" : "Rejoindre le salon"}
+              </button>
+            </div>
+        </div>
       </form>
     </div>
   );
