@@ -304,3 +304,10 @@ The test tampered with a state token by swapping its last character for `a` (or 
 ## 2026-09-30 — Room e2e tests assumed a title of more than one word
 
 The same day, `plays the day's round together…` and `catches a player up on the room's round after a reload…` (rooms.spec.ts) failed in CI: the day's song was "Dommage", and both tests "found a word" by guessing the title's first word - which, for a one-word title, wins the round. The winner then sees "a trouvé la chanson" and everyone else keeps looking alone with the winning word hidden, so neither the find nor its catch-up showed. Both tests now find a hidden lyrics word outside the title (read from the dev hints, like revealAllLyrics.spec.ts), which never completes the round. **Takeaway**: an e2e test runs on whatever song the day picks - one-word titles, digits, repeated words included - so a step meant to make progress must use a word that cannot also win.
+
+## 2026-09-30 — The committed graphify graph was mostly diff noise
+
+Every `graphify update` re-clusters (community ids and names reassigned), reorders nodes, shifts `source_location`s and rewrites `mtime`s, so a one-line code change produced a 3,000–8,500-line diff in `graphify-out/graph.json` (12 refresh commits in the first day). All of it is derivable, so the graph is no longer committed: only `graphify-out/cache/semantic/` (the paid doc extraction) is, and `npm run graph:update` rebuilds the rest.
+
+Gotcha found on the way: **`graphify update .` does not read the semantic cache.** It re-extracts code and keeps whatever non-code nodes the existing `graph.json` holds; on a fresh clone with no `graph.json` it silently drops all ~100 doc nodes. `npm run graph:update` therefore seeds `graph.json` from the cache first (`scripts/lib/graphSeed.ts`, tested in `tests/unit/scripts/graphSeed.test.ts`); a rebuild from a clean clone gives the same 1,042 nodes as the last committed graph. The 2026-09-29 test asserting the committed graph has no known false edge went with it — `graph:update` still drops them on every build.
+

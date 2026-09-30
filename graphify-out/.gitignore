@@ -1,14 +1,10 @@
-# Machine-local: absolute paths, mtime-keyed indexes, and the AST cache
-# (cheap to regenerate). The semantic cache stays versioned: it holds the
-# LLM extraction of the docs, which costs tokens to redo.
-.graphify_python
-.graphify_root
-cost.json
-cache/ast/
-cache/stat-index.json
-.graphify_*.json
-!.graphify_labels.json
-# Written by `graphify update`: a dated backup of the previous graph, and a
-# signature of the labels file.
-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
-*.sig
+# Only the semantic cache is versioned: it holds the LLM extraction of the
+# docs, which costs tokens to redo. Everything else here is rebuilt from it and
+# the code by `npm run graph:update` (seconds, no LLM) and is machine-local:
+# committing it turned every code change into a diff of thousands of lines
+# (re-clustered communities, reordered nodes, mtimes).
+/*
+!/.gitignore
+!/cache/
+/cache/*
+!/cache/semantic/
