@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { tokenize } from "../../src/game/tokenize";
 import type { RoundView } from "../../src/game/types";
-import { catalog } from "../../worker/src/catalog";
+import { titleWords } from "./titleWords";
 
 /**
  * DEV_REVEAL_LYRICS, end to end through the real Worker.
@@ -33,10 +32,7 @@ async function firstTitleWord(page: import("@playwright/test").Page): Promise<st
   );
   await page.goto("/");
   const round = (await (await roundResponsePromise).json()) as RoundView;
-  const entry = catalog.find((candidate) => candidate.id === round.songId);
-  if (!entry) throw new Error(`unknown song id from /api/round: ${round.songId}`);
-  const word = tokenize(entry.title).find((token) => token.isWord)?.text;
-  if (!word) throw new Error("song title has no word tokens");
+  const [word] = titleWords(round);
   return word;
 }
 
@@ -66,10 +62,7 @@ test("keeps the dev hint for every other still-hidden word after one is guessed"
   );
   await page.goto("/");
   const round = (await (await roundResponsePromise).json()) as RoundView;
-  const entry = catalog.find((candidate) => candidate.id === round.songId);
-  if (!entry) throw new Error(`unknown song id from /api/round: ${round.songId}`);
-  const titleWords = [...new Set(tokenize(entry.title).filter((t) => t.isWord).map((t) => t.text))];
-  const [firstWord, secondWord] = titleWords;
+  const [firstWord, secondWord] = titleWords(round);
   if (!firstWord || !secondWord) test.skip(true, "this song's title has fewer than two distinct words");
 
   await expect(devHintFor(page, secondWord).first()).toBeVisible();

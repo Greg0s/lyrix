@@ -29,7 +29,7 @@ export interface DisplayToken {
   /**
    * The real word for a still-hidden token, sent once `RoundView.victory` is
    * true, so the "show all lyrics" checkbox can display the full song after a
-   * win. The Worker computes `victory` itself from signed state, so this can
+   * win. The Worker computes `victory` itself from sealed state, so this can
    * never reach a player who hasn't actually found the title. Set for a
    * still-hidden word only; a revealed one already shows itself.
    */
@@ -47,7 +47,11 @@ export interface DisplaySection {
 
 /** Wire contract shared by the Worker (producer) and the frontend (consumer). */
 export interface RoundView {
-  songId: string;
+  /**
+   * Opaque, encrypted round state (worker/src/state.ts): the client only echoes
+   * it back. No field of a RoundView names the song, not even an id - catalog
+   * ids are slugs of the title (#40).
+   */
   state: string;
   title: { tokens: DisplayToken[] };
   sections: DisplaySection[];

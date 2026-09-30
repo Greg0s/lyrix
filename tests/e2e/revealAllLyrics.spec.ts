@@ -1,8 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { normalize } from "../../src/game/normalize";
-import { tokenize } from "../../src/game/tokenize";
 import type { RoundView } from "../../src/game/types";
-import { catalog } from "../../worker/src/catalog";
+import { titleWords as titleWordsOf } from "./titleWords";
 
 /**
  * The post-victory "show all lyrics" checkbox, end to end through the real
@@ -19,12 +18,6 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function findCatalogEntry(songId: string) {
-  const entry = catalog.find((candidate) => candidate.id === songId);
-  if (!entry) throw new Error(`unknown song id from /api/round: ${songId}`);
-  return entry;
-}
-
 test("shows the checkbox only once the round is won", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("checkbox", { name: "Afficher tous les lyrics" })).toHaveCount(0);
@@ -36,14 +29,14 @@ test("reveals every still-hidden lyrics word once checked, and hides it again on
   );
   await page.goto("/");
   const round = (await (await roundResponsePromise).json()) as RoundView;
-  const song = findCatalogEntry(round.songId);
+  const titleWords = titleWordsOf(round);
 
   // Excludes a lyrics word that also happens to be a title word: guessing the
   // title to win reveals every occurrence of that key, lyrics included, which
   // would leave nothing for the checkbox to add - a correct outcome (a found
   // word always wins over the reveal-all display), but not what this test means
   // to check.
-  const titleKeys = new Set(tokenize(song.title).filter((t) => t.isWord).map((t) => normalize(t.text)));
+  const titleKeys = new Set(titleWords.map((word) => normalize(word)));
   const lyricsWord = round.sections
     .flatMap((section) => section.lines)
     .flatMap((line) => line.tokens)
@@ -52,7 +45,6 @@ test("reveals every still-hidden lyrics word once checked, and hides it again on
   if (!lyricsWord) test.skip(true, "this song's lyrics have no hidden word outside the title to check against");
 
   const input = page.getByPlaceholder("Propose un mot…");
-  const titleWords = [...new Set(tokenize(song.title).filter((t) => t.isWord).map((t) => t.text))];
   for (const word of titleWords) {
     await input.fill(word);
     await input.press("Enter");
@@ -80,10 +72,9 @@ test("does not affect an already-found title word", async ({ page }) => {
   );
   await page.goto("/");
   const round = (await (await roundResponsePromise).json()) as RoundView;
-  const song = findCatalogEntry(round.songId);
 
   const input = page.getByPlaceholder("Propose un mot…");
-  const titleWords = [...new Set(tokenize(song.title).filter((t) => t.isWord).map((t) => t.text))];
+  const titleWords = titleWordsOf(round);
   const [firstWord] = titleWords;
   if (!firstWord) throw new Error("song title has no word tokens");
   for (const word of titleWords) {

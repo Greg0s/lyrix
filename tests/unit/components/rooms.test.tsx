@@ -122,7 +122,6 @@ function tokens(text: string, found: readonly string[] = []) {
 function round(state = "state-0", found: readonly string[] = []): RoundView {
   const victory = ["le", "refuge", "de", "novembre"].every((word) => found.includes(word));
   return {
-    songId: "fixture",
     state,
     title: { tokens: tokens("Le refuge de novembre", found) },
     sections: [{ label: "Couplet 1", lines: [{ tokens: tokens("Le vent referme la porte du jardin", found) }] }],

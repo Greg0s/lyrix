@@ -1,7 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { tokenize } from "../../src/game/tokenize";
 import type { GuessResult, RoundView } from "../../src/game/types";
-import { catalog } from "../../worker/src/catalog";
+import { titleWords } from "./titleWords";
 
 /**
  * Proximity scoring, end to end through the real Worker.
@@ -265,11 +264,7 @@ test("hands a hidden word back to the real one once it is found", async ({
   );
   await page.goto("/");
   const round = (await (await roundResponse).json()) as RoundView;
-  const entry = catalog.find((candidate) => candidate.id === round.songId);
-  if (!entry)
-    throw new Error(`unknown song id from /api/round: ${round.songId}`);
-  const firstWord = tokenize(entry.title).find((token) => token.isWord)?.text;
-  if (!firstWord) throw new Error("song title has no word tokens");
+  const [firstWord] = titleWords(round);
 
   // The placeholder table lands close words arbitrarily, so aim this one at
   // position 0 - the title's first word - which the test can then find for real.
