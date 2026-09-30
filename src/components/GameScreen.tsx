@@ -192,6 +192,7 @@ export function GameScreen() {
             lastFoundKey={lastFoundKey}
             revealAllLyrics={revealAllLyrics}
             onToggleRevealAllLyrics={toggleRevealAllLyrics}
+            celebration={game.celebration}
           />
           <LyricsBody sections={slots.sections} revealAll={revealAllLyrics} lastFoundKey={lastFoundKey} />
         </article>

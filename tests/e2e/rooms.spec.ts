@@ -295,6 +295,8 @@ test.describe("when a teammate completes the title", () => {
     if (!winning) throw new Error("the day's song title has no word");
     for (const word of titleWords) await guess(host, word);
     await expect(host.getByText("Bravo, le groupe l'a trouvée")).toBeVisible();
+    // The one who completed the title gets the confetti (#42).
+    await expect(host.locator(".lyrix-confetti")).toHaveCount(1);
     return { host, guest, winning };
   }
 
@@ -307,6 +309,8 @@ test.describe("when a teammate completes the title", () => {
     await expect(guest.getByRole("region", { name: "Le groupe a trouvé" })).toBeVisible();
     await expect(guest.getByText(/Bravo/)).toHaveCount(0);
     await expect(guest.locator(".lyrix-title-line .token-word-found", { hasText: winning })).toHaveCount(0);
+    // Camille's win, not Léo's. Read once: a burst would have come with the banner.
+    expect(await guest.locator(".lyrix-confetti").count()).toBe(0);
 
     const input = guest.getByPlaceholder("Propose un mot…");
     await input.fill(winning);
@@ -314,6 +318,7 @@ test.describe("when a teammate completes the title", () => {
 
     await expect(guest.getByText("Bravo, tu l'as trouvée")).toBeVisible();
     await expect(guest.getByRole("region", { name: "Le groupe a trouvé" })).toHaveCount(0);
+    await expect(guest.locator(".lyrix-confetti")).toHaveCount(1);
   });
 
   test("the others can see the answer at once, and still do after a reload", async ({ browser }) => {
@@ -322,6 +327,8 @@ test.describe("when a teammate completes the title", () => {
     await guest.getByRole("button", { name: "Afficher la réponse" }).click();
 
     await expect(guest.getByText("Bravo, le groupe l'a trouvée")).toBeVisible();
+    // An answer shown is not a win.
+    expect(await guest.locator(".lyrix-confetti").count()).toBe(0);
     await expect(guest.locator(".lyrix-title-line .token-word-found", { hasText: winning }).first()).toBeVisible();
     await guest.reload();
     await expect(guest.getByText("Bravo, le groupe l'a trouvée")).toBeVisible();

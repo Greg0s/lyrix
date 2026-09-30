@@ -678,6 +678,11 @@ function feedbackDotColor(): string | null {
   return dot ? dot.style.getPropertyValue("--player") : null;
 }
 
+/** The win's confetti (#42), while it falls. */
+function confetti(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(".lyrix-confetti");
+}
+
 describe("the room's round (#30)", () => {
   it("takes the solo round's place, and shows nothing until the room has sent it", async () => {
     seedRoom();
@@ -788,6 +793,19 @@ describe("the room's round (#30)", () => {
     expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy();
   });
 
+  it("celebrates the member whose guess completes the title, the moment its answer lands (#42)", async () => {
+    const found = ["le", "refuge", "de"].map((word) => roomGuess(word, leo, true));
+    answer(200, { ...guessResult([roomGuess("novembre", camille, true), ...found]), winningKey: "novembre" });
+    seedRoom(entry(camille.id, [camille, leo]));
+    const input = await mountGame(found);
+
+    fireEvent.change(input, { target: { value: "novembre" } });
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy());
+    expect(confetti()).toBeTruthy();
+  });
+
   it("never goes back to an older view when a guess's answer arrives after a newer broadcast", async () => {
     let resolveAnswer: (response: Response) => void = () => {};
     fetchMock.mockReturnValueOnce(new Promise<Response>((resolve) => (resolveAnswer = resolve)));
@@ -857,6 +875,8 @@ describe("when the group finds the song without the player (#30)", () => {
     const banner = screen.getByRole("region", { name: "Le groupe a trouvé" });
     expect(banner.textContent).toContain("Léo a trouvé la chanson pour le groupe");
     expect(screen.queryByText(/Bravo/)).toBeNull();
+    // Léo's win, not hers: nothing to celebrate yet.
+    expect(confetti()).toBeNull();
     expect(lyricsText()).not.toContain("novembre");
     expect(screen.getByPlaceholderText("Propose un mot…")).toBeTruthy();
     expect(screen.getByRole("region", { name: "Tes mots" })).toBeTruthy();
@@ -865,6 +885,19 @@ describe("when the group finds the song without the player (#30)", () => {
     expect(aloneCalls()).toHaveLength(1);
     expect(JSON.parse(String(aloneCalls()[0]?.[1]?.body))).toEqual({ token: "token-m1", state: "state-0" });
     expect(lyricsText()).not.toContain("novembre");
+  });
+
+  it("does not celebrate a guess of the player's that crossed the teammate's winning one (#42)", async () => {
+    answer(200, { ...guessResult([roomGuess("guitare", camille, false), ...titleFound]), winningKey: "novembre" });
+    answer(200, aloneRound);
+    seedRoom(entry(camille.id, [camille, leo]));
+    const input = await mountGame(titleFound.slice(1));
+
+    fireEvent.change(input, { target: { value: "guitare" } });
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(screen.getByRole("region", { name: "Le groupe a trouvé" })).toBeTruthy());
+    expect(confetti()).toBeNull();
   });
 
   it("sends the player's guesses to their own round while they look alone", async () => {
@@ -881,6 +914,8 @@ describe("when the group finds the song without the player (#30)", () => {
     fireEvent.submit(input);
 
     await waitFor(() => expect(screen.getByText("Bravo, tu l'as trouvée !")).toBeTruthy());
+    // Found on her own: a win of her own (#42).
+    expect(confetti()).toBeTruthy();
     expect(submitGuess).toHaveBeenCalledWith("alone-state", "novembre");
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/guess"))).toBe(false);
     expect(screen.queryByRole("region", { name: "Le groupe a trouvé" })).toBeNull();
@@ -898,6 +933,8 @@ describe("when the group finds the song without the player (#30)", () => {
     expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy();
     expect(lyricsText()).toContain("novembre");
     expect(screen.queryByRole("region", { name: "Le groupe a trouvé" })).toBeNull();
+    // An answer shown is not a win (#42).
+    expect(confetti()).toBeNull();
 
     cleanup();
     FakeWebSocket.instances.length = 0;
@@ -905,6 +942,7 @@ describe("when the group finds the song without the player (#30)", () => {
     latestSocket().receive(roundMessage(titleFound, undefined, "novembre"));
     await waitFor(() => expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy());
     expect(aloneCalls()).toHaveLength(1);
+    expect(confetti()).toBeNull();
   });
 
   it("gives the player who completed the title the victory straight away", async () => {
@@ -914,6 +952,8 @@ describe("when the group finds the song without the player (#30)", () => {
     expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy();
     expect(screen.queryByRole("region", { name: "Le groupe a trouvé" })).toBeNull();
     expect(aloneCalls()).toHaveLength(0);
+    // Won before this connection: shown, not celebrated again (#42).
+    expect(confetti()).toBeNull();
   });
 
   it("offers the same choice to a player arriving after the group won", async () => {
