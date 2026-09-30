@@ -21,7 +21,7 @@ import { isVictory } from "../../src/game/mask";
 import type { RoundView, Song } from "../../src/game/types";
 import { buildRoundView, evaluateGuess, MAX_WORD_LENGTH, parseGuessWord, type RoundEnv } from "./round";
 import { getSongById, getTodaysSong } from "./songs";
-import { verifyState } from "./state";
+import { openState } from "./state";
 
 /**
  * One room ("salon", issue #29) per Durable Object, addressed by its code
@@ -349,7 +349,7 @@ export class Room {
 
     const keys = foundKeys(round);
     keys.delete(winningKey);
-    const own = typeof state === "string" ? await verifyState(state, this.env.STATE_SECRET) : null;
+    const own = typeof state === "string" ? await openState(state, this.env.STATE_SECRET) : null;
     // Only the player's own progress on this same song: a found word of theirs
     // is theirs to keep, the winning one included.
     if (own && own.songId === song.id) for (const key of own.foundKeys) keys.add(key);

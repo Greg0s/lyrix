@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import type { RoundView } from "../../src/game/types";
+import { titleWords as titleWordsOf } from "./titleWords";
 
 /**
  * Rooms ("salons", issue #29), for real: a Durable Object per room in the
@@ -31,7 +32,7 @@ async function openGame(browser: Browser): Promise<Page> {
   const roundResponse = page.waitForResponse((res) => res.url().includes("/api/round"));
   await page.goto("/");
   const round = (await (await roundResponse).json()) as RoundView;
-  titleWords = [...new Set(round.title.tokens.flatMap((token) => (token.devHint ? [token.devHint] : [])))];
+  titleWords = titleWordsOf(round);
   await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
   return page;
 }

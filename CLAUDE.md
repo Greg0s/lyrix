@@ -33,7 +33,7 @@ The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header
 - Debug mode — play against real proximity scores instead of the dev placeholder: `npm run dev:debug`
 - Knowledge graph refresh after code changes: `npm run graph:update` (see "graphify" below)
 - There is no Prettier config or dependency: never run `npx prettier --write` here — its defaults reformat every file it touches. Match the surrounding style by hand.
-- In a cloud session, the pre-installed Chromium is not the build the pinned `@playwright/test` expects, so every e2e test fails at launch ("Executable doesn't exist"). Run the suite through a throwaway, uncommitted config that re-exports `playwright.config.ts` with `use.launchOptions.executablePath: "/opt/pw-browsers/chromium"`. LRCLIB is unreachable there too, so specs that look the day's song up in `catalog` fail on the emergency song — compare against `main` before blaming a change.
+- In a cloud session, the pre-installed Chromium is not the build the pinned `@playwright/test` expects, so every e2e test fails at launch ("Executable doesn't exist"). Run the suite through a throwaway, uncommitted config that re-exports `playwright.config.ts` with `use.launchOptions.executablePath: "/opt/pw-browsers/chromium"`. LRCLIB is unreachable there too, so the Worker serves its emergency song — which is why e2e specs read the day's title off the round's dev hints (`tests/e2e/titleWords.ts`), never from `catalog`: the round doesn't name its song (#40).
 
 ## TypeScript Rules
 
@@ -97,7 +97,7 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 ## Domain-Specific Rules
 
 - **Anti-cheat is a hard requirement**, even in the MVP: the Worker is the only thing that knows the actual lyrics. It receives a guessed word and returns which positions match — never the full text before the round is won. The one exception is `DEV_REVEAL_LYRICS` (`worker/src/index.ts`), which attaches each hidden word's real text as `devHint` for local debugging (`WordToken.tsx`); wired only into `dev:worker`/`dev:all`/`test:e2e`, never in `wrangler.toml` or production.
-- **The "show all lyrics" checkbox reuses that same mechanism, gated on `victory` instead of a dev flag.** Once `RoundView.victory` is true — recomputed by the Worker itself from signed state, never client-supplied — `buildRoundView` attaches every still-hidden lyrics word's real text as `DisplayToken.revealHint`, riding along on the normal round/guess response (no extra endpoint or round trip). The checkbox itself is local, unsigned UI state owned by `GameScreen`, rendered only once won (`TitleGuess`); `WordToken` shows `revealHint` in place of a blank only while checked, ahead of a close-guess placement and the dev hint.
+- **The "show all lyrics" checkbox reuses that same mechanism, gated on `victory` instead of a dev flag.** Once `RoundView.victory` is true — recomputed by the Worker itself from sealed state, never client-supplied — `buildRoundView` attaches every still-hidden lyrics word's real text as `DisplayToken.revealHint`, riding along on the normal round/guess response (no extra endpoint or round trip). The checkbox itself is local, unsigned UI state owned by `GameScreen`, rendered only once won (`TitleGuess`); `WordToken` shows `revealHint` in place of a blank only while checked, ahead of a close-guess placement and the dev hint.
 - **French text matching**: normalize both the guess and the stored lyrics before comparing (case/accent-insensitive, œ/æ spelled out) and account for elisions ("j'aime" vs "je aime", "qu'il", "l'amour"). `LETTER_CLASS` (`src/game/tokenize.ts`) must cover every letter French lyrics use. A run of digits is a word too.
 - **Theming**: light and dark palettes, both in `src/styles/tokens.css` (dark under `:root[data-theme="dark"]`). Components use tokens only, never a raw colour, and a text token is never a surface: dark fills use `--color-solid*` and stay dark in both themes (text on them is `--color-on-ink*`), bright fills take `--color-on-bright` text. The theme follows the system until the player picks one with the header's toggle (`src/theme.ts`, stored in localStorage); `index.html`'s inline script applies it before first paint and must stay in step with `initialTheme()` (`tests/unit/theme.test.ts`).
 - **Rooms** (#29): a room knows its code, its members, and its round. Its wire contract, codes (`ABCDEFGHJKMNPQRSTUVWXYZ23456789`, 6 characters) and pseudo sanitizing live in `src/game/room.ts`, shared by both sides. Two rules keep codes from being enumerated: every join attempt is rate-limited, and no other route may answer differently for a live code than for a dead one (an unknown token and an unknown room close the socket the same way, and get the same 404 from `/guess`; leave always answers 204). A pseudo is personal data: stored only in its room's Durable Object, deleted with the room, never logged.
@@ -188,7 +188,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   resolveSong.ts, songs.ts         # catalog entry -> playable Song (null below MIN_LYRIC_WORDS);
                                     # isolate memo, fallback chain, emergency song for a full outage
   similarity.ts, sampleSimilarity.ts # reads the precomputed KV table per guess; dev/e2e placeholder
-  state.ts                            # HMAC-signed round state (songId + foundKeys) via Web Crypto
+  state.ts                            # AES-GCM-sealed round state (songId + foundKeys) via Web Crypto
 /worker
   wrangler.toml              # Worker config: ROOMS Durable Object + migration, room rate limits,
                               # SIMILARITY binding (commented)
@@ -205,7 +205,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   LEARNINGS.md, SIMILARITY.md
 ```
 
-**Anti-cheat shape**: the Worker is the only code that ever sees unmasked lyrics. Every response sends already-masked display tokens plus an opaque HMAC-signed `state` string encoding found words so far; the client only echoes it back. This keeps the Worker stateless while making forged "already found" progress impossible.
+**Anti-cheat shape**: the Worker is the only code that ever sees unmasked lyrics. Every response sends already-masked display tokens plus an opaque `state` string encoding the song and the words found so far, sealed with AES-GCM (key derived from `STATE_SECRET`); the client only echoes it back. This keeps the Worker stateless while making forged "already found" progress impossible. Sealed, not just signed, and `RoundView` carries no song id: catalog ids are slugs of the title (#40), so nothing a client receives may name the song before victory — pinned by `tests/unit/worker/titleLeak.ts`'s checks.
 
 **Dev wiring**: `vite.config.ts` proxies `/api/*` (WebSockets included, for rooms) to the Worker at `localhost:8787`, so the frontend always calls a relative `/api/...` URL in dev and production. `src/game` is not a published package — the root and Worker `tsconfig.json` each `include` it by relative path, so Vite and Wrangler bundle it independently from the same source.
 
