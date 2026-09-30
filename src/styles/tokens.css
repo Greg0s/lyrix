@@ -24,13 +24,15 @@
   --color-ink: oklch(22% 0.02 50);
   --color-ink-muted: oklch(45% 0.02 55);
   --color-ink-soft: oklch(38% 0.02 55);
-  --color-ink-faint: oklch(62% 0.015 60);
+  --color-ink-faint: oklch(52% 0.015 60);
   /* Dark surfaces: buttons, the dock, the victory panel, the room card. */
   --color-solid: oklch(22% 0.02 50);
   --color-solid-raised: oklch(32% 0.025 50);
   --color-on-ink: oklch(96% 0.015 80);
   --color-on-ink-muted: oklch(80% 0.012 70);
+  --color-on-ink-soft: oklch(86% 0.012 70);
   --color-on-ink-accent: oklch(80% 0.11 50);
+  --color-on-ink-error: oklch(78% 0.12 30);
   /* Text on a bright fill (the accent, a player's colour): dark in both themes. */
   --color-on-bright: oklch(22% 0.02 50);
   --color-border: oklch(89% 0.012 75);
@@ -59,6 +61,13 @@
   --accent-soft: #f7c4a7;
   --accent-tint: #fde0cf;
   --accent-deep: #a3400f;
+  /*
+   * A hidden word holding a close guess: a deep orange bar, deeper the closer
+   * the guess, with --color-on-ink text. Dark enough for that text in both
+   * themes (WCAG AA, tests/unit/theme.test.ts), so never overridden.
+   */
+  --accent-near-cold: oklch(54% 0.15 42);
+  --accent-near-hot: oklch(46% 0.15 42);
   --color-focus: oklch(68% 0.19 42);
   --color-selection: oklch(68% 0.19 42 / 0.35);
 
@@ -95,7 +104,7 @@
   --color-ink: oklch(93% 0.012 80);
   --color-ink-muted: oklch(70% 0.015 65);
   --color-ink-soft: oklch(80% 0.012 70);
-  --color-ink-faint: oklch(55% 0.015 60);
+  --color-ink-faint: oklch(64% 0.015 60);
   --color-solid: oklch(28% 0.018 55);
   --color-solid-raised: oklch(34% 0.02 55);
   --color-border: oklch(29% 0.014 55);
