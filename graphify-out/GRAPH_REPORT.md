@@ -1,17 +1,17 @@
 # Graph Report - lyrix  (2026-09-30)
 
 ## Corpus Check
-- 135 files · ~90,683 words
+- 135 files · ~90,878 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 8 file(s) not represented in the graph (top: .example 2, (none) 2, .css 2)
 
 ## Summary
-- 1042 nodes · 2571 edges · 46 communities (40 shown, 6 thin omitted)
+- 1042 nodes · 2574 edges · 45 communities (37 shown, 8 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 45 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `20295433`
+- Built from commit: `be2087e1`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -31,33 +31,32 @@
 - theme.test.ts
 - compilerOptions
 - compilerOptions
-- worker/room.test.ts
+- FakeLimiter
 - SIMILARITY deep-dive
 - types.ts
 - similarityTable.test.ts
 - HMAC-signed round state
 - WordToken.tsx
 - CI workflow
-- Room
+- worker/room.test.ts
 - vitest
 - dependencies
 - vite-env.d.ts
 - session-start.sh
 - rooms.test.tsx
 - catalog.ts
-- game/room.ts
+- index.ts
+- songs.ts
 - guess.test.ts
-- src/room.ts
-- roomStorage.test.ts
+- state.ts
 - GameScreen.tsx
 - RoomCard.tsx
-- FakeSocket
+- RoomNamespace
 - RoomMembers.tsx
 - Modal.tsx
 - tokenize.ts
-- isRecord
 - Graphify skill
-- useRoom.ts
+- game/room.ts
 - react
 - NextSongCountdown.tsx
 - tokenize() letter class missed œ (cœur split)
@@ -68,8 +67,8 @@
 2. `Room` - 31 edges
 3. `CLAUDE.md project instructions` - 29 edges
 4. `RoundView` - 27 edges
-5. `react` - 25 edges
-6. `normalize()` - 24 edges
+5. `normalize()` - 26 edges
+6. `react` - 25 edges
 7. `SIMILARITY deep-dive` - 23 edges
 8. `GameScreen()` - 22 edges
 9. `Song` - 22 edges
@@ -97,7 +96,7 @@
 - **LRCLIB data hygiene pipeline** — docs_learnings_lrclib_search_not_get, docs_learnings_dirty_lrclib_metadata, docs_learnings_lrc_markup_leak, worker_src_lyrics_cleanlyrics, worker_src_lrclib [INFERRED 0.85]
 - **Per-isolate and render memoization from the optimization pass** — docs_learnings_optimization_pass, docs_learnings_isolate_memo_reset, docs_learnings_keystroke_rerender, src_game_analyze, claude_performance_rules [INFERRED 0.85]
 
-## Communities (46 total, 6 thin omitted)
+## Communities (45 total, 8 thin omitted)
 
 ### Community 0 - "catalogAudit.ts"
 Cohesion: 0.25
@@ -155,10 +154,6 @@ Nodes (17): compilerOptions, esModuleInterop, isolatedModules, jsx, lib, module,
 Cohesion: 0.11
 Nodes (17): compilerOptions, esModuleInterop, isolatedModules, lib, module, moduleResolution, noEmit, noFallthroughCasesInSwitch (+9 more)
 
-### Community 15 - "worker/room.test.ts"
-Cohesion: 0.17
-Nodes (13): alone(), connect(), createRoom(), entryFrom(), FakeLimiter, FakeRooms, guessIn(), joinRoom() (+5 more)
-
 ### Community 16 - "SIMILARITY deep-dive"
 Cohesion: 0.16
 Nodes (8): Workers KV similarity tables, SIMILARITY deep-dive, MAX_NEAR_TARGETS (16), MIN_NEAR_COSINE (0.2), NEAR_SCORE (40), RANK_VOCABULARY_SIZE (50,000), scoreFromRank, SIMILARITY_TABLE_VERSION (3)
@@ -179,9 +174,9 @@ Nodes (9): heatStyle(), Blank(), blankLabel(), BlankProps, PEEK_FADE_MS, PEEK_SH
 Cohesion: 0.36
 Nodes (8): CI workflow, CLOUDFLARE_API_TOKEN / ACCOUNT_ID secrets, npm run deploy:check, CI deploy job, CI test job, VITE_API_BASE_URL build env, Cloudflare Pages hosting, Cloudflare Workers + Hono backend
 
-### Community 22 - "Room"
-Cohesion: 0.10
-Nodes (11): FakeState, attachedMemberId(), deleteAll(), foundKeys(), json(), publicMember(), put(), readBody() (+3 more)
+### Community 22 - "worker/room.test.ts"
+Cohesion: 0.06
+Nodes (25): RoomMessage, RoomRoundMessage, alone(), connect(), createRoom(), entryFrom(), FakeRooms, FakeSocket (+17 more)
 
 ### Community 23 - "vitest"
 Cohesion: 0.14
@@ -199,21 +194,21 @@ Nodes (23): @testing-library/react, fetchRound, round(), submitGuess, tokens(), 
 Cohesion: 0.33
 Nodes (4): catalog, catalogRotation(), daysSinceEpoch(), pickDailyEntry()
 
-### Community 29 - "game/room.ts"
-Cohesion: 0.19
-Nodes (16): failureText(), FormError, MultiplayerModalProps, RoomForms(), RoomFormsProps, Tab, generateRoomCode(), isRoomCode() (+8 more)
+### Community 29 - "index.ts"
+Cohesion: 0.16
+Nodes (9): hono, app, Env, REQUIRED_BINDINGS, roomRoutes, RoomsContext, RoomsEnv, MAX_WORD_LENGTH (+1 more)
 
-### Community 30 - "guess.test.ts"
-Cohesion: 0.05
-Nodes (42): hono, env, FIXTURE_LYRICS, KvTable, mockLrclibFetch(), playedSong(), requestUrl(), similarityKv() (+34 more)
+### Community 30 - "songs.ts"
+Cohesion: 0.23
+Nodes (12): playedSong(), cacheKey(), getCachedSong(), isSong(), putCachedSong(), FALLBACK_SONG_ID, EMERGENCY_FALLBACK_SONG, getSongById() (+4 more)
 
-### Community 31 - "src/room.ts"
-Cohesion: 0.15
-Nodes (16): ROOM_CLOSE_LEFT, ROOM_PONG, RoomEvent, RoomGuess, RoomGuessResult, RoomRound, sanitizePseudo(), deleteAlarm() (+8 more)
+### Community 31 - "guess.test.ts"
+Cohesion: 0.20
+Nodes (9): env, FIXTURE_LYRICS, KvTable, mockLrclibFetch(), requestUrl(), similarityKv(), table(), encodeNear() (+1 more)
 
-### Community 32 - "roomStorage.test.ts"
-Cohesion: 0.24
-Nodes (7): parseRoomEntry(), RoomEntry, loadSavedRoom(), saveRoom(), MemoryStorage, NOW, storage()
+### Community 32 - "state.ts"
+Cohesion: 0.27
+Nodes (10): decoder, encoder, fromBase64Url(), hmacKey(), isStatePayload(), keyCache, signState(), StatePayload (+2 more)
 
 ### Community 33 - "GameScreen.tsx"
 Cohesion: 0.21
@@ -222,10 +217,6 @@ Nodes (13): App(), Dialog, feedbackMessage(), GameScreen(), isTouchScreen(), Gue
 ### Community 34 - "RoomCard.tsx"
 Cohesion: 0.23
 Nodes (10): COPIED_MS, CopyCodeButton(), CopyCodeButtonProps, Flash, InRoomProps, RoomCard, RoomCardProps, RoomMembersProps (+2 more)
-
-### Community 35 - "FakeSocket"
-Cohesion: 0.23
-Nodes (3): RoomMessage, RoomRoundMessage, FakeSocket
 
 ### Community 36 - "RoomMembers.tsx"
 Cohesion: 0.20
@@ -239,13 +230,9 @@ Nodes (7): HowToPlay(), HowToPlayProps, Modal(), MODAL_CLOSE_MS, ModalProps, InR
 Cohesion: 0.19
 Nodes (8): IS_WORD, SPLIT_ON_WORDS, tokenize(), Token, devHintFor(), escapeRegExp(), firstTitleWord(), wordsInOrder()
 
-### Community 39 - "isRecord"
-Cohesion: 0.50
-Nodes (8): isRecord(), parseRoomGuess(), parseRoomGuessResult(), parseRoomMember(), parseRoomMessage(), parseRoomRound(), parseRoomRoundMessage(), parseRoomSnapshot()
-
-### Community 41 - "useRoom.ts"
-Cohesion: 0.17
-Nodes (20): apiUrl(), continueAlone(), createRoom(), enter(), failure(), joinRoom(), leaveRoom(), RoomFailure (+12 more)
+### Community 41 - "game/room.ts"
+Cohesion: 0.06
+Nodes (67): apiUrl(), continueAlone(), createRoom(), enter(), failure(), joinRoom(), leaveRoom(), RoomFailure (+59 more)
 
 ### Community 42 - "react"
 Cohesion: 0.33
@@ -262,14 +249,14 @@ Nodes (5): README, Debug mode (npm run dev:debug), frWac2Vec model (CC BY 3.0), 
 ## Knowledge Gaps
 - **233 isolated node(s):** `session-start.sh script`, `name`, `version`, `private`, `type` (+228 more)
   These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 324 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **8 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `vitest` connect `vitest` to `catalogAudit.ts`, `package.json`, `dev-debug.ts`, `src/similarity.ts`, `resolveSong.ts`, `useGame.ts`, `e2e-servers.test.ts`, `LEARNINGS.md`, `theme.test.ts`, `worker/room.test.ts`, `types.ts`, `similarityTable.test.ts`, `rooms.test.tsx`, `catalog.ts`, `game/room.ts`, `guess.test.ts`, `roomStorage.test.ts`, `useRoom.ts`, `NextSongCountdown.tsx`?**
+- **Why does `vitest` connect `vitest` to `catalogAudit.ts`, `state.ts`, `package.json`, `dev-debug.ts`, `src/similarity.ts`, `resolveSong.ts`, `useGame.ts`, `e2e-servers.test.ts`, `game/room.ts`, `LEARNINGS.md`, `theme.test.ts`, `NextSongCountdown.tsx`, `types.ts`, `similarityTable.test.ts`, `worker/room.test.ts`, `rooms.test.tsx`, `catalog.ts`, `guess.test.ts`?**
   _High betweenness centrality (0.229) - this node is a cross-community bridge._
-- **Why does `react` connect `react` to `GameScreen.tsx`, `package.json`, `RoomCard.tsx`, `RoomMembers.tsx`, `TitleGuess.tsx`, `Modal.tsx`, `useGame.ts`, `useRoom.ts`, `CLAUDE.md project instructions`, `theme.test.ts`, `NextSongCountdown.tsx`, `WordToken.tsx`, `game/room.ts`?**
+- **Why does `react` connect `react` to `GameScreen.tsx`, `package.json`, `RoomCard.tsx`, `RoomMembers.tsx`, `TitleGuess.tsx`, `Modal.tsx`, `useGame.ts`, `game/room.ts`, `CLAUDE.md project instructions`, `theme.test.ts`, `NextSongCountdown.tsx`, `WordToken.tsx`?**
   _High betweenness centrality (0.058) - this node is a cross-community bridge._
 - **Why does `devDependencies` connect `devDependencies` to `package.json`?**
   _High betweenness centrality (0.047) - this node is a cross-community bridge._

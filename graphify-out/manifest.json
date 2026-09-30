@@ -612,9 +612,9 @@
     "semantic_hash": ""
   },
   "docs/LEARNINGS.md": {
-    "mtime": 1790783604.4484565,
-    "seen": 1790783608.5383017,
-    "ast_hash": "e00d93d9d9ddb4097fbc82b8aca0553c",
+    "mtime": 1790783863.580445,
+    "seen": 1790783866.3461018,
+    "ast_hash": "22b5094919a5f23d3623e9da53baaf24",
     "semantic_hash": ""
   },
   "docs/SIMILARITY.md": {
@@ -756,9 +756,9 @@
     "semantic_hash": ""
   },
   "tests/e2e/rooms.spec.ts": {
-    "mtime": 1790782452.4951043,
-    "seen": 1790782933.830798,
-    "ast_hash": "a9596f92b2ce6493a91883cd9c3f8c6e",
+    "mtime": 1790783850.9045098,
+    "seen": 1790783866.3460555,
+    "ast_hash": "532c6eae4491cb44448b51c470e69e1e",
     "semantic_hash": ""
   },
   "tests/unit/api/rooms.test.ts": {
