@@ -1,6 +1,5 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { dropKnownFalseEdges, KNOWN_FALSE_EDGES } from "../../../scripts/lib/graphFixes";
+import { dropKnownFalseEdges } from "../../../scripts/lib/graphFixes";
 
 const selfLoop = {
   source: "src_game_normalize_normalize",
@@ -45,11 +44,5 @@ describe("dropKnownFalseEdges", () => {
 
   it("refuses a file that isn't graphify's node-link format", () => {
     expect(() => dropKnownFalseEdges({ nodes: [] })).toThrow(/no `links` array/);
-  });
-
-  it("leaves none of the known false edges in the committed graph", () => {
-    const committed: unknown = JSON.parse(readFileSync("graphify-out/graph.json", "utf8"));
-
-    expect(dropKnownFalseEdges(committed, KNOWN_FALSE_EDGES).dropped).toBe(0);
   });
 });

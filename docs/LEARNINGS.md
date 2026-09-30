@@ -316,3 +316,9 @@ The same day, `plays the day's round together…` and `catches a player up on th
 ## 2026-09-30 — The share image rendered in a fallback font
 
 `npm run favicon:build` now also draws `public/og-image.png`, the link-preview image. Its first render in a cloud session linked the Google Fonts stylesheet like `index.html` does, and the wordmark came out in DejaVu Sans: Chromium's own requests don't go through the session's proxy the way Node's `fetch` does, and a font that fails to load fails silently. The build script now fetches the fonts in Node and inlines them as `data:` URLs, and throws if `document.fonts` doesn't report both faces loaded. **Takeaway**: a render script that depends on a web font must fail when the font is missing, not screenshot the fallback.
+
+## 2026-09-30 — The committed graphify graph was mostly diff noise
+
+Every `graphify update` re-clusters (community ids and names reassigned), reorders nodes, shifts `source_location`s and rewrites `mtime`s, so a one-line code change produced a 3,000–8,500-line diff in `graphify-out/graph.json` (12 refresh commits in the first day). All of it is derivable, so the graph is no longer committed: only `graphify-out/cache/semantic/` (the paid doc extraction) is, and `npm run graph:update` rebuilds the rest.
+
+Gotcha found on the way: **`graphify update .` does not read the semantic cache.** It re-extracts code and keeps whatever non-code nodes the existing `graph.json` holds; on a fresh clone with no `graph.json` it silently drops all ~100 doc nodes. `npm run graph:update` therefore seeds `graph.json` from the cache first (`scripts/lib/graphSeed.ts`, tested in `tests/unit/scripts/graphSeed.test.ts`); a rebuild from a clean clone gives the same 1,042 nodes as the last committed graph. The 2026-09-29 test asserting the committed graph has no known false edge went with it — `graph:update` still drops them on every build.

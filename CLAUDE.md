@@ -199,7 +199,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   ensure-dev-vars.ts, check-catalog.ts, convert-embeddings.ts, build-similarity-table.ts,
   dev-debug.ts, inspect-similarity-table.ts, build-favicon.ts, graph-update.ts
   /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, debugMode.ts, devVars.ts, catalogAudit.ts,
-       favicon.ts, socialImage.ts, graphFixes.ts
+       favicon.ts, socialImage.ts, graphFixes.ts, graphSeed.ts
 /tests
   /unit/game, /unit/worker, /unit/scripts, /unit/storage, /unit/components, /unit/api, /unit/ci
   /e2e                        # Playwright; fixtures/similarity-table.json stands in for a built table
@@ -228,13 +228,13 @@ Two standing rules — a missing `worker/.dev.vars` has broken CI once and a dev
 
 ## graphify
 
-This project maintains a knowledge graph at `graphify-out/` (god nodes, community structure, cross-file relationships) via the `/graphify` skill. The graph (`graph.json`, `graph.html`, `GRAPH_REPORT.md`, `manifest.json`) and the semantic cache (the paid LLM extraction of the docs) are committed; `graphify-out/.gitignore` keeps machine-local files out. `.graphifyignore` keeps the skill's own docs out of the graph.
+This project maintains a knowledge graph at `graphify-out/` (god nodes, community structure, cross-file relationships) via the `/graphify` skill. Only the semantic cache (`graphify-out/cache/semantic/`, the paid LLM extraction of the docs) is committed; the graph itself (`graph.json`, `graph.html`, `GRAPH_REPORT.md`, `manifest.json`) is rebuilt from it and the code, and is gitignored — committing it turned every code change into a diff of thousands of lines. `.graphifyignore` keeps the skill's own docs out of the graph.
 
-- **Code changes**: `npm run graph:update` — `graphify update .` (AST only: free, seconds) plus dropping the edges graphify is known to get wrong here (`scripts/lib/graphFixes.ts`; add one there, with its reason, rather than editing `graph.json` by hand). In cloud sessions the SessionStart hook (`.claude/hooks/session-start.sh`) runs it whenever the committed graph is older than the code, so the working tree may start with `graphify-out/` modified: never stage it with an unrelated change — commit a graph refresh on its own (`🔧 chore(graphify): refresh the knowledge graph`).
-- **Doc changes** (`*.md`, `ci.yml`, `index.html`) need a semantic re-extraction: `/graphify . --update` in Claude Code, which costs tokens — batch it rather than running it per edit.
-- `graphify update` re-clusters and names communities after their hub node; curated names don't survive it. Known graphify defects are logged in `docs/LEARNINGS.md` (2026-09-29).
+- **Code changes**: `npm run graph:update` — seeds `graph.json` with the semantic cache, runs `graphify update .` (AST only: free, seconds), then drops the edges graphify is known to get wrong here (`scripts/lib/graphFixes.ts`; add one there, with its reason). Never run bare `graphify update .` on a fresh clone: it keeps only the doc nodes an existing `graph.json` already holds. In cloud sessions the SessionStart hook (`.claude/hooks/session-start.sh`) runs it on every start.
+- **Doc changes** (`*.md`, `ci.yml`, `index.html`) need a semantic re-extraction: `/graphify . --update` in Claude Code, which costs tokens — batch it rather than running it per edit, and commit the new `cache/semantic/` entries (`🔧 chore(graphify): refresh the semantic cache`).
+- `graphify update` re-clusters and names communities after their hub node; curated names don't survive it. Known graphify defects are logged in `docs/LEARNINGS.md` (2026-09-29, 2026-09-30).
 
-- For codebase questions, first run `graphify query "<question>"` once `graphify-out/graph.json` exists; `graphify path "<A>" "<B>"` for relationships, `graphify explain "<concept>"` for focused concepts.
+- For codebase questions, first run `graphify query "<question>"` (build the graph with `npm run graph:update` if `graphify-out/graph.json` is missing); `graphify path "<A>" "<B>"` for relationships, `graphify explain "<concept>"` for focused concepts.
 - If `graphify-out/wiki/index.md` exists, use it for broad navigation instead of raw source browsing.
 - Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review or when query/path/explain don't surface enough.
 - After modifying code, run `npm run graph:update` (not bare `graphify update .`) to keep the graph current.
