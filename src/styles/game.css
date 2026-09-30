@@ -1424,11 +1424,27 @@
   text-align: center;
 }
 
+/* Both tabs' panes share one grid cell, so the dialog keeps the taller one's height on either tab. */
+.lyrix-mp-panes {
+  display: grid;
+}
+
 .lyrix-mp-pane {
+  grid-area: 1 / 1;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  visibility: hidden;
+}
+
+.lyrix-mp-pane.is-active {
+  visibility: visible;
   animation: lyrix-feed 0.25s ease;
+}
+
+/* The shorter pane's button lines up with the taller one's, at the bottom. */
+.lyrix-mp-pane > .lyrix-button {
+  margin-top: auto;
 }
 
 .lyrix-mp-text {
