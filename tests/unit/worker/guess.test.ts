@@ -212,8 +212,12 @@ describe("POST /api/guess", () => {
 
   it("rejects a tampered state token", async () => {
     const round = await getRound();
-    const lastChar = round.state.at(-1);
-    const tampered = round.state.slice(0, -1) + (lastChar === "a" ? "b" : "a");
+    // Flip the signature's first character, not its last: the last one of a
+    // 32-byte signature carries 2 padding bits base64 decoding ignores, so
+    // swapping it could leave the signature intact on some days' tokens.
+    const dot = round.state.indexOf(".");
+    const first = round.state[dot + 1];
+    const tampered = round.state.slice(0, dot + 1) + (first === "a" ? "b" : "a") + round.state.slice(dot + 2);
     const { status } = await guess(tampered, "le");
     expect(status).toBe(400);
   });
