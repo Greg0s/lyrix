@@ -690,7 +690,7 @@ describe("the room's round (#30)", () => {
     const host = await createRoom("Camille");
     await guessIn(host, "refuge");
     const state = rooms.state(host.room.code);
-    expect(state.store.has("round")).toBe(true);
+    expect(state.store.has(`round:${utcDay()}`)).toBe(true);
 
     await post(`/api/rooms/${host.room.code}/leave`, { token: host.token });
 
@@ -811,5 +811,149 @@ describe("a Worker missing the room bindings", () => {
 
     expect(response.status).toBe(500);
     expect(log.mock.calls[0]?.[0]).toContain("ROOMS, ROOM_CREATE_LIMIT, ROOM_JOIN_LIMIT");
+  });
+});
+
+// Phase B of the archives: a room plays one day's song at a time, today's or
+// a day of the archives any member takes everyone to, and keeps a round per day.
+describe("the day a room plays", () => {
+  // The suite's clock: 2026-09-29, so the archives run from 2026-09-12.
+  const TODAY = "2026-09-29";
+  const ARCHIVED = "2026-09-20";
+
+  async function setDay(entry: RoomEntry, day: unknown): Promise<Response> {
+    return post(`/api/rooms/${entry.room.code}/day`, { token: entry.token, day });
+  }
+
+  function dayEvents(socket: FakeSocket) {
+    return socket.messages().flatMap((message) => (message.event?.kind === "day" ? [message.event] : []));
+  }
+
+  it("is today's to begin with", async () => {
+    const host = await createRoom("Camille");
+    expect(host.room.day).toBe(TODAY);
+    expect((await connect(host)).lastRound().round.day).toBe(TODAY);
+  });
+
+  it("is changed by any member, for everyone, who is told who moved the room", async () => {
+    const host = await createRoom("Camille");
+    const hostSocket = await connect(host);
+    const guest = await joinRoom(host.room.code, "Léo");
+    const guestSocket = await connect(guest);
+
+    const response = await setDay(guest, ARCHIVED);
+
+    expect(response.status).toBe(200);
+    for (const socket of [hostSocket, guestSocket]) {
+      expect(dayEvents(socket)).toEqual([{ kind: "day", member: { id: guest.you, name: "Léo", number: 2 }, day: ARCHIVED }]);
+      expect(socket.messages().at(-1)?.room.day).toBe(ARCHIVED);
+      expect(socket.lastRound().round.day).toBe(ARCHIVED);
+      expect(socket.lastRound().guesses).toEqual([]);
+    }
+  });
+
+  it("keeps each day's round apart, and picks one up where the room left it", async () => {
+    const host = await createRoom("Camille");
+    const socket = await connect(host);
+    await guessIn(host, "refuge");
+
+    await setDay(host, ARCHIVED);
+    expect(socket.lastRound().guesses).toEqual([]);
+    const archived = await guessIn(host, "vent");
+    expect(archived.round.day).toBe(ARCHIVED);
+    expect(revealed(archived.round)).toContain("vent");
+    expect(revealed(archived.round)).not.toContain("refuge");
+
+    await setDay(host, TODAY);
+    expect(socket.lastRound().guesses.map((guess) => guess.key)).toEqual(["refuge"]);
+    expect(socket.lastRound().round.day).toBe(TODAY);
+  });
+
+  it("refuses a day the archives don't offer, and stays where it was", async () => {
+    const host = await createRoom("Camille");
+    const socket = await connect(host);
+    for (const day of ["2026-09-30", "2026-09-11", "2026-02-30", "hier", undefined]) {
+      expect((await setDay(host, day)).status, String(day)).toBe(400);
+    }
+    expect(dayEvents(socket)).toEqual([]);
+    expect((await guessIn(host, "vent")).round.day).toBe(TODAY);
+  });
+
+  it("answers a stranger like a room that doesn't exist", async () => {
+    const host = await createRoom("Camille");
+    expect((await setDay({ ...host, token: "not-a-member" }, ARCHIVED)).status).toBe(404);
+    expect((await post("/api/rooms/ZZZZZZ/day", { token: host.token, day: ARCHIVED })).status).toBe(404);
+  });
+
+  it("turns away a word typed for a day the room has just left", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await setDay(guest, ARCHIVED);
+
+    const late = await post(`/api/rooms/${host.room.code}/guess`, { token: host.token, word: "vent", day: TODAY });
+    expect(late.status).toBe(409);
+    const onTime = await post(`/api/rooms/${host.room.code}/guess`, { token: host.token, word: "vent", day: ARCHIVED });
+    expect(onTime.status).toBe(200);
+  });
+
+  it("summarizes every day played for the group's collection, never with a hidden word's text", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await guessIn(host, "vent");
+    await setDay(host, ARCHIVED);
+    await winTogether(host, guest);
+    const socket = await connect(host);
+
+    const days = socket.lastRound().days ?? [];
+    expect(days.map((summary) => summary.day)).toEqual([TODAY, ARCHIVED]);
+    const [today, archived] = days;
+    expect(today).toMatchObject({ victory: false, guesses: 1 });
+    expect(today.percent).toBeGreaterThan(0);
+    expect(today.title.every((token) => !token.isWord || /^_+$/.test(token.text))).toBe(true);
+    expect(archived).toMatchObject({
+      victory: true,
+      percent: expect.any(Number),
+      guesses: 4,
+      artist: "Anaïs Verger",
+      winner: { id: guest.you, name: "Léo", number: 2 },
+    });
+    expect(archived.title.map((token) => token.text).join("")).toBe("Le refuge de novembre");
+    // What a member looking alone may see: everything but the winning word.
+    expect(archived.titleBeforeWin?.map((token) => token.text).join("")).toBe("Le refuge de ________");
+    expect(JSON.stringify(days)).not.toMatch(/devHint|revealHint/);
+  });
+
+  it("lets a member look on alone on the day the room plays", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await setDay(host, ARCHIVED);
+    await winTogether(host, guest);
+
+    const response = await alone(host);
+    expect(response.status).toBe(200);
+    const view = (await response.json()) as RoundView;
+    expect(view.day).toBe(ARCHIVED);
+    expect(revealed(view)).not.toContain("novembre");
+    expect((await post(`/api/rooms/${host.room.code}/alone`, { token: host.token, day: TODAY })).status).toBe(409);
+  });
+
+  it("takes the round a room kept before it played several days as today's", async () => {
+    const host = await createRoom("Camille");
+    const state = rooms.state(host.room.code);
+    const songId = (await openState((await connect(host)).lastRound().round.state, env.STATE_SECRET))?.songId;
+    state.store.delete(`round:${TODAY}`);
+    const room = state.store.get("room") as Record<string, unknown>;
+    state.store.set("room", { ...room, day: undefined, days: undefined });
+    state.store.set("round", {
+      songId,
+      guesses: [{ key: "vent", display: "vent", found: true, score: 100, near: [], by: host.room.host }],
+    });
+
+    // A fresh object, as after the deploy: nothing in memory.
+    const fresh = new Room(state, env);
+    const freshSocket = new FakeSocket();
+    await fresh.admit(freshSocket, host.token);
+    expect(freshSocket.lastRound().guesses.map((guess) => guess.key)).toEqual(["vent"]);
+    expect(freshSocket.lastRound().round.day).toBe(TODAY);
   });
 });

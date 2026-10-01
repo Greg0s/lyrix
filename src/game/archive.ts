@@ -1,4 +1,5 @@
 import { ARCHIVE_DAYS, archiveDays, hasSong, utcDay } from "./daily";
+import type { RoomDaySummary } from "./room";
 import type { DisplayToken } from "./types";
 
 /** What the archives keep of a day the player has played (src/roundStorage.ts writes it). */
@@ -12,6 +13,10 @@ export interface ArchiveEntry {
   artist?: string;
   /** How many words were tried. */
   tries: number;
+  /** In a room: the group's progress on the day, not the player's own. */
+  byGroup?: boolean;
+  /** In a room: the group found the song without the player, who hasn't asked for the answer. */
+  groupFound?: boolean;
 }
 
 /**
@@ -80,6 +85,54 @@ export function nextDayToFind(
   now: Date = new Date()
 ): string | null {
   return daysToFind(entries, now).find((day) => day !== except) ?? null;
+}
+
+/**
+ * A day a room played, as the archives show it to one member: the group's
+ * progress, but never the title of a day the group found without them, unless
+ * they asked for the answer - then it reads as it stood before the winning word.
+ */
+export function groupEntry(summary: RoomDaySummary, you: string, revealed: boolean): ArchiveEntry {
+  const tries = summary.guesses;
+  if (summary.victory && summary.winner?.id !== you && !revealed) {
+    const masked = summary.title.map((token) =>
+      token.isWord ? { ...token, text: "_".repeat(token.text.length), revealed: false } : token
+    );
+    return {
+      title: summary.titleBeforeWin ?? masked,
+      percent: summary.percent,
+      victory: false,
+      tries,
+      byGroup: true,
+      groupFound: true,
+    };
+  }
+  return {
+    title: summary.title,
+    percent: summary.percent,
+    victory: summary.victory,
+    tries,
+    byGroup: true,
+    ...(summary.artist !== undefined ? { artist: summary.artist } : {}),
+  };
+}
+
+/**
+ * The archives in a room: each day as far as the player got, alone or with
+ * the group. A day the player found stays theirs; otherwise the group's
+ * progress shows when it is further along (or found).
+ */
+export function withGroupDays(
+  own: Readonly<Record<string, ArchiveEntry>>,
+  group: Readonly<Record<string, ArchiveEntry>>
+): Record<string, ArchiveEntry> {
+  const merged: Record<string, ArchiveEntry> = { ...own };
+  for (const [day, entry] of Object.entries(group)) {
+    const mine = own[day];
+    if (mine?.victory) continue;
+    if (!mine || entry.victory || entry.percent >= mine.percent) merged[day] = entry;
+  }
+  return merged;
 }
 
 /** "1 essai", "41 essais". */

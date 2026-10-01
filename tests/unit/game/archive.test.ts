@@ -3,10 +3,13 @@ import {
   archiveOverview,
   coverTitleSize,
   daysToFind,
+  groupEntry,
   nextDayToFind,
   triesLabel,
+  withGroupDays,
   type ArchiveEntry,
 } from "../../../src/game/archive";
+import type { RoomDaySummary } from "../../../src/game/room";
 
 const NOW = new Date("2026-10-01T10:00:00Z");
 
@@ -102,5 +105,55 @@ describe("triesLabel", () => {
   it("agrees with its number", () => {
     expect(triesLabel(1)).toBe("1 essai");
     expect(triesLabel(41)).toBe("41 essais");
+  });
+});
+
+// A room's days, in its members' archives (#B).
+describe("the group's collection", () => {
+  const word = (text: string, revealed: boolean) => ({ text: revealed ? text : "_".repeat(text.length), isWord: true, revealed });
+  const space = { text: " ", isWord: false, revealed: true };
+  const leo = { id: "m2", name: "Léo", number: 2 };
+  const won: RoomDaySummary = {
+    day: "2026-09-20",
+    title: [word("Le", true), space, word("Sud", true)],
+    percent: 40,
+    victory: true,
+    guesses: 9,
+    artist: "Nino Ferrer",
+    winner: leo,
+    titleBeforeWin: [word("Le", true), space, word("Sud", false)],
+  };
+
+  it("shows a day the group won to the member who completed it, as found", () => {
+    expect(groupEntry(won, "m2", false)).toMatchObject({ victory: true, artist: "Nino Ferrer", tries: 9, byGroup: true });
+  });
+
+  it("never shows its title to a member still looking on their own", () => {
+    const entry = groupEntry(won, "m1", false);
+    expect(entry).toMatchObject({ victory: false, groupFound: true, percent: 40 });
+    expect(entry.artist).toBeUndefined();
+    expect(entry.title.map((token) => token.text).join("")).toBe("Le ___");
+    const without: RoomDaySummary = { ...won };
+    delete without.titleBeforeWin;
+    expect(groupEntry(without, "m1", false).title.every((token) => !token.isWord || /^_+$/.test(token.text))).toBe(true);
+  });
+
+  it("shows it once the member asked for the answer", () => {
+    expect(groupEntry(won, "m1", true).victory).toBe(true);
+  });
+
+  it("keeps a day the player found, and the group's progress where it is further along", () => {
+    const own = { "2026-09-20": entry({ victory: true }), "2026-09-21": entry({ percent: 50 }), "2026-09-22": entry({ percent: 5 }) };
+    const group = {
+      "2026-09-20": entry({ percent: 90, byGroup: true }),
+      "2026-09-21": entry({ percent: 20, byGroup: true }),
+      "2026-09-22": entry({ percent: 30, byGroup: true }),
+      "2026-09-23": entry({ percent: 10, byGroup: true }),
+    };
+    const merged = withGroupDays(own, group);
+    expect(merged["2026-09-20"].byGroup).toBeUndefined();
+    expect(merged["2026-09-21"].percent).toBe(50);
+    expect(merged["2026-09-22"].percent).toBe(30);
+    expect(merged["2026-09-23"].byGroup).toBe(true);
   });
 });

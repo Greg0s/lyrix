@@ -1,6 +1,7 @@
+import { utcDay } from "../../../src/game/daily";
 import { describe, expect, it } from "vitest";
 import type { RoomEntry } from "../../../src/game/room";
-import { clearSavedRoom, loadSavedRoom, saveRoom } from "../../../src/roomStorage";
+import { clearSavedRoom, isAnswerRevealed, loadSavedRoom, saveAnswerRevealed, saveRoom } from "../../../src/roomStorage";
 
 class MemoryStorage implements Pick<Storage, "getItem" | "setItem" | "removeItem"> {
   readonly items = new Map<string, string>();
@@ -71,5 +72,44 @@ describe("the saved room", () => {
     expect(loadSavedRoom(NOW, broken)).toBeNull();
     expect(() => saveRoom(entry(), broken)).not.toThrow();
     expect(() => clearSavedRoom(broken)).not.toThrow();
+  });
+});
+
+// A room plays several days (#B): the answer the player chose to see is one day's.
+describe("the answers a player chose to see", () => {
+  function memoryStorage(initial: Record<string, string> = {}): Storage {
+    const store = new Map(Object.entries(initial));
+    return {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => void store.set(key, value),
+      removeItem: (key: string) => void store.delete(key),
+      clear: () => store.clear(),
+      key: (index: number) => Array.from(store.keys())[index] ?? null,
+      get length() {
+        return store.size;
+      },
+    };
+  }
+
+  it("are kept per room and per day", () => {
+    const storage = memoryStorage();
+    saveAnswerRevealed("ABC234", "2026-09-20", storage);
+    expect(isAnswerRevealed("ABC234", "2026-09-20", storage)).toBe(true);
+    expect(isAnswerRevealed("ABC234", "2026-09-21", storage)).toBe(false);
+    saveAnswerRevealed("ABC234", "2026-09-21", storage);
+    expect(isAnswerRevealed("ABC234", "2026-09-20", storage)).toBe(true);
+  });
+
+  it("forget another room's", () => {
+    const storage = memoryStorage();
+    saveAnswerRevealed("ABC234", "2026-09-20", storage);
+    saveAnswerRevealed("XYZ789", "2026-09-20", storage);
+    expect(isAnswerRevealed("ABC234", "2026-09-20", storage)).toBe(false);
+  });
+
+  it("read one saved before rooms played several days as today's", () => {
+    const storage = memoryStorage({ "lyrix:room-answer": "ABC234" });
+    expect(isAnswerRevealed("ABC234", utcDay(), storage)).toBe(true);
+    expect(isAnswerRevealed("ABC234", "2026-09-20", storage)).toBe(false);
   });
 });
