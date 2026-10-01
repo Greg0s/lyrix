@@ -351,6 +351,36 @@ describe("proximityHint", () => {
     expect(second.score).toBe(40);
   });
 
+  // The archives put several songs in play at once: two players on two days
+  // used to evict each other's table, one KV read and parse per guess.
+  it("keeps the tables of several songs played at once, each read once", async () => {
+    const get = vi.fn(async (key: string) => (key === song.id ? table({ averse: 72 }) : table({ cent: 30 }, {}, counted)));
+    const env: SimilarityEnv = { SIMILARITY: { get } };
+
+    for (let round = 0; round < 3; round++) {
+      expect((await proximityHint(env, song, "averse", new Set())).score).toBe(72);
+      expect((await proximityHint(env, counted, "cent", new Set())).score).toBe(30);
+    }
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
+  it("lets the least recently used table go first, past its bound", async () => {
+    const songs: Song[] = Array.from({ length: 9 }, (_, index) => ({ ...song, id: `fixture-${index}` }));
+    const get = vi.fn(async (key: string) => JSON.stringify({ ...JSON.parse(table({ averse: 72 })), songId: key }));
+    const env: SimilarityEnv = { SIMILARITY: { get } };
+
+    for (const played of songs.slice(0, 8)) await proximityHint(env, played, "averse", new Set());
+    // The first song, used again, is now the most recent; the second is the oldest.
+    await proximityHint(env, songs[0], "averse", new Set());
+    await proximityHint(env, songs[8], "averse", new Set());
+    expect(get).toHaveBeenCalledTimes(9);
+
+    await proximityHint(env, songs[0], "averse", new Set());
+    expect(get).toHaveBeenCalledTimes(9);
+    await proximityHint(env, songs[1], "averse", new Set());
+    expect(get).toHaveBeenCalledTimes(10);
+  });
+
   it("re-reads the table once the memo is dropped", async () => {
     const first = vi.fn(async () => table({ averse: 72 }));
     const second = vi.fn(async () => table({ averse: 11 }));

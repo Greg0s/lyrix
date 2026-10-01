@@ -1,3 +1,4 @@
+import { ARCHIVE_DAYS } from "../../src/game/daily";
 import type { Song } from "../../src/game/types";
 import { catalog, catalogRotation, FALLBACK_SONG_ID } from "./catalog";
 import { getCachedSong, putCachedSong } from "./cache";
@@ -57,13 +58,16 @@ const EMERGENCY_FALLBACK_SONG: Song = {
 // stable to hang on to.
 //
 // A song's lyrics never change once resolved, so there is no invalidation: a
-// new isolate is the refresh. Bounded anyway, since a long-lived isolate can
-// see several days roll over, plus rounds still in progress on earlier songs.
-const MAX_MEMOIZED_SONGS = 4;
+// new isolate is the refresh. Bounded anyway, least recently used first out:
+// the archives put a song of each of the last ARCHIVE_DAYS days in play, plus
+// a fallback or two. A song is a few kilobytes of text.
+const MAX_MEMOIZED_SONGS = ARCHIVE_DAYS + 4;
 
+/** By id, least recently used first (a Map iterates in insertion order, and a hit is re-inserted). */
 const memoizedSongs = new Map<string, Song>();
 
 function memoize(song: Song): Song {
+  memoizedSongs.delete(song.id);
   memoizedSongs.set(song.id, song);
   // Map iterates in insertion order, so the first key is the oldest entry.
   if (memoizedSongs.size > MAX_MEMOIZED_SONGS) {
@@ -82,7 +86,7 @@ export async function getSongById(id: string): Promise<Song | null> {
   if (id === EMERGENCY_FALLBACK_SONG.id) return EMERGENCY_FALLBACK_SONG;
 
   const memoized = memoizedSongs.get(id);
-  if (memoized) return memoized;
+  if (memoized) return memoize(memoized);
 
   const entry = catalog.find((candidate) => candidate.id === id);
   if (!entry) return null;
