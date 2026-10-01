@@ -119,7 +119,7 @@ describe("a round in progress", () => {
     fireEvent.change(input, { target: { value: "vent" } });
     fireEvent.submit(input);
     await waitFor(() => expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy());
-    await waitFor(() => expect(window.localStorage.getItem("lyrix:round")).toBeTruthy());
+    await waitFor(() => expect(window.localStorage.getItem(`lyrix:day:${utcDay()}`)).toBeTruthy());
 
     cleanup();
     fetchRound.mockClear();
@@ -140,11 +140,11 @@ describe("a round in progress", () => {
     fireEvent.change(input, { target: { value: "vent" } });
     fireEvent.submit(input);
     await waitFor(() => expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy());
-    expect(window.localStorage.getItem("lyrix:round")).toBeNull();
+    expect(window.localStorage.getItem(`lyrix:day:${utcDay()}`)).toBeNull();
 
     window.dispatchEvent(new Event("pagehide"));
 
-    const saved = window.localStorage.getItem("lyrix:round");
+    const saved = window.localStorage.getItem(`lyrix:day:${utcDay()}`);
     expect(saved).toBeTruthy();
     expect(saved).toContain("vent");
   });

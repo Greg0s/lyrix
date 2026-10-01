@@ -108,6 +108,7 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 - **LRCLIB data isn't guaranteed clean**: `plainLyrics`/`syncedLyrics` are LRC-format text, not prose. Everything unsung is dropped before masking (`cleanLyrics`) — a player must never be asked to guess `[Refrain]`, `♪`, or the artist out of an `[ar:…]` tag — and a result too thin to be a puzzle is refused (`MIN_LYRIC_WORDS`) so the day's pick falls through to the next catalog entry. The catalog is only as good as LRCLIB's copy of it and the suite mocks the network on purpose, so run `npm run catalog:check` after editing `worker/src/catalog.ts`, and whenever a day's round looks wrong.
 - **A day's song never changes once played** (archives replay the last 30 days): `worker/src/catalog.ts`'s `schedule` is a list of dated segments, each playing one list in order. New songs go in a new segment starting on a day not yet played — never into a list already playing, which would shift every later day — and an id that has been played is never changed or removed. The days already played are pinned in `tests/unit/worker/catalog.test.ts` (only ever add rows), which also checks that no day the archives hold is tomorrow's song. No song before `FIRST_SONG_DAY` (2026-09-12): the archives show those days as unavailable.
 - **Archived days are played through the same round, keyed by day**: `GET /api/round?day=YYYY-MM-DD` serves any day `isPlayableDay` allows (the last `ARCHIVE_DAYS`, from `FIRST_SONG_DAY`, never one to come: tomorrow's song stays secret), on the song that day had. The day is sealed in the state and comes back as `RoundView.day` on every view, guesses and rooms included. With players spread over 30 songs, the Worker keeps that many songs and several similarity tables memoized (least recently used out): never back to one slot.
+- **A past day is saved as its sealed state, not its view** (`roundStorage.ts`): a view is tens of kilobytes, thirty would crowd localStorage. Only today's view is kept, for an instant reload; any other day is rebuilt by `POST /api/round/resume`, which takes one or more states of the same round (song and day) and merges their found words — only states the Worker sealed, so nothing found can be forged. The archives screen reads only the summary index (`loadArchive`), which never holds a hidden word's text.
 
 ## Semantic Proximity Scoring
 
@@ -131,11 +132,13 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                           # _redirects (Pages: invite links -> the invite page)
 /src
   main.tsx, App.tsx     # React entry point, top-level render of GameScreen
-  roundStorage.ts        # localStorage persistence so a reload resumes today's round
-                          # (deferred/idle writes, flushed on tab hide/close)
+  roundStorage.ts        # localStorage, one round per day of the archives: state + tried words per day,
+                          # today's view (instant reload), a summary index for the archives screen;
+                          # deferred/idle writes, flushed on tab hide/close
   roomStorage.ts          # the room the player is in (code, member token), so a reload reconnects
   theme.ts                 # light/dark: stored choice or system setting, applied as <html data-theme>
-  /api                    # client.ts: fetchRound, submitGuess; rooms.ts: create/join/leave/guess + socket URL;
+  /api                    # client.ts: fetchRound (today or a day), resumeRound, submitGuess;
+                          # rooms.ts: create/join/leave/guess + socket URL;
                           # base.ts: the Worker's URL (VITE_API_BASE_URL in production)
   /components             # presentational React components (layout: "Lyrix v3" mockup)
     GameScreen.tsx        # top-level layout; wires useGame() and useRoom(), places close guesses onto the
@@ -193,8 +196,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   /styles                    # tokens.css (v3 light + dark palettes), global.css (keyframes), game.css
                              # (layout; breakpoints are CSS media queries, never JS)
 /worker/src
-  index.ts                  # Hono app: GET /api/round (?day= for an archived day), POST /api/guess,
-                            # mounts /api/rooms; exports Room
+  index.ts                  # Hono app: GET /api/round (?day= for an archived day), POST /api/round/resume
+                            # (view from sealed states, merged), POST /api/guess, mounts /api/rooms; exports Room
   round.ts                    # checking a guess and building the masked view: shared by solo and rooms
   room.ts, roomRoutes.ts      # the Room Durable Object (members, round, expiry alarm); /api/rooms routes
   catalog.ts                  # curated {id, artist, title} lists + dated schedule -> deterministic daily pick
