@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { proximityHeat } from "../../src/game/similarity";
 import type { GuessResult, RoundView } from "../../src/game/types";
 import { titleWords } from "./titleWords";
 
@@ -93,48 +94,65 @@ test("colours and ranks tried words by how close they are to the song", async ({
   await expect(page.getByRole("link", { name: "frWac2Vec" })).toBeVisible();
 });
 
-test("shades each close word by how close it is", async ({ page }) => {
+test("writes each close word more opaque the closer it is, on the same orange bar", async ({
+  page,
+}) => {
   await page.goto("/");
   await guess(page, CLOSE_WORD);
 
   // The placeholder table spreads a word over a few hidden words, a step
-  // further off each time, and each of those steps gets its own shade.
+  // further off each time, and each of those steps gets its own opacity.
   const placed = page.locator(".token-word-near", { hasText: CLOSE_WORD });
   await expect(placed.first()).toBeVisible();
-  const shaded: { heat: number; lightness: number }[] = [];
+  const slots: { score: number; opacity: number; background: string }[] = [];
   for (const slot of await placed.all()) {
-    shaded.push({
-      heat: await heatOf(slot),
-      // The guess is written in full whatever the score (WCAG AA): its bar is
-      // what gets deeper the closer it is (game.css). Read once settled, the
-      // guess's fade-in included: mid-way every slot shows about the same.
-      // Painted onto a canvas to read it back as sRGB: computed styles keep
-      // color-mix() in oklch.
-      lightness: await slot.evaluate(async (element) => {
+    slots.push(
+      await slot.evaluate(async (element) => {
+        // Read once settled, the guess's fade-in included: mid-way every
+        // slot shows about the same.
         await Promise.all(
           element
             .getAnimations({ subtree: true })
             .map((animation) => animation.finished),
         );
-        const context = document.createElement("canvas").getContext("2d");
-        if (!context) throw new Error("no 2D canvas");
-        context.fillStyle = getComputedStyle(element).backgroundColor;
-        context.fillRect(0, 0, 1, 1);
-        const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        const guessed = element.querySelector(".token-near-guess");
+        if (!guessed) throw new Error("no guess on a close word's bar");
+        const score = /\((\d+)\/100\)/.exec(element.getAttribute("title") ?? "");
+        return {
+          score: Number(score?.[1]),
+          opacity: Number(getComputedStyle(guessed).opacity),
+          background: getComputedStyle(element).backgroundColor,
+        };
       }),
-    });
+    );
   }
-  const heats = shaded.map((slot) => slot.heat);
-  expect(new Set(heats).size).toBeGreaterThan(1);
+  const scores = slots.map((slot) => slot.score);
+  expect(new Set(scores).size).toBeGreaterThan(1);
 
-  // Different shades, not just different numbers in an attribute.
-  const hottest = shaded.find((slot) => slot.heat === Math.max(...heats));
-  const coolest = shaded.find((slot) => slot.heat === Math.min(...heats));
-  expect(hottest?.lightness).toBeLessThan(coolest?.lightness ?? 0);
+  // The bar never changes: it is the accent orange whatever the score.
+  const accent = await page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.background = "var(--accent-solid)";
+    document.body.append(probe);
+    const color = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return color;
+  });
+  for (const slot of slots) expect(slot.background).toBe(accent);
 
-  // The chip wears the shade of the guess's best placement.
-  expect(await heatOf(chipOf(page, CLOSE_WORD))).toBe(Math.max(...heats));
+  // The closer the guess, the more opaque it is written.
+  const closest = slots.find((slot) => slot.score === Math.max(...scores));
+  const farthest = slots.find((slot) => slot.score === Math.min(...scores));
+  expect(closest?.opacity).toBeGreaterThan(farthest?.opacity ?? 1);
+  for (const slot of slots) {
+    expect(slot.opacity).toBeGreaterThanOrEqual(0.65);
+    expect(slot.opacity).toBeLessThanOrEqual(0.99);
+  }
+
+  // The chip keeps its cold-to-hot shade, from the guess's own score.
+  expect(await heatOf(chipOf(page, CLOSE_WORD))).toBe(
+    proximityHeat(Math.max(...scores)),
+  );
 });
 
 test("writes a close word in full, widening its bar when it is longer than the word", async ({

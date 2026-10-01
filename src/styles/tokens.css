@@ -61,12 +61,7 @@
   --accent-soft: #f7c4a7;
   --accent-tint: #fde0cf;
   --accent-deep: #a3400f;
-  /*
-   * A hidden word holding a close guess: a deep orange bar, deeper the closer
-   * the guess, with --color-on-ink text. Dark enough for that text in both
-   * themes (WCAG AA, tests/unit/theme.test.ts), so never overridden.
-   */
-  --accent-near-cold: oklch(54% 0.15 42);
+  /* A deep orange: one of the win's confetti tones. */
   --accent-near-hot: oklch(46% 0.15 42);
   --color-focus: oklch(68% 0.19 42);
   --color-selection: oklch(68% 0.19 42 / 0.35);

@@ -9,7 +9,7 @@ import {
 import { normalize } from "../game/normalize";
 import { proximityTier } from "../game/similarity";
 import type { SlotToken } from "../game/slots";
-import { heatStyle } from "./heatStyle";
+import { nearStyle } from "./heatStyle";
 
 interface WordTokenProps {
   token: SlotToken;
@@ -150,7 +150,7 @@ export function WordToken({
       <Blank
         letters={letters}
         className={`token-word-near tier-${proximityTier({ found: false, score })}`}
-        style={heatStyle(score)}
+        style={nearStyle(score)}
         title={`« ${text} » est proche de ce mot (${score}/100)`}
         extraLabel={`« ${text} » est proche, ${score} sur 100`}
       >

@@ -24,7 +24,7 @@ export function HowToPlay({ onClosed }: HowToPlayProps) {
               <span className="lyrix-help-sample-guess">parc</span>
             </span>
             <p>
-              Un mot au sens proche s'inscrit dans la barre, d'autant plus foncée qu'il est proche du mot caché.
+              Un mot au sens proche s'inscrit dans la barre, d'autant plus net qu'il est proche du mot caché.
               Les nombres comptent aussi&nbsp;: 2000 est proche de 2015.
             </p>
           </div>
