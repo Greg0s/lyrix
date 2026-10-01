@@ -1,8 +1,11 @@
 import type { TriedWord } from "./hooks/useGame";
+import type { ArchiveEntry } from "./game/archive";
 import { archiveDays, isDayKey, utcDay } from "./game/daily";
 import { revealedPercent } from "./game/progress";
 import { parseNearSlots } from "./game/slots";
 import type { DisplayToken, RoundView } from "./game/types";
+
+export type { ArchiveEntry };
 
 /**
  * One round per day, so the archives can resume any of the last ARCHIVE_DAYS:
@@ -23,19 +26,6 @@ const VIEW_PREFIX = "lyrix:view:";
 const ARCHIVE_KEY = "lyrix:archive";
 /** Before the archives: one round, today's, forgotten at midnight. */
 const LEGACY_KEY = "lyrix:round";
-
-/** What the archives show of a day the player has played. */
-export interface ArchiveEntry {
-  /** The title as the player left it: found words spelled out, the others blanks of their length. */
-  title: DisplayToken[];
-  /** Share of the round's words revealed, 0-100. */
-  percent: number;
-  victory: boolean;
-  /** Only once won. */
-  artist?: string;
-  /** How many words were tried. */
-  tries: number;
-}
 
 export interface SavedDay {
   state: string;

@@ -151,8 +151,10 @@ describe("the palette", () => {
   it("defines every token the stylesheets use", () => {
     const used = new Set(styleSheets.flatMap((css) => [...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1])));
     // Set inline by components, per element: a player's colour, a score's heat,
-    // a title word's rank and the title's word count on a win, a confetti piece's flight.
+    // a title word's rank and the title's word count on a win, a confetti piece's flight,
+    // the size an archived song's title fits its cover at.
     const inline = new Set([
+      "--cover-title-size",
       "--player",
       "--heat",
       "--to-warm",

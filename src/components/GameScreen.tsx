@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { daysToFind, nextDayToFind } from "../game/archive";
 import { revealedPercent } from "../game/progress";
 import { parseInvitePath } from "../game/room";
 import { closestGuessBySlot, placeNearGuesses } from "../game/slots";
 import { useGame, type Feedback } from "../hooks/useGame";
 import { useRoom } from "../hooks/useRoom";
+import { useRoute } from "../hooks/useRoute";
+import { loadArchive } from "../roundStorage";
+import { ARCHIVES } from "../routes";
 import { AppHeader } from "./AppHeader";
+import { ArchivesScreen } from "./ArchivesScreen";
+import { DayBar } from "./DayBar";
 import { playerColor } from "./playerColor";
 import { GroupFoundBanner } from "./GroupFoundBanner";
 import { GuessForm, type GuessFeedback } from "./GuessForm";
@@ -34,7 +40,9 @@ function isTouchScreen(): boolean {
 }
 
 export function GameScreen() {
-  const game = useGame();
+  // `day`: the round played, null for today's song (see useRoute's gameDay).
+  const { route, gameDay: day, navigate } = useRoute();
+  const game = useGame(day);
   // Room events ("X a rejoint le salon.", a teammate's guess) go to the guess
   // dock's feedback line; the room's round replaces the solo one (#30).
   const room = useRoom(game.announce, game.receiveRoomRound, game.setRoomSession);
@@ -51,7 +59,11 @@ export function GameScreen() {
     if (parseInvitePath(window.location.pathname) === null) return;
     window.history.replaceState(window.history.state, "", `/${window.location.search}${window.location.hash}`);
   }, []);
-  const [revealAllLyrics, setRevealAllLyrics] = useState(false);
+  // Checked for one round: another day, another song, whose lyrics start hidden again.
+  const [revealedDay, setRevealedDay] = useState<string | null | undefined>(undefined);
+  const revealAllLyrics = revealedDay !== undefined && revealedDay === day;
+  const openArchives = useCallback(() => navigate(ARCHIVES), [navigate]);
+  const playDay = useCallback((target: string) => navigate({ name: "day", day: target }), [navigate]);
   // What had focus when a dialog opened (its button), to hand it back on a touch screen.
   const openerRef = useRef<HTMLElement | null>(null);
   const openDialog = useCallback((which: Exclude<Dialog, null>) => {
@@ -72,7 +84,10 @@ export function GameScreen() {
     if (!isTouchScreen()) inputRef.current?.focus();
     else if (opener?.isConnected) opener.focus();
   }, []);
-  const toggleRevealAllLyrics = useCallback(() => setRevealAllLyrics((reveal) => !reveal), []);
+  const toggleRevealAllLyrics = useCallback(
+    () => setRevealedDay((revealed) => (revealed === day ? undefined : day)),
+    [day]
+  );
   const { submit } = game;
   const onSubmit = useCallback(() => void submit(), [submit]);
 
@@ -89,11 +104,22 @@ export function GameScreen() {
   );
   const percent = useMemo(() => (round ? revealedPercent(round) : 0), [round]);
   const foundCount = useMemo(() => triedWords.filter((word) => word.found).length, [triedWords]);
+  // Where the victory panel points next: read from storage once the round is
+  // won, never per keystroke. The round on screen counts for neither, so a
+  // write of it still pending makes no difference.
+  const won = round?.victory === true;
+  const archivesAhead = useMemo(() => {
+    if (!won) return { daysLeft: 0, nextDay: null };
+    const archive = loadArchive();
+    return { daysLeft: daysToFind(archive).length, nextDay: day === null ? null : nextDayToFind(archive, day) };
+  }, [won, day]);
 
   const header = (
     <AppHeader
       roomPlayers={room.view ? room.view.members.length : null}
       onOpenMultiplayer={openMultiplayer}
+      archivesOpen={route.name === "archives"}
+      onOpenArchives={openArchives}
       onOpenHelp={openHelp}
     />
   );
@@ -118,6 +144,8 @@ export function GameScreen() {
       {dialogs}
     </div>
   );
+
+  if (route.name === "archives") return shell(<ArchivesScreen onNavigate={navigate} />);
 
   if (game.error && !round) {
     return shell(
@@ -178,7 +206,8 @@ export function GameScreen() {
   }
 
   return shell(
-    <main className="lyrix-main">
+    <main className={day !== null ? "lyrix-main has-day-bar" : "lyrix-main"}>
+      {day !== null ? <DayBar day={day} onNavigate={navigate} /> : null}
       <div className="lyrix-game-col">
         {game.aloneAfter && !round.victory ? (
           <GroupFoundBanner winner={game.aloneAfter} you={you} onReveal={game.revealAnswer} />
@@ -193,6 +222,12 @@ export function GameScreen() {
             revealAllLyrics={revealAllLyrics}
             onToggleRevealAllLyrics={toggleRevealAllLyrics}
             celebration={game.celebration}
+            archiveDay={day}
+            tries={triedWords.length}
+            daysLeft={archivesAhead.daysLeft}
+            nextDay={archivesAhead.nextDay}
+            onOpenArchives={openArchives}
+            onPlayDay={playDay}
           />
           <LyricsBody sections={slots.sections} revealAll={revealAllLyrics} lastFoundKey={lastFoundKey} />
         </article>
@@ -209,10 +244,11 @@ export function GameScreen() {
       </div>
 
       <aside className="lyrix-aside">
-        {room.view ? <RoomCard room={room.view} onLeave={room.leave} /> : null}
+        {/* A day of the archives is played alone: the room stays on today's song. */}
+        {room.view && day === null ? <RoomCard room={room.view} onLeave={room.leave} /> : null}
         <ProgressCard percent={percent} foundCount={foundCount} triedCount={triedWords.length} />
         <TriedWords triedWords={triedWords} group={group} />
-        {room.view ? null : <MultiplayerPromo onOpen={openMultiplayer} />}
+        {room.view || day !== null ? null : <MultiplayerPromo onOpen={openMultiplayer} />}
       </aside>
     </main>
   );

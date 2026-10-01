@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchRound, submitGuess } from "../api/client";
+import { fetchRound, resumeRound, submitGuess } from "../api/client";
 import { continueAlone, submitRoomGuess } from "../api/rooms";
 import { normalize } from "../game/normalize";
 import { memberName, type RoomGuess, type RoomMember, type RoomRound, type RoomRoundMessage } from "../game/room";
 import { parseNearSlots } from "../game/slots";
 import type { NearSlot, RoundView } from "../game/types";
 import { isAnswerRevealed, saveAnswerRevealed } from "../roomStorage";
-import { loadSavedRound, saveRoundSoon } from "../roundStorage";
+import { utcDay } from "../game/daily";
+import { loadSavedDay, loadSavedRound, saveRoundSoon } from "../roundStorage";
 
 export interface TriedWord {
   key: string;
@@ -129,6 +130,8 @@ function teammateNotice(guess: RoomGuess, you: string, seq: number, winning: boo
 }
 
 interface GameState {
+  /** Which solo round is played: null for today's song, or a day of the archives (YYYY-MM-DD). */
+  day: string | null;
   /** The solo round: the player's own, saved locally. */
   round: RoundView | null;
   triedWords: TriedWord[];
@@ -151,6 +154,7 @@ interface GameState {
 }
 
 const initialState: GameState = {
+  day: null,
   round: null,
   triedWords: [],
   shared: null,
@@ -163,10 +167,13 @@ const initialState: GameState = {
   celebration: 0,
 };
 
-function hydratedState(): GameState | null {
+/** Today's round straight from storage, when its view was saved: no network, no loading screen. */
+function hydratedState(day: string | null): GameState | null {
+  if (day !== null) return null;
   const saved = loadSavedRound();
   if (!saved) return null;
   return {
+    day: null,
     round: saved.round,
     triedWords: saved.triedWords,
     shared: null,
@@ -180,59 +187,117 @@ function hydratedState(): GameState | null {
   };
 }
 
-/** The solo round is the one on screen: out of a room, or looking alone in one. */
-function showsSoloRound(state: GameState): boolean {
-  return !state.shared || lookingAlone(state.shared);
+/** The room's round is played on today's song only: on a day of the archives, the player plays alone. */
+function roomShown(state: GameState): boolean {
+  return state.shared !== null && state.day === null && !lookingAlone(state.shared);
 }
 
-export function useGame() {
-  const [state, setState] = useState<GameState>(() => hydratedState() ?? initialState);
-  // Aborts any load a newer one supersedes (React StrictMode's double-invoked
-  // mount effect, or a retry fired while a load is still in flight), so a
-  // slower, superseded response can never overwrite a newer one.
-  const abortRef = useRef<AbortController | null>(null);
+/** The solo round is the one on screen: out of a room, looking alone in one, or on a day of the archives. */
+function showsSoloRound(state: GameState): boolean {
+  return !roomShown(state);
+}
 
-  const loadRound = useCallback(async () => {
+function isAbort(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+/**
+ * A day's round and the words tried on it: from its saved state when it was
+ * played before (the Worker rebuilds the view), fresh otherwise. A saved
+ * state the Worker no longer opens starts the day afresh rather than lock
+ * the player out of it.
+ */
+async function fetchDay(day: string | null, signal: AbortSignal): Promise<{ round: RoundView; triedWords: TriedWord[] }> {
+  const saved = loadSavedDay(day ?? utcDay());
+  if (saved) {
+    try {
+      return { round: await resumeRound([saved.state], day ?? utcDay(), signal), triedWords: saved.triedWords };
+    } catch (error) {
+      if (isAbort(error)) throw error;
+    }
+  }
+  const round = await fetchRound(signal, day ?? undefined);
+  // Deferred too: the freshly loaded round is the largest thing we ever
+  // serialize, and it sits right before the game's first paint. Today's
+  // only: a day of the archives joins them once the player tries a word.
+  if (day === null) saveRoundSoon(round, []);
+  return { round, triedWords: [] };
+}
+
+/**
+ * The game, on today's song (`day` null) or on a day of the archives. In a
+ * room, the room's round takes today's place (#30); a day of the archives is
+ * always played alone, and the room carries on meanwhile.
+ */
+export function useGame(day: string | null = null) {
+  const [state, setState] = useState<GameState>(() => hydratedState(day) ?? { ...initialState, day });
+  // Aborts any load a newer one supersedes (React StrictMode's double-invoked
+  // mount effect, a retry fired while a load is still in flight, or the
+  // player moving on to another day), so a slower, superseded response can
+  // never overwrite a newer one.
+  const abortRef = useRef<AbortController | null>(null);
+  // Which day the round in state was loaded for, so the effect below doesn't
+  // load it again: today's, when it hydrated from storage on the first render.
+  const loadedFor = useRef<string | null | undefined>(state.round ? day : undefined);
+  const dayRef = useRef(day);
+  dayRef.current = day;
+
+  const loadDay = useCallback(async (target: string | null) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    loadedFor.current = target;
 
-    setState((prev) => ({ ...prev, loading: true, error: null }));
+    // Today's round, saved with its view, needs no network at all.
+    const saved = target === null ? loadSavedRound() : null;
+    setState((prev) => {
+      const switching = prev.day !== target;
+      const reset = switching ? { inputValue: "", feedback: null, notice: null, celebration: 0, submitting: false } : {};
+      if (saved) return { ...prev, ...reset, day: target, round: saved.round, triedWords: saved.triedWords, loading: false, error: null };
+      return switching
+        ? { ...prev, ...reset, day: target, round: null, triedWords: [], loading: true, error: null }
+        : { ...prev, loading: true, error: null };
+    });
+    if (saved) return;
+
     try {
-      const round = await fetchRound(controller.signal);
-      // Deferred too: the freshly loaded round is the largest thing we ever
-      // serialize, and it sits right before the game's first paint.
-      saveRoundSoon(round, []);
-      setState((prev) => ({
-        ...prev,
-        round,
-        triedWords: [],
-        // A room's round and what the player is typing are no business of the solo round's.
-        ...(prev.shared ? {} : { inputValue: "", feedback: null, notice: null }),
-        loading: false,
-        error: null,
-      }));
+      const { round, triedWords } = await fetchDay(target, controller.signal);
+      setState((prev) => {
+        if (prev.day !== target) return prev;
+        return {
+          ...prev,
+          round,
+          triedWords,
+          // A room's round and what the player is typing are no business of the solo round's.
+          ...(roomShown(prev) ? {} : { inputValue: "", feedback: null, notice: null }),
+          loading: false,
+          error: null,
+        };
+      });
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        error: error instanceof Error ? error.message : "Impossible de charger la partie.",
-      }));
+      if (isAbort(error)) return;
+      setState((prev) =>
+        prev.day !== target
+          ? prev
+          : { ...prev, loading: false, error: error instanceof Error ? error.message : "Impossible de charger la partie." }
+      );
     }
   }, []);
 
-  // The initial state above already hydrated synchronously from storage when
-  // today's round was saved, so the mount effect below must not hit the
-  // network for it. Answered from that first render rather than by parsing
-  // storage a second time (three times, under StrictMode's double mount).
-  const hydratedFromStorage = useRef(state.round !== null);
+  /** Loads the round of the day shown again: the retry button. */
+  const loadRound = useCallback(() => loadDay(dayRef.current), [loadDay]);
 
   useEffect(() => {
-    if (hydratedFromStorage.current) return;
-    void loadRound();
-    return () => abortRef.current?.abort();
-  }, [loadRound]);
+    if (loadedFor.current === day) return;
+    void loadDay(day);
+    // Superseded (another day) or unmounted (StrictMode's double mount
+    // included): the load is dropped, and forgotten, so the next run of
+    // this effect loads the day again instead of believing it loaded.
+    return () => {
+      abortRef.current?.abort();
+      loadedFor.current = undefined;
+    };
+  }, [day, loadDay]);
 
   const setInputValue = useCallback((value: string) => {
     setState((prev) => ({ ...prev, inputValue: value }));
@@ -240,8 +305,8 @@ export function useGame() {
 
   const submit = useCallback(async () => {
     const { inputValue, submitting } = state;
-    // Looking alone after the group won: the player's guesses are their own again.
-    const shared = lookingAlone(state.shared) ? null : state.shared;
+    // Looking alone after the group won, or on a day of the archives: the player's guesses are their own.
+    const shared = roomShown(state) ? state.shared : null;
     const round = shared ? shared.round : state.round;
     const triedWords = shared ? shared.triedWords : state.triedWords;
     const raw = inputValue.trim();
@@ -307,7 +372,9 @@ export function useGame() {
       saveRoundSoon(result, newTriedWords);
       // This very guess completed the title: the one moment the win is celebrated.
       const won = result.victory && !round.victory;
-      setState((prev) => ({
+      // Saved all the same, but not shown over the day the player moved on to.
+      const playedDay = state.day;
+      setState((prev) => prev.day !== playedDay ? { ...prev, submitting: false } : ({
         ...prev,
         round: result,
         // The input stays editable while a guess is in flight (disabling it
@@ -370,7 +437,8 @@ export function useGame() {
       const latest = message.latest ? message.guesses.find((guess) => guess.key === message.latest) : undefined;
       const winning = latest !== undefined && latest.key === message.winningKey;
       // Looking alone, the room's later finds would give words away: only the win itself is news.
-      const quiet = lookingAlone(current) && !winning;
+      // On a day of the archives, the room's round isn't the one played: none of it is.
+      const quiet = prev.day !== null || (lookingAlone(current) && !winning);
       const notice =
         latest && latest.by.id !== current.you && !quiet
           ? teammateNotice(latest, current.you, (prev.notice?.seq ?? 0) + 1, winning)
@@ -393,7 +461,9 @@ export function useGame() {
   // never merged here). Asked once per room session, once the solo round has
   // loaded, so its own progress goes along. Without it, the solo round as is.
   const alone = lookingAlone(state.shared);
-  const aloneSession = alone && state.shared && !state.shared.aloneRequested && !state.loading ? state.shared : null;
+  // Today's solo round only: it is the one the room's song is played on.
+  const aloneSession =
+    alone && state.shared && !state.shared.aloneRequested && !state.loading && state.day === null ? state.shared : null;
   const soloState = state.round?.state;
   useEffect(() => {
     if (!aloneSession) return;
@@ -402,7 +472,7 @@ export function useGame() {
     continueAlone(code, token, soloState)
       .then((round) => {
         setState((prev) => {
-          if (prev.shared?.code !== code) return prev;
+          if (prev.shared?.code !== code || prev.day !== null) return prev;
           saveRoundSoon(round, prev.triedWords);
           return { ...prev, round, error: null };
         });
@@ -410,10 +480,10 @@ export function useGame() {
       .catch(() => {});
   }, [aloneSession, soloState]);
 
-  // In a room, its round takes the solo one's place everywhere, unless the
-  // player is looking alone; the solo round is kept as it was, for then and
-  // for when the player leaves.
-  const shared = alone ? null : state.shared;
+  // In a room, its round takes today's solo one's place, unless the player is
+  // looking alone; the solo round is kept as it was, for then and for when
+  // the player leaves. A day of the archives is always the player's own.
+  const shared = roomShown(state) ? state.shared : null;
   const winner = state.shared ? groupWinner(state.shared) : null;
   return {
     ...state,
@@ -423,7 +493,7 @@ export function useGame() {
     /** True while the room's round is the one shown and played. */
     playingRoom: shared !== null,
     /** Who found the song for the group, while this player is looking alone; null otherwise. */
-    aloneAfter: alone ? winner : null,
+    aloneAfter: alone && state.day === null ? winner : null,
     revealAnswer,
     setInputValue,
     submit,

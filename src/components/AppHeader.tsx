@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { playerCountLabel } from "../game/room";
+import { CalendarIcon } from "./CalendarIcon";
 import { GroupIcon } from "./GroupIcon";
 import { Logo } from "./Logo";
 import { ThemeToggle } from "./ThemeToggle";
@@ -8,11 +9,20 @@ interface AppHeaderProps {
   /** How many players are connected to the player's room; null outside a room. */
   roomPlayers: number | null;
   onOpenMultiplayer: () => void;
+  /** The archives screen is the one shown: the button says so (aria-current). */
+  archivesOpen: boolean;
+  onOpenArchives: () => void;
   onOpenHelp: () => void;
 }
 
 /** Sticky top bar. Memoized with stable callbacks, so typing a guess never re-renders it. */
-export const AppHeader = memo(function AppHeader({ roomPlayers, onOpenMultiplayer, onOpenHelp }: AppHeaderProps) {
+export const AppHeader = memo(function AppHeader({
+  roomPlayers,
+  onOpenMultiplayer,
+  archivesOpen,
+  onOpenArchives,
+  onOpenHelp,
+}: AppHeaderProps) {
   const inRoom = roomPlayers !== null;
   const roomLabel = inRoom ? `Salon · ${playerCountLabel(roomPlayers)}` : "";
   return (
@@ -44,6 +54,16 @@ export const AppHeader = memo(function AppHeader({ roomPlayers, onOpenMultiplaye
             ) : (
               <span className="lyrix-pill-label is-multiplayer">Jouer à plusieurs</span>
             )}
+          </button>
+          <button
+            type="button"
+            className={`lyrix-pill is-outline${archivesOpen ? " is-current" : ""}`}
+            onClick={onOpenArchives}
+            aria-label="Archives"
+            aria-current={archivesOpen ? "page" : undefined}
+          >
+            <CalendarIcon />
+            <span className="lyrix-pill-label is-archives">Archives</span>
           </button>
           <button type="button" className="lyrix-pill is-outline" onClick={onOpenHelp} aria-label="Comment jouer">
             <span className="lyrix-help-dot" aria-hidden="true">
