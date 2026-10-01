@@ -1,3 +1,4 @@
+import { utcDay } from "./game/daily";
 import { parseRoomEntry, type RoomEntry } from "./game/room";
 
 /**
@@ -46,23 +47,45 @@ export function clearSavedRoom(storage: Storage | undefined = globalThis.localSt
 }
 
 /**
- * The room whose answer the player chose to see after the group found the
- * song without them (#30), so a reload doesn't hide it again. One room at a
- * time: a player is only ever in one.
+ * The days whose answer the player chose to see after their room found the
+ * song without them (#30), so a reload doesn't hide it again: one entry per
+ * room and day, as a room can play several days (#B). A player is only ever
+ * in one room, so another room's entries are dropped on the next choice.
  */
 const ANSWER_KEY = "lyrix:room-answer";
 
-export function isAnswerRevealed(code: string, storage: Storage | undefined = globalThis.localStorage): boolean {
+function revealedAnswers(storage: Storage | undefined): string[] {
+  const raw = storage?.getItem(ANSWER_KEY) ?? null;
+  if (raw === null) return [];
   try {
-    return storage?.getItem(ANSWER_KEY) === code;
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter((entry): entry is string => typeof entry === "string");
+  } catch {
+    // Saved before rooms played several days: a bare room code, for today's song.
+  }
+  return [`${raw}:${utcDay()}`];
+}
+
+export function isAnswerRevealed(
+  code: string,
+  day: string,
+  storage: Storage | undefined = globalThis.localStorage
+): boolean {
+  try {
+    return revealedAnswers(storage).includes(`${code}:${day}`);
   } catch {
     return false;
   }
 }
 
-export function saveAnswerRevealed(code: string, storage: Storage | undefined = globalThis.localStorage): void {
+export function saveAnswerRevealed(
+  code: string,
+  day: string,
+  storage: Storage | undefined = globalThis.localStorage
+): void {
   try {
-    storage?.setItem(ANSWER_KEY, code);
+    const kept = revealedAnswers(storage).filter((entry) => entry.startsWith(`${code}:`));
+    storage?.setItem(ANSWER_KEY, JSON.stringify([...new Set([...kept, `${code}:${day}`])]));
   } catch {
     // Persistence is a nice-to-have: never fatal.
   }

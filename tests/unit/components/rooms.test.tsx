@@ -721,7 +721,7 @@ describe("the room's round (#30)", () => {
 
     await waitFor(() => expect(feedbackText()).toBe("« vent » trouvé !"));
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://localhost:3000/api/rooms/ABC234/guess");
-    expect(sentBody()).toEqual({ token: "token-m1", word: "vent" });
+    expect(sentBody()).toEqual({ token: "token-m1", word: "vent", day: utcDay() });
     expect(submitGuess).not.toHaveBeenCalled();
     expect(lyricsText()).toContain("vent");
     // The player's own colour is the accent.
@@ -932,7 +932,7 @@ describe("when the group finds the song without the player (#30)", () => {
 
     await waitFor(() => expect(lyricsText()).toContain("refuge"));
     expect(aloneCalls()).toHaveLength(1);
-    expect(JSON.parse(String(aloneCalls()[0]?.[1]?.body))).toEqual({ token: "token-m1", state: "state-0" });
+    expect(JSON.parse(String(aloneCalls()[0]?.[1]?.body))).toEqual({ token: "token-m1", state: "state-0", day: utcDay() });
     expect(lyricsText()).not.toContain("novembre");
   });
 
@@ -1042,5 +1042,69 @@ describe("when the group finds the song without the player (#30)", () => {
 
     expect(feedbackText()).toBe("Léo a trouvé la chanson !");
     expect(lyricsText()).not.toContain("jardin");
+  });
+});
+
+// Phase B of the archives: a room plays one day's song at a time, and
+// everyone in it follows; a player going to another day takes the room along.
+describe("the day the room plays", () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const ARCHIVED = utcDay(new Date(Date.now() - 2 * DAY_MS));
+
+  /** The room's round on another day, as the room sends it once moved there. */
+  function archivedMessage(guesses: RoomGuess[] = []): RoomRoundMessage {
+    const message = roundMessage(guesses);
+    return { ...message, round: { ...message.round, day: ARCHIVED } };
+  }
+
+  function dayCalls() {
+    return fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/day"));
+  }
+
+  it("is followed when a teammate takes the room to a day of the archives", async () => {
+    seedRoom(entry(camille.id, [camille, leo]));
+    await mountGame();
+
+    const socket = latestSocket();
+    socket.receive({
+      type: "room",
+      room: { ...snapshot([camille, leo]), day: ARCHIVED },
+      event: { kind: "day", member: leo, day: ARCHIVED },
+    });
+    socket.receive(archivedMessage([roomGuess("jardin", leo, true)]));
+
+    await waitFor(() => expect(window.location.pathname).toBe(`/archives/${ARCHIVED}`));
+    expect(feedbackText()).toMatch(/^Léo a lancé l'archive du /);
+    await waitFor(() => expect(lyricsText()).toContain("jardin"));
+    expect(roomCard()).toBeTruthy();
+    // Following is not moving: nobody asked the room to go anywhere.
+    expect(dayCalls()).toHaveLength(0);
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("goes along with the player who opens another day", async () => {
+    answer(200, archivedMessage());
+    seedRoom();
+    await mountGame();
+
+    await act(async () => {
+      window.history.pushState(null, "", `/archives/${ARCHIVED}`);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    await waitFor(() => expect(dayCalls()).toHaveLength(1));
+    expect(JSON.parse(String(dayCalls()[0]?.[1]?.body))).toEqual({ token: "token-m1", day: ARCHIVED });
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("stays where it is while the player only browses the archives", async () => {
+    seedRoom();
+    await mountGame();
+
+    fireEvent.click(screen.getByRole("button", { name: "Archives" }));
+
+    await screen.findByRole("heading", { name: "Les 30 derniers jours" });
+    expect(dayCalls()).toHaveLength(0);
+    window.history.replaceState(null, "", "/");
   });
 });

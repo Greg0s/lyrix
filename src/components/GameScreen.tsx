@@ -7,7 +7,8 @@ import { useGame, type Feedback } from "../hooks/useGame";
 import { useRoom } from "../hooks/useRoom";
 import { useRoute } from "../hooks/useRoute";
 import { loadArchive } from "../roundStorage";
-import { ARCHIVES } from "../routes";
+import { utcDay } from "../game/daily";
+import { ARCHIVES, TODAY } from "../routes";
 import { AppHeader } from "./AppHeader";
 import { ArchivesScreen } from "./ArchivesScreen";
 import { DayBar } from "./DayBar";
@@ -46,6 +47,31 @@ export function GameScreen() {
   // Room events ("X a rejoint le salon.", a teammate's guess) go to the guess
   // dock's feedback line; the room's round replaces the solo one (#30).
   const room = useRoom(game.announce, game.receiveRoomRound, game.setRoomSession);
+
+  // A room plays one day's song at a time, and everyone in it follows (#B).
+  // When the room's day changes, the screen goes there; a player browsing the
+  // archives when the room first says where it is stays where they are.
+  const { roomDay } = game;
+  const lastRoomDay = useRef<string | null>(null);
+  useEffect(() => {
+    const previous = lastRoomDay.current;
+    lastRoomDay.current = roomDay;
+    if (roomDay === null || previous === roomDay) return;
+    if (route.name === "archives" ? previous === null : (day ?? utcDay()) === roomDay) return;
+    navigate(roomDay === utcDay() ? TODAY : { name: "day", day: roomDay });
+  }, [roomDay, route.name, day, navigate]);
+  // And when the player goes to another day themselves (a cover, the day
+  // bar, "Jouer", Back), the whole room goes with them.
+  const { moveTo } = room;
+  const inRoom = room.view !== null;
+  const lastDay = useRef(day);
+  useEffect(() => {
+    const moved = lastDay.current !== day;
+    lastDay.current = day;
+    if (!moved || !inRoom || roomDay === null || route.name === "archives") return;
+    const target = day ?? utcDay();
+    if (target !== roomDay) moveTo(target);
+  }, [day, inRoom, roomDay, route.name, moveTo]);
   const inputRef = useRef<HTMLInputElement>(null);
   // An invite link (/salon/<code>) opens the dialog on that room, unless the
   // player is in it already. It is only offered once: closing the dialog drops it.
@@ -244,8 +270,10 @@ export function GameScreen() {
       </div>
 
       <aside className="lyrix-aside">
-        {/* A day of the archives is played alone: the room stays on today's song. */}
-        {room.view && day === null ? <RoomCard room={room.view} onLeave={room.leave} /> : null}
+        {/* The room's card goes with the room's day; another day is played alone meanwhile. */}
+        {room.view && (roomDay === null ? day === null : (day ?? utcDay()) === roomDay) ? (
+          <RoomCard room={room.view} onLeave={room.leave} />
+        ) : null}
         <ProgressCard percent={percent} foundCount={foundCount} triedCount={triedWords.length} />
         <TriedWords triedWords={triedWords} group={group} />
         {room.view || day !== null ? null : <MultiplayerPromo onOpen={openMultiplayer} />}

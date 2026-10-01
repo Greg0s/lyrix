@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { createRoom, joinRoom, leaveRoom, roomSocketUrl, type RoomFailure } from "../api/rooms";
+import { createRoom, joinRoom, leaveRoom, moveRoom, roomSocketUrl, type RoomFailure } from "../api/rooms";
+import { utcDay } from "../game/daily";
+import { longDayLabel } from "../game/frenchDates";
 import {
   memberName,
   parseRoomMessage,
@@ -11,6 +13,7 @@ import {
   ROOM_PONG,
   sanitizePseudo,
   type RoomEntry,
+  type RoomEvent,
   type RoomMember,
   type RoomRoundMessage,
 } from "../game/room";
@@ -30,6 +33,17 @@ export interface RoomView {
 }
 
 export type RoomOutcome = { ok: true } | { ok: false; failure: RoomFailure };
+
+/** A room event as the dock's feedback line tells it. */
+function roomEventText(change: RoomEvent, you: string): string {
+  const name = memberName(change.member, you);
+  if (change.kind === "day") {
+    return change.day === utcDay()
+      ? `${name} a ramené le salon sur la chanson du jour.`
+      : `${name} a lancé l'archive du ${longDayLabel(change.day)}.`;
+  }
+  return change.kind === "joined" ? `${name} a rejoint le salon.` : `${name} a quitté le salon.`;
+}
 
 /** Waits before each reconnection attempt in a row; the last one repeats. */
 export const RECONNECT_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 15_000];
@@ -105,11 +119,9 @@ export function useRoom(
         saveRoom(next);
         setEntry(next);
         const { event: change } = message;
-        // The player hears about their own arrival from join() instead.
-        if (change && change.member.id !== you) {
-          const verb = change.kind === "joined" ? "a rejoint" : "a quitté";
-          announce(`${memberName(change.member, you)} ${verb} le salon.`);
-        }
+        // The player hears about their own arrival from join() instead, and
+        // sees for themselves the day they took the room to.
+        if (change && change.member.id !== you) announce(roomEventText(change, you));
       });
       current.addEventListener("close", (event) => {
         window.clearInterval(keepaliveTimer);
@@ -164,6 +176,18 @@ export function useRoom(
     [announce, enter, entry]
   );
 
+  /**
+   * Takes the whole room to another day's song (#B). The room's round of that
+   * day comes back over the socket, to everyone; only a failure is told here.
+   */
+  const moveTo = useCallback(
+    (day: string) => {
+      if (!entry) return;
+      moveRoom(entry.room.code, entry.token, day).catch(() => announce("Le salon n'a pas pu changer de jour."));
+    },
+    [announce, entry]
+  );
+
   const leave = useCallback(() => {
     if (!entry) return;
     leaveRoom(entry.room.code, entry.token);
@@ -186,5 +210,5 @@ export function useRoom(
     [entry, linkDown]
   );
 
-  return { view, create, join, leave };
+  return { view, create, join, leave, moveTo };
 }

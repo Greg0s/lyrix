@@ -2,8 +2,10 @@ import {
   isRoundView,
   parseRoomEntry,
   parseRoomGuessResult,
+  parseRoomRoundAnswer,
   type RoomEntry,
   type RoomGuessResult,
+  type RoomRound,
 } from "../game/room";
 import type { RoundView } from "../game/types";
 import { apiUrl } from "./base";
@@ -66,11 +68,17 @@ export function roomSocketUrl(code: string, token: string): string {
  * A guess for the whole room (issue #30). Throws, like submitGuess, when it
  * couldn't be checked: the dock says so and the player can try again.
  */
-export async function submitRoomGuess(code: string, token: string, word: string): Promise<RoomGuessResult> {
+export async function submitRoomGuess(
+  code: string,
+  token: string,
+  word: string,
+  day?: string
+): Promise<RoomGuessResult> {
   const response = await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/guess`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, word }),
+    // The day it was typed for: the room may have moved on meanwhile (409).
+    body: JSON.stringify({ token, word, day }),
   });
   const body: unknown = await response.json().catch(() => null);
   const result = response.ok ? parseRoomGuessResult(body) : null;
@@ -83,13 +91,35 @@ export async function submitRoomGuess(code: string, token: string, word: string)
  * complete the title: the group's finds but the winning word, merged with the
  * player's own solo `state` when there is one. Throws when it couldn't be had.
  */
-export async function continueAlone(code: string, token: string, state: string | undefined): Promise<RoundView> {
+export async function continueAlone(
+  code: string,
+  token: string,
+  state: string | undefined,
+  day?: string
+): Promise<RoundView> {
   const response = await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/alone`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, state }),
+    body: JSON.stringify({ token, state, day }),
   });
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok || !isRoundView(body)) throw new Error(`continuing alone failed with status ${response.status}`);
   return body;
+}
+
+/**
+ * Takes the whole room to another day's song: today's, or a day of the
+ * archives. Everyone, the player included, is then sent the room's round of
+ * that day over the socket. Throws when the room couldn't be moved.
+ */
+export async function moveRoom(code: string, token: string, day: string): Promise<RoomRound> {
+  const response = await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/day`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, day }),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  const round = response.ok ? parseRoomRoundAnswer(body) : null;
+  if (!round) throw new Error(`moving the room failed with status ${response.status}`);
+  return round;
 }

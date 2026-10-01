@@ -391,6 +391,11 @@ function parseRoomRound(value: Record<string, unknown>): RoomRound | null {
   };
 }
 
+/** What POST /api/rooms/:code/day answers: the room's round on the day it now plays. */
+export function parseRoomRoundAnswer(value: unknown): RoomRound | null {
+  return isRecord(value) ? parseRoomRound(value) : null;
+}
+
 export function parseRoomRoundMessage(value: unknown): RoomRoundMessage | null {
   if (!isRecord(value) || value.type !== "round") return null;
   const parsed = parseRoomRound(value);
