@@ -338,3 +338,12 @@ Switching between "Créer un salon" and "Rejoindre" nudged the "Jouer à plusieu
 - **A retrying negative assertion passes on something that came and went.** `await expect(locator).toHaveCount(0)` polls for 5 s, and the confetti clears itself after 3 s, so "no confetti after a reload" would have passed even with a burst. The e2e specs read the count once, right after the victory panel shows (a burst comes with it): `expect(await locator.count()).toBe(0)`.
 
 Also: `tests/unit/ci/favicon.test.ts` fails on a Windows checkout with `core.autocrlf=true`, on `main` as on any branch: `public/favicon.svg` is checked out with CRLF and compared byte for byte with the LF the generator writes. Not caused by a change; run it on the base commit before blaming one.
+
+## 2026-10-01 — Growing the catalog would have rewritten every past day
+
+Planning the archives (replay any of the last 30 days) turned up two traps in the daily pick, `catalog[daysSinceEpoch % catalog.length]`:
+
+- **Adding a song changes the song of every past day.** The modulo is over the catalog's length, so one more entry reshuffles the whole history: "Saturday 26" would replay another song than the one served that day. The pick is now a list of dated segments (`schedule`, `worker/src/catalog.ts`); new songs start a new segment on a day not yet played, and the first segment keeps the launch formula unchanged. Pinned by the day-by-day table in `tests/unit/worker/catalog.test.ts`, computed with the code that actually served those days.
+- **A 30-song catalog and a 30-day window give tomorrow away.** With 30 songs, tomorrow's song is the one from 30 days ago, which is the oldest day in the archives. The second segment plays its 30 new songs first, so no day in the window ever repeats the next one; checked over three years by the same test file (and checked to fail when the segment starts one day late).
+
+Also: the game went live on 2026-09-11 at 22:19 UTC (deploy of PR #12), so 2026-09-12 is the first full day with a song (`FIRST_SONG_DAY`); the archives show older days as unavailable.

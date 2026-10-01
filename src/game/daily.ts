@@ -4,6 +4,9 @@
  */
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** How many days the archives offer: today and the 29 before it. */
+export const ARCHIVE_DAYS = 30;
+
 /** Milliseconds from `nowMs` until the next UTC midnight: always in (0, 24 h]. */
 export function msUntilNextSong(nowMs: number): number {
   return DAY_MS - (((nowMs % DAY_MS) + DAY_MS) % DAY_MS);
