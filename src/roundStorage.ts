@@ -24,6 +24,8 @@ export type { ArchiveEntry };
 const DAY_PREFIX = "lyrix:day:";
 const VIEW_PREFIX = "lyrix:view:";
 const ARCHIVE_KEY = "lyrix:archive";
+/** `lyrix:group:<day>:<room code>`: a room's progress, waiting to join the player's own (GroupSnapshot). */
+const GROUP_PREFIX = "lyrix:group:";
 /** Before the archives: one round, today's, forgotten at midnight. */
 const LEGACY_KEY = "lyrix:round";
 
@@ -171,6 +173,9 @@ function tidy(storage: Storage, now: Date): void {
   let archiveChanged = false;
   for (const key of storageKeys(storage)) {
     if (key.startsWith(DAY_PREFIX) && !window.has(key.slice(DAY_PREFIX.length))) storage.removeItem(key);
+    if (key.startsWith(GROUP_PREFIX) && !window.has(key.slice(GROUP_PREFIX.length, GROUP_PREFIX.length + 10))) {
+      storage.removeItem(key);
+    }
     if (key.startsWith(VIEW_PREFIX) && key.slice(VIEW_PREFIX.length) !== today) storage.removeItem(key);
   }
   for (const day of Object.keys(archive)) {
@@ -324,3 +329,74 @@ export function saveRoundSoon(
   pendingWrites.set(dayOf(round, new Date()), { round, triedWords, storage });
   cancelScheduled ??= schedule(flushSavedRound);
 }
+
+/**
+ * What a room found on a day, kept while the player is in it: the room's
+ * sealed state, and its found words to list among the player's. Once out of
+ * the room (left, expired, or on the next visit), it joins the player's own
+ * round of that day, the found words of both put together (useGame), and is
+ * deleted. Not kept while the player looks alone after the group's win: their
+ * solo round already holds the group's progress but the winning word.
+ */
+export interface GroupSnapshot {
+  day: string;
+  code: string;
+  state: string;
+  found: TriedWord[];
+}
+
+function groupKey(day: string, code: string): string {
+  return `${GROUP_PREFIX}${day}:${code}`;
+}
+
+function parseGroupSnapshot(value: unknown): GroupSnapshot | null {
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as Record<string, unknown>;
+  const found = parseTriedWords(candidate.found);
+  if (!isDayKey(candidate.day) || typeof candidate.code !== "string" || typeof candidate.state !== "string" || !found) {
+    return null;
+  }
+  return { day: candidate.day, code: candidate.code, state: candidate.state, found };
+}
+
+// Small (a state and a few words) and once per room event: written inline.
+export function saveGroupSnapshot(snapshot: GroupSnapshot, storage: Storage | undefined = globalThis.localStorage): void {
+  try {
+    storage?.setItem(groupKey(snapshot.day, snapshot.code), JSON.stringify(snapshot));
+  } catch {
+    // Persistence is a nice-to-have: never fatal.
+  }
+}
+
+export function clearGroupSnapshot(
+  snapshot: Pick<GroupSnapshot, "day" | "code">,
+  storage: Storage | undefined = globalThis.localStorage
+): void {
+  try {
+    storage?.removeItem(groupKey(snapshot.day, snapshot.code));
+  } catch {
+    // Same as above.
+  }
+}
+
+/** Every room's progress still waiting to join the player's own, for days still in the archives. */
+export function loadGroupSnapshots(
+  storage: Storage | undefined = globalThis.localStorage,
+  now: Date = new Date()
+): GroupSnapshot[] {
+  if (!storage) return [];
+  try {
+    tidyOnce(storage, now);
+    const snapshots: GroupSnapshot[] = [];
+    for (const key of storageKeys(storage)) {
+      if (!key.startsWith(GROUP_PREFIX)) continue;
+      const snapshot = parseGroupSnapshot(readJson(storage, key));
+      if (snapshot) snapshots.push(snapshot);
+      else storage.removeItem(key);
+    }
+    return snapshots;
+  } catch {
+    return [];
+  }
+}
+

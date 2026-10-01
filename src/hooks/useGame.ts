@@ -1,13 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchRound, resumeRound, submitGuess } from "../api/client";
 import { continueAlone, submitRoomGuess } from "../api/rooms";
+import { utcDay } from "../game/daily";
 import { normalize } from "../game/normalize";
 import { memberName, type RoomGuess, type RoomMember, type RoomRound, type RoomRoundMessage } from "../game/room";
 import { parseNearSlots } from "../game/slots";
 import type { NearSlot, RoundView } from "../game/types";
-import { isAnswerRevealed, saveAnswerRevealed } from "../roomStorage";
-import { utcDay } from "../game/daily";
-import { loadSavedDay, loadSavedRound, saveRoundSoon } from "../roundStorage";
+import { isAnswerRevealed, loadSavedRoom, saveAnswerRevealed } from "../roomStorage";
+import {
+  clearGroupSnapshot,
+  flushSavedRound,
+  loadGroupSnapshots,
+  loadSavedDay,
+  loadSavedRound,
+  saveGroupSnapshot,
+  saveRound,
+  saveRoundSoon,
+} from "../roundStorage";
 
 export interface TriedWord {
   key: string;
@@ -185,6 +194,12 @@ function hydratedState(day: string | null): GameState | null {
     error: null,
     celebration: 0,
   };
+}
+
+/** The player's own words, then the words the group found that they hadn't: what a round merged with a room's lists. */
+function withGroupFinds(own: readonly TriedWord[], group: readonly TriedWord[]): TriedWord[] {
+  const keys = new Set(own.map((word) => word.key));
+  return [...own, ...group.filter((word) => word.found && !keys.has(word.key))];
 }
 
 /** The room's round is played on today's song only: on a day of the archives, the player plays alone. */
@@ -479,6 +494,61 @@ export function useGame(day: string | null = null) {
       })
       .catch(() => {});
   }, [aloneSession, soloState]);
+
+  // While in a room, what it has found is kept aside, to join the player's own
+  // round once out of it (see GroupSnapshot) - unless the player is looking
+  // alone, whose solo round already holds the group's progress but the
+  // winning word: keeping the room's state would hand them that word.
+  const sharedNow = state.shared;
+  useEffect(() => {
+    if (!sharedNow?.round || lookingAlone(sharedNow)) return;
+    saveGroupSnapshot({
+      day: sharedNow.round.day ?? utcDay(),
+      code: sharedNow.code,
+      state: sharedNow.round.state,
+      found: sharedNow.triedWords.filter((word) => word.found),
+    });
+  }, [sharedNow]);
+
+  // Out of every room (left, expired, or on a later visit): each room's
+  // progress joins the player's own round of its day, their found words put
+  // together by the Worker (POST /api/round/resume), so nothing found alone
+  // or together is lost. A saved room means the player is still in one, on
+  // its way back: nothing is merged then. Nor while a round is loading, whose
+  // answer would land over the merged one, on screen and in storage.
+  const outOfRoom = state.shared === null && !state.loading;
+  // One merge at a time (StrictMode runs the effect twice).
+  const merging = useRef(false);
+  useEffect(() => {
+    if (!outOfRoom || merging.current || loadSavedRoom() !== null) return;
+    const snapshots = loadGroupSnapshots();
+    if (snapshots.length === 0) return;
+    merging.current = true;
+    void (async () => {
+      for (const snapshot of snapshots) {
+        // The latest of the player's own first, a write of it still pending included.
+        flushSavedRound();
+        const own = loadSavedDay(snapshot.day);
+        let merged: RoundView;
+        try {
+          merged = await resumeRound(own ? [own.state, snapshot.state] : [snapshot.state], snapshot.day);
+        } catch (error) {
+          // Offline: tried again on the next visit. Refused (a state the
+          // Worker no longer opens): nothing to merge, ever.
+          if (!(error instanceof TypeError)) clearGroupSnapshot(snapshot);
+          continue;
+        }
+        const triedWords = withGroupFinds(own?.triedWords ?? [], snapshot.found);
+        saveRound(merged, triedWords);
+        clearGroupSnapshot(snapshot);
+        // On screen if it is the solo round of that day.
+        setState((prev) =>
+          prev.shared === null && prev.round?.day === snapshot.day ? { ...prev, round: merged, triedWords } : prev
+        );
+      }
+      merging.current = false;
+    })();
+  }, [outOfRoom]);
 
   // In a room, its round takes today's solo one's place, unless the player is
   // looking alone; the solo round is kept as it was, for then and for when

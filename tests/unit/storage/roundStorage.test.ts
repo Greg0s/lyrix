@@ -2,10 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DisplayToken, RoundView } from "../../../src/game/types";
 import type { TriedWord } from "../../../src/hooks/useGame";
 import {
+  clearGroupSnapshot,
   flushSavedRound,
   loadArchive,
+  loadGroupSnapshots,
   loadSavedDay,
   loadSavedRound,
+  saveGroupSnapshot,
   saveRound,
   saveRoundSoon,
 } from "../../../src/roundStorage";
@@ -304,6 +307,34 @@ describe("the round saved before the archives", () => {
     const broken = fakeStorage({ [LEGACY_KEY]: JSON.stringify({ date: TODAY, round: { not: "a round" }, triedWords }) });
     expect(loadSavedRound(broken, NOW)).toBeNull();
     expect(broken.getItem(LEGACY_KEY)).toBeNull();
+  });
+});
+
+// A room's progress, kept while the player is in it, to join their own round once out.
+describe("a room's progress", () => {
+  const snapshot = { day: TODAY, code: "ABC234", state: "room-2", found: triedWords.slice(0, 1) };
+
+  it("is kept per day and per room, until cleared", () => {
+    const storage = fakeStorage();
+    saveGroupSnapshot(snapshot, storage);
+    saveGroupSnapshot({ ...snapshot, code: "XYZ789", state: "other-room" }, storage);
+    expect(loadGroupSnapshots(storage, NOW).map((kept) => kept.state).sort()).toEqual(["other-room", "room-2"]);
+
+    clearGroupSnapshot(snapshot, storage);
+    expect(loadGroupSnapshots(storage, NOW).map((kept) => kept.code)).toEqual(["XYZ789"]);
+  });
+
+  it("is forgotten once its day has left the archives", () => {
+    const storage = fakeStorage();
+    saveGroupSnapshot({ ...snapshot, day: "2026-09-02" }, storage);
+    expect(loadGroupSnapshots(storage, new Date("2026-10-02T08:00:00Z"))).toEqual([]);
+    expect(storage.length).toBe(0);
+  });
+
+  it("drops what it can't read", () => {
+    const storage = fakeStorage({ [`lyrix:group:${TODAY}:ABC234`]: JSON.stringify({ state: 1 }) });
+    expect(loadGroupSnapshots(storage, NOW)).toEqual([]);
+    expect(storage.length).toBe(0);
   });
 });
 

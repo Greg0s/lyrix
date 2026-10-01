@@ -287,7 +287,7 @@ test("plays the day's round together: every find and every miss reaches the whol
   await expect(guest.getByRole("button", { name: "Afficher la réponse" })).toBeVisible();
 });
 
-test("catches a player up on the room's round after a reload, and gives the solo round back on leaving", async ({
+test("catches a player up on the room's round after a reload, and gives the solo round back on leaving, with the room's finds in it", async ({
   browser,
 }) => {
   const host = await openGame(browser);
@@ -303,9 +303,14 @@ test("catches a player up on the room's round after a reload, and gives the solo
 
   await roomCard(guest).getByRole("button", { name: "Quitter le salon" }).click();
 
+  // The player's own round again, merged with what the room found (POST /api/round/resume).
   await expect(guest.getByPlaceholder("Propose un mot…")).toBeVisible();
-  await expect(guest.locator(".token-word-found")).toHaveCount(0);
-  await expect(guest.getByRole("region", { name: "Tes mots" })).toContainText("Les mots que tu proposes");
+  await expect(guest.locator(".lyrix-chip", { hasText: lyricsWord })).toBeVisible();
+  await expect(guest.locator(".token-word-found", { hasText: lyricsWord }).first()).toBeVisible();
+
+  // Kept on a reload: the merge was saved as the player's own round.
+  await guest.reload();
+  await expect(guest.locator(".token-word-found", { hasText: lyricsWord }).first()).toBeVisible();
 });
 
 test.describe("when a teammate completes the title", () => {

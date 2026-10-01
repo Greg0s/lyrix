@@ -38,8 +38,9 @@ vi.mock("../../../src/components/WordToken", async (importOriginal) => {
 });
 
 const fetchRound = vi.hoisted(() => vi.fn());
+const resumeRound = vi.hoisted(() => vi.fn());
 const submitGuess = vi.hoisted(() => vi.fn());
-vi.mock("../../../src/api/client", () => ({ fetchRound, submitGuess }));
+vi.mock("../../../src/api/client", () => ({ fetchRound, resumeRound, submitGuess }));
 
 const { GameScreen } = await import("../../../src/components/GameScreen");
 const { KEEPALIVE_MS, RECONNECT_DELAYS_MS } = await import("../../../src/hooks/useRoom");
@@ -184,6 +185,7 @@ beforeEach(() => {
   FakeWebSocket.instances.length = 0;
   window.localStorage.clear();
   fetchRound.mockReset().mockResolvedValue(round());
+  resumeRound.mockReset();
   submitGuess.mockReset();
   fetchMock.mockReset();
   vi.stubGlobal("WebSocket", FakeWebSocket);
@@ -827,8 +829,9 @@ describe("the room's round (#30)", () => {
     expect(within(wordsCard()).getByText("jardin")).toBeTruthy();
   });
 
-  it("gives the solo round back, untouched, once the player leaves", async () => {
+  it("gives the solo round back once the player leaves, with what the group found in it", async () => {
     answer(204);
+    resumeRound.mockResolvedValue(round("merged", ["vent"]));
     seedRoom();
     await mountGame([roomGuess("vent", leo, true)]);
     expect(lyricsText()).toContain("vent");
@@ -836,8 +839,52 @@ describe("the room's round (#30)", () => {
     fireEvent.click(within(roomCard() as HTMLElement).getByRole("button", { name: "Quitter le salon" }));
 
     expect(screen.getByPlaceholderText("Propose un mot…")).toBeTruthy();
-    expect(lyricsText()).not.toContain("vent");
     expect(screen.getByRole("region", { name: "Tes mots" })).toBeTruthy();
+    // The player's own round and the room's, put together by the Worker.
+    await waitFor(() => expect(resumeRound).toHaveBeenCalledWith(["state-0", "room-1"], utcDay()));
+    await waitFor(() => expect(lyricsText()).toContain("vent"));
+    expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy();
+    expect(window.localStorage.getItem(`lyrix:group:${utcDay()}:ABC234`)).toBeNull();
+  });
+
+  it("keeps the group's progress apart while the player is in the room", async () => {
+    seedRoom();
+    await mountGame([roomGuess("vent", leo, true)]);
+    latestSocket().receive(roundMessage([roomGuess("jardin", leo, true), roomGuess("vent", leo, true)], "jardin"));
+
+    expect(resumeRound).not.toHaveBeenCalled();
+    const kept = JSON.parse(window.localStorage.getItem(`lyrix:group:${utcDay()}:ABC234`) ?? "null") as {
+      state: string;
+      found: { key: string }[];
+    };
+    expect(kept.state).toBe("room-2");
+    expect(kept.found.map((word) => word.key)).toEqual(["jardin", "vent"]);
+  });
+
+  it("brings in the progress of a room that expired while the page was closed, on the next visit", async () => {
+    window.localStorage.setItem(
+      `lyrix:group:${utcDay()}:ABC234`,
+      JSON.stringify({ day: utcDay(), code: "ABC234", state: "room-1", found: [roomGuess("vent", leo, true)] })
+    );
+    resumeRound.mockResolvedValue(round("merged", ["vent"]));
+    await mountGame();
+
+    await waitFor(() => expect(lyricsText()).toContain("vent"));
+    // Once today's own round has loaded, so that its answer can't land over the merged one.
+    expect(resumeRound).toHaveBeenCalledWith(["state-0", "room-1"], utcDay());
+    expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy();
+  });
+
+  it("keeps the group's progress for later when the Worker can't be reached", async () => {
+    answer(204);
+    resumeRound.mockRejectedValue(new TypeError("Failed to fetch"));
+    seedRoom();
+    await mountGame([roomGuess("vent", leo, true)]);
+
+    fireEvent.click(within(roomCard() as HTMLElement).getByRole("button", { name: "Quitter le salon" }));
+
+    await waitFor(() => expect(resumeRound).toHaveBeenCalled());
+    expect(window.localStorage.getItem(`lyrix:group:${utcDay()}:ABC234`)).not.toBeNull();
   });
 
   it("re-renders no lyrics token while the player types", async () => {
@@ -887,6 +934,21 @@ describe("when the group finds the song without the player (#30)", () => {
     expect(aloneCalls()).toHaveLength(1);
     expect(JSON.parse(String(aloneCalls()[0]?.[1]?.body))).toEqual({ token: "token-m1", state: "state-0" });
     expect(lyricsText()).not.toContain("novembre");
+  });
+
+  // Decided with the developer: a player still looking on their own when they
+  // leave keeps everything the group found but the winning word, which is
+  // what their solo round already holds; the room's own state would hand
+  // them the song.
+  it("never keeps the room's winning state for a player looking alone", async () => {
+    answer(200, aloneRound);
+    seedRoom(entry(camille.id, [camille, leo]));
+    await mountGame(titleFound.slice(1));
+    latestSocket().receive(roundMessage(titleFound, "novembre", "novembre"));
+    await waitFor(() => expect(lyricsText()).toContain("refuge"));
+
+    const kept = window.localStorage.getItem(`lyrix:group:${utcDay()}:ABC234`) ?? "";
+    expect(kept).not.toContain(`"room-${titleFound.length}"`);
   });
 
   it("does not celebrate a guess of the player's that crossed the teammate's winning one (#42)", async () => {
