@@ -538,29 +538,19 @@
 }
 
 /*
- * A hidden word holding the closest guess so far: the bar turns a deep
- * orange, deeper the closer the guess is (--heat, 0 to 1, set inline from the
- * score by proximityHeat in src/game/similarity.ts), and the guess is written
- * over it in full - fading the text instead dropped it below WCAG AA. The
- * word's own masked text stays underneath, transparent, in the same grid cell
- * as the guess: the bar is as wide as the longer of the two, so a guess
- * longer than the word widens its bar rather than being shrunk or cut. A margin at each end (the padding) keeps its
- * first and last letters off the bar's edges.
+ * A hidden word holding the closest guess so far: the bar turns the accent
+ * orange of the title bars and the logo, the same whatever the score, and the
+ * guess is written over it in full, more opaque the closer it is
+ * (--near-opacity, from NEAR_MIN_OPACITY to 0.99, set inline from the score by
+ * proximityOpacity in src/game/similarity.ts). The word's own masked text
+ * stays underneath, transparent, in the same grid cell as the guess: the bar
+ * is as wide as the longer of the two, so a guess longer than the word widens
+ * its bar rather than being shrunk or cut. A margin at each end (the padding)
+ * keeps its first and last letters off the bar's edges.
  */
 .token-blank.token-word-near {
-  background: var(--accent-near-cold);
+  background: var(--accent-solid);
   padding-inline: 0.3em;
-  transition: background-color 0.4s ease;
-}
-
-@supports (color: color-mix(in oklch, red, blue)) {
-  .token-blank.token-word-near {
-    background: color-mix(
-      in oklch,
-      var(--accent-near-hot) calc(var(--heat, 0.5) * 100%),
-      var(--accent-near-cold)
-    );
-  }
 }
 
 /* Inline-grid, so its baseline is the text's; the tighter line height keeps it within the bar. */
@@ -580,7 +570,8 @@
 }
 
 .token-near-guess {
-  color: var(--color-on-ink);
+  color: var(--color-on-bright);
+  opacity: var(--near-opacity, 0.99);
   font-weight: 600;
   white-space: nowrap;
   pointer-events: none;
@@ -1529,7 +1520,7 @@
   font-weight: 800;
   padding: 0 0.18em 0 0.34em;
   border-radius: 0.2em;
-  background: var(--accent-near-hot);
+  background: var(--accent-solid);
   color: transparent;
 }
 
@@ -1539,7 +1530,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-on-ink);
+  color: var(--color-on-bright);
   font-weight: 600;
 }
 

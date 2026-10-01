@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cssColorToHex } from "../../scripts/lib/favicon";
+import { NEAR_MIN_OPACITY } from "../../src/game/similarity";
 import {
   applyTheme,
   initialTheme,
@@ -151,12 +152,14 @@ describe("the palette", () => {
   it("defines every token the stylesheets use", () => {
     const used = new Set(styleSheets.flatMap((css) => [...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1])));
     // Set inline by components, per element: a player's colour, a score's heat,
+    // a close guess's opacity,
     // a title word's rank and the title's word count on a win, a confetti piece's flight,
     // the size an archived song's title fits its cover at.
     const inline = new Set([
       "--cover-title-size",
       "--player",
       "--heat",
+      "--near-opacity",
       "--to-warm",
       "--to-hot",
       "--word",
@@ -217,7 +220,7 @@ describe.each(["light", "dark"] as const)("text contrast in the %s theme (WCAG A
     ["--color-error", ["--color-page-bg", "--color-surface"]],
     ["--color-link", ["--color-page-bg", "--color-surface"]],
     ["--accent-deep", ["--color-surface", "--color-sunken"]],
-    ["--color-on-ink", ["--color-solid", "--color-solid-raised", "--accent-near-cold", "--accent-near-hot"]],
+    ["--color-on-ink", ["--color-solid", "--color-solid-raised"]],
     ["--color-on-ink-soft", ["--color-solid"]],
     ["--color-on-ink-muted", ["--color-solid"]],
     ["--color-on-ink-accent", ["--color-solid"]],
@@ -231,5 +234,34 @@ describe.each(["light", "dark"] as const)("text contrast in the %s theme (WCAG A
 
   it.each(cases)("%s on %s", (text, surface) => {
     expect(contrast(token(text), token(surface))).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+/** A text colour written at this opacity over a surface, as the hex colour it blends to. */
+function blend(text: string, surface: string, opacity: number): string {
+  const channels = (color: string) =>
+    [1, 3, 5].map((i) => parseInt(cssColorToHex(color).slice(i, i + 2), 16));
+  const [over, under] = [channels(text), channels(surface)];
+  return `#${over
+    .map((c, i) => Math.round(c * opacity + (under[i] ?? 0) * (1 - opacity)))
+    .map((c) => c.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+describe.each(["light", "dark"] as const)("a close guess in the %s theme", (theme) => {
+  const light = declaredTokens(block(tokensCss, ":root"));
+  const dark = declaredTokens(block(tokensCss, ':root[data-theme="dark"]'));
+  const tokens = theme === "light" ? light : new Map([...light, ...dark]);
+  const text = tokens.get("--color-on-bright") ?? "";
+  const bar = tokens.get("--accent-solid") ?? "";
+
+  // Fainter than 4.5:1 below a score of about 75, on purpose: its opacity is
+  // the score (decided with the developer). Never below WCAG's 3:1 floor.
+  it("stays readable at its faintest, the opacity of a guess scored NEAR_SCORE", () => {
+    expect(contrast(blend(text, bar, NEAR_MIN_OPACITY), bar)).toBeGreaterThanOrEqual(3);
+  });
+
+  it("can't be any fainter and stay readable", () => {
+    expect(contrast(blend(text, bar, NEAR_MIN_OPACITY - 0.05), bar)).toBeLessThan(3);
   });
 });
