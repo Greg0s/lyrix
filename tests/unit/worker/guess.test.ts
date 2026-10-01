@@ -299,6 +299,96 @@ describe("GET /api/round?day=", () => {
   });
 });
 
+describe("POST /api/round/resume", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-01T10:00:00Z") });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function dayRound(day: string): Promise<RoundView> {
+    return (await (await app.request(`/api/round?day=${day}`, {}, env)).json()) as RoundView;
+  }
+
+  async function resume(body: unknown): Promise<{ status: number; body: RoundView }> {
+    const res = await app.request(
+      "/api/round/resume",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+      env
+    );
+    return { status: res.status, body: (await res.json()) as RoundView };
+  }
+
+  function revealedKeys(round: RoundView): string[] {
+    return [...new Set(allTokens(round).filter((t) => t.isWord && t.revealed).map((t) => normalize(t.text)))].sort();
+  }
+
+  it("rebuilds a saved day's view from its state alone", async () => {
+    const played = (await guess((await dayRound("2026-09-26")).state, "ligne")).body;
+    const { status, body } = await resume({ states: [played.state] });
+    expect(status).toBe(200);
+    expect(body.day).toBe("2026-09-26");
+    expect(revealedKeys(body)).toEqual(["ligne"]);
+  });
+
+  it("puts together what several states of the same round found", async () => {
+    const start = await dayRound("2026-09-26");
+    const mine = (await guess(start.state, "ligne")).body;
+    const theirs = (await guess(start.state, "refrain")).body;
+    const { status, body } = await resume({ states: [mine.state, theirs.state] });
+    expect(status).toBe(200);
+    expect(revealedKeys(body)).toEqual(["ligne", "refrain"]);
+  });
+
+  it("wins the round when the states together hold the whole title", async () => {
+    const start = await dayRound("2026-09-26");
+    const song = await playedSong(start);
+    const titleWords = tokenize(song.title).filter((t) => t.isWord);
+    const states = await Promise.all(titleWords.map(async (word) => (await guess(start.state, word.text)).body.state));
+    expect(states.length).toBeLessThanOrEqual(4);
+    const { body } = await resume({ states });
+    expect(body.victory).toBe(true);
+    expect(body.artist).toBe(song.artist);
+  });
+
+  it("refuses states of two different rounds", async () => {
+    const one = await dayRound("2026-09-26");
+    const other = await dayRound("2026-09-27");
+    expect((await resume({ states: [one.state, other.state] })).status).toBe(400);
+  });
+
+  it("refuses a state it didn't seal", async () => {
+    const song = await playedSong(await dayRound("2026-09-26"));
+    const forged = await sealState({ songId: song.id, foundKeys: ["ligne"], day: "2026-09-26" }, "not-the-secret");
+    expect((await resume({ states: [forged] })).status).toBe(400);
+  });
+
+  it("files a state sealed before the archives under the day it is told", async () => {
+    const song = await playedSong(await dayRound("2026-09-30"));
+    const legacy = await sealState({ songId: song.id, foundKeys: ["ligne"] }, env.STATE_SECRET);
+    const { status, body } = await resume({ states: [legacy], day: "2026-09-30" });
+    expect(status).toBe(200);
+    expect(body.day).toBe("2026-09-30");
+    expect((await openState(body.state, env.STATE_SECRET))?.day).toBe("2026-09-30");
+  });
+
+  it("refuses a malformed request", async () => {
+    const { state } = await dayRound("2026-09-26");
+    for (const body of [{}, { states: [] }, { states: "x" }, { states: [1] }, { states: [state, state, state, state, state] }, { states: [state], day: "hier" }]) {
+      expect((await resume(body)).status, JSON.stringify(body).slice(0, 40)).toBe(400);
+    }
+  });
+
+  it("names nothing of the song before victory", async () => {
+    const start = await dayRound("2026-09-26");
+    const song = await playedSong(start);
+    const { body } = await resume({ states: [start.state] });
+    expect(titleLeaks(JSON.stringify(body), song)).toEqual([]);
+  });
+});
+
 describe("POST /api/guess", () => {
   it("reveals every occurrence of a correctly guessed word", async () => {
     const round = await getRound();

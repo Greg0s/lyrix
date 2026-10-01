@@ -17,8 +17,25 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function fetchRound(signal?: AbortSignal): Promise<RoundView> {
-  const response = await fetch(apiUrl("/api/round"), { signal });
+/** Today's round, or with `day` (YYYY-MM-DD) the round of a day the archives hold. */
+export async function fetchRound(signal?: AbortSignal, day?: string): Promise<RoundView> {
+  const path = day === undefined ? "/api/round" : `/api/round?day=${encodeURIComponent(day)}`;
+  const response = await fetch(apiUrl(path), { signal });
+  return parseJsonResponse<RoundView>(response);
+}
+
+/**
+ * A round's view rebuilt from sealed states of it: one to resume a saved day,
+ * several to merge them. `day` names the round of a state sealed before the
+ * archives, which doesn't carry one.
+ */
+export async function resumeRound(states: readonly string[], day: string, signal?: AbortSignal): Promise<RoundView> {
+  const response = await fetch(`${API_BASE}/api/round/resume`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ states, day }),
+    signal,
+  });
   return parseJsonResponse<RoundView>(response);
 }
 

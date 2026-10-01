@@ -56,6 +56,59 @@ app.get("/api/round", async (c) => {
   return c.json(await buildRoundView(song, [], c.env, day));
 });
 
+/** How many sealed states one resume may merge: a round's own, plus a room's (see POST /api/round/resume). */
+const MAX_RESUMED_STATES = 4;
+
+/**
+ * The view of a round from its sealed state, with nothing guessed: how the
+ * archives resume a day they only kept the state of (src/roundStorage.ts).
+ * Several states of the same round (same song, same day) are merged, their
+ * found words put together - how a room's progress joins the player's own.
+ * Only states the Worker sealed itself count, so nothing found can be forged.
+ * `day` names the round of a state sealed before the archives, which has none.
+ */
+app.post("/api/round/resume", async (c) => {
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid JSON body" }, 400);
+  }
+  if (typeof body !== "object" || body === null) {
+    return c.json({ error: "request body must be a JSON object" }, 400);
+  }
+  const { states, day: hint } = body as Record<string, unknown>;
+  if (
+    !Array.isArray(states) ||
+    states.length === 0 ||
+    states.length > MAX_RESUMED_STATES ||
+    !states.every((state) => typeof state === "string")
+  ) {
+    return c.json({ error: `states must be 1 to ${MAX_RESUMED_STATES} round states` }, 400);
+  }
+  if (hint !== undefined && !isDayKey(hint)) {
+    return c.json({ error: "day must be a date written YYYY-MM-DD" }, 400);
+  }
+
+  const payloads = await Promise.all(states.map((state: string) => openState(state, c.env.STATE_SECRET)));
+  const opened = payloads.filter((payload) => payload !== null);
+  if (opened.length !== payloads.length) {
+    return c.json({ error: "invalid or expired round state" }, 400);
+  }
+  const [first] = opened;
+  const day = first.day ?? hint ?? utcDay();
+  if (opened.some((payload) => payload.songId !== first.songId || (payload.day ?? hint ?? utcDay()) !== day)) {
+    return c.json({ error: "those states are not of the same round" }, 400);
+  }
+
+  const song = await getSongById(first.songId);
+  if (!song) {
+    return c.json({ error: "invalid or expired round state" }, 400);
+  }
+  const foundKeys = new Set(opened.flatMap((payload) => payload.foundKeys));
+  return c.json(await buildRoundView(song, foundKeys, c.env, day));
+});
+
 app.post("/api/guess", async (c) => {
   let body: unknown;
   try {
