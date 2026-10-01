@@ -365,3 +365,8 @@ Phase B (a room plays one day at a time, everyone follows) turned up:
 - **TypeScript doesn't narrow a union on a non-unit discriminant.** `RoomEvent` is `{ kind: "joined" | "left" } | { kind: "day"; day }`: after `kind === "joined"` and `kind === "left"` checks, `change.day` still didn't type-check. Test the unit member (`kind === "day"`) first.
 - A component test's failure in "keeps a single tab stop once the bar holding it is found" showed up once in a run of the whole suite under load and not in the four full runs since: noted here in case it comes back, as a flaky test is a test to fix, not to rerun.
 
+
+## 2026-10-01 — Checking the October 2026 songs: LRCLIB overload looks like a missing song
+
+- **A partial outage reads as "no usable lyrics".** The first `npm run catalog:check` refused 7 of 60 entries (5 of them in `OCTOBER_2026_SONGS`); a second run, with `--delay 2500`, refused 7 again, but mostly different ones. LRCLIB was answering some requests with `503 ServerOverloaded`, which `searchTrack` swallows into "no results" on purpose, so `failureAdvice`'s "every entry failed" hint never fires for it. Every entry resolved when retried alone with `--song`. Before replacing a refused song, re-run it alone a few times: only one that fails every time is really missing.
+- **"Les Feuilles mortes" (Yves Montand) was replaced by "Résiste" (France Gall).** It resolved, with 81 words (just over `SHORT_SONG_WORDS`), but all 20 LRCLIB results carry the same 12-line excerpt for recordings of over three minutes: too thin a puzzle for a song that classic.
