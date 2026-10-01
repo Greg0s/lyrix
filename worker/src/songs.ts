@@ -102,7 +102,8 @@ export async function getSongById(id: string): Promise<Song | null> {
   return song;
 }
 
-export async function getTodaysSong(date: Date = new Date()): Promise<Song> {
+/** The song of the UTC day `date` falls on, falling back along that day's rotation when LRCLIB fails for its pick. */
+export async function getSongOfDay(date: Date = new Date()): Promise<Song> {
   const attempts = catalogRotation(date).slice(0, MAX_FALLBACK_ATTEMPTS + 1);
   // Sequential on purpose - LRCLIB asks clients to send requests one at a
   // time rather than in parallel (see https://lrclib.net/docs), and we want

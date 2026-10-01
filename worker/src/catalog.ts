@@ -1,3 +1,5 @@
+import { FIRST_SONG_DAY } from "../../src/game/daily";
+
 export interface CatalogEntry {
   id: string;
   artist: string;
@@ -130,14 +132,13 @@ export interface ScheduleSegment {
 export const schedule: readonly ScheduleSegment[] = [
   // The launch formula, unchanged: days since the epoch, modulo the list. The
   // game went live late on 2026-09-11 (UTC), so the 12th is its first full day.
-  { from: "2026-09-12", anchor: "1970-01-01", entries: LAUNCH_SONGS },
+  { from: FIRST_SONG_DAY, anchor: "1970-01-01", entries: LAUNCH_SONGS },
   // The new songs first, so that none of the next 30 days repeats a song the
   // archives still hold; then the whole catalog comes round every 60 days.
   { from: "2026-10-12", anchor: "2026-10-12", entries: [...OCTOBER_2026_SONGS, ...LAUNCH_SONGS] },
 ];
 
-/** The first day that had a song: the archives offer nothing older. */
-export const FIRST_SONG_DAY = schedule[0].from;
+export { FIRST_SONG_DAY };
 
 /** Whether the game had a song on the UTC day `date` falls on. */
 export function hasScheduledSong(date: Date): boolean {

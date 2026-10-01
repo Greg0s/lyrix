@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { dayStart, isDayKey, isPlayableDay, utcDay } from "../../src/game/daily";
 import type { GuessResult } from "../../src/game/types";
 import { buildRoundView, evaluateGuess, MAX_WORD_LENGTH, parseGuessWord, type RoundEnv } from "./round";
 import { roomRoutes, type RoomsEnv } from "./roomRoutes";
-import { getSongById, getTodaysSong } from "./songs";
+import { getSongById, getSongOfDay } from "./songs";
 import { openState } from "./state";
 
 type Env = RoundEnv & RoomsEnv;
@@ -39,9 +40,20 @@ app.use("/api/*", async (c, next) => {
   return next();
 });
 
+// Today's round, or with ?day=YYYY-MM-DD the round of a day the archives
+// hold: one that had a song, among the last ARCHIVE_DAYS, never one to come -
+// tomorrow's song stays secret.
 app.get("/api/round", async (c) => {
-  const song = await getTodaysSong();
-  return c.json(await buildRoundView(song, [], c.env));
+  const requested = c.req.query("day");
+  if (requested !== undefined && !isDayKey(requested)) {
+    return c.json({ error: "day must be a date written YYYY-MM-DD" }, 400);
+  }
+  if (requested !== undefined && !isPlayableDay(requested)) {
+    return c.json({ error: "no round for that day" }, 404);
+  }
+  const day = requested ?? utcDay();
+  const song = await getSongOfDay(dayStart(day));
+  return c.json(await buildRoundView(song, [], c.env, day));
 });
 
 app.post("/api/guess", async (c) => {
@@ -77,7 +89,8 @@ app.post("/api/guess", async (c) => {
 
   const outcome = await evaluateGuess(c.env, song, new Set(payload.foundKeys), trimmed);
   const foundKeys = outcome.found ? [...payload.foundKeys, outcome.key] : payload.foundKeys;
-  const view = await buildRoundView(song, foundKeys, c.env);
+  // A state sealed before the archives has no day: it can only be a round of today.
+  const view = await buildRoundView(song, foundKeys, c.env, payload.day ?? utcDay());
 
   const result: GuessResult = { ...view, ...outcome };
   return c.json(result);

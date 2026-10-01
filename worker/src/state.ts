@@ -1,6 +1,15 @@
+import { isDayKey } from "../../src/game/daily";
+
 export interface StatePayload {
   songId: string;
   foundKeys: string[];
+  /**
+   * The UTC day the round is the song of (YYYY-MM-DD): a song can come back on
+   * another day, and the archives keep one round per day. Missing from a state
+   * sealed before the archives, which can only be a round of the day it was
+   * played on.
+   */
+  day?: string;
 }
 
 const encoder = new TextEncoder();
@@ -71,7 +80,8 @@ function isStatePayload(value: unknown): value is StatePayload {
   return (
     typeof candidate.songId === "string" &&
     Array.isArray(candidate.foundKeys) &&
-    candidate.foundKeys.every((key) => typeof key === "string")
+    candidate.foundKeys.every((key) => typeof key === "string") &&
+    (candidate.day === undefined || isDayKey(candidate.day))
   );
 }
 

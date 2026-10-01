@@ -1,3 +1,4 @@
+import { utcDay } from "../../../src/game/daily";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   isRoomCode,
@@ -546,6 +547,13 @@ describe("the room's round (#30)", () => {
     expect(round.victory).toBe(false);
     expect(revealed(round)).toEqual([]);
     expect(round.title.tokens.map((token) => token.text).join("")).toBe("__ ______ __ ________");
+  });
+
+  it("is the round of the day the room plays, sealed with it", async () => {
+    const socket = await connect(await createRoom("Camille"));
+    const { round } = socket.lastRound();
+    expect(round.day).toBe(utcDay());
+    expect((await openState(round.state, env.STATE_SECRET))?.day).toBe(utcDay());
   });
 
   it("reveals a word any member finds for every member, saying who found it", async () => {

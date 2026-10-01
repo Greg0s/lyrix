@@ -107,6 +107,7 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 - **A room's round lives in its Durable Object** (#30), never on a client: a member sends a word (`POST /api/rooms/:code/guess`), the object checks it with the same code as the solo route (`worker/src/round.ts`), keeps it, and sends every member the room's masked view plus its guess list — over the socket on (re)connection and after each guess. The song is pinned the first time the room needs it. Victory, and with it `revealHint`, is the room's, but only the member who completed the title (`RoomRound.winningKey`) sees it straight away: everyone else keeps looking alone, on a solo round the room signs for them (`POST /api/rooms/:code/alone`: the group's finds but the winning word, plus their own verified solo state), until they win it or press "Afficher la réponse" (remembered per room, `roomStorage`). While they look alone, the room's later finds are never announced to them. A teammate's close guesses are placed in everyone's lyrics. While in a room, the solo round (`roundStorage`) is set aside untouched and comes back on leaving; the room's round is never saved locally. An answer and a broadcast can cross: a view only replaces one with fewer guesses.
 - **LRCLIB data isn't guaranteed clean**: `plainLyrics`/`syncedLyrics` are LRC-format text, not prose. Everything unsung is dropped before masking (`cleanLyrics`) — a player must never be asked to guess `[Refrain]`, `♪`, or the artist out of an `[ar:…]` tag — and a result too thin to be a puzzle is refused (`MIN_LYRIC_WORDS`) so the day's pick falls through to the next catalog entry. The catalog is only as good as LRCLIB's copy of it and the suite mocks the network on purpose, so run `npm run catalog:check` after editing `worker/src/catalog.ts`, and whenever a day's round looks wrong.
 - **A day's song never changes once played** (archives replay the last 30 days): `worker/src/catalog.ts`'s `schedule` is a list of dated segments, each playing one list in order. New songs go in a new segment starting on a day not yet played — never into a list already playing, which would shift every later day — and an id that has been played is never changed or removed. The days already played are pinned in `tests/unit/worker/catalog.test.ts` (only ever add rows), which also checks that no day the archives hold is tomorrow's song. No song before `FIRST_SONG_DAY` (2026-09-12): the archives show those days as unavailable.
+- **Archived days are played through the same round, keyed by day**: `GET /api/round?day=YYYY-MM-DD` serves any day `isPlayableDay` allows (the last `ARCHIVE_DAYS`, from `FIRST_SONG_DAY`, never one to come: tomorrow's song stays secret), on the song that day had. The day is sealed in the state and comes back as `RoundView.day` on every view, guesses and rooms included. With players spread over 30 songs, the Worker keeps that many songs and several similarity tables memoized (least recently used out): never back to one slot.
 
 ## Semantic Proximity Scoring
 
@@ -183,7 +184,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     analyze.ts               # one tokenize+normalize pass per song, memoized (see "Performance")
     mask.ts                   # masked DisplayToken views + victory check
     progress.ts                # share of word occurrences revealed (progress card)
-    daily.ts                    # time until the next song (UTC midnight), countdown format
+    daily.ts                    # UTC day keys, the archives' window (ARCHIVE_DAYS, FIRST_SONG_DAY),
+                                 # time until the next song, countdown format
     similarity.ts, functionWords.ts, slots.ts  # 0-100 proximity scale; excluded function words;
                                                 # addressing hidden words by position
     room.ts                     # rooms' wire contract: codes, pseudos, close codes, room round, message
@@ -191,7 +193,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   /styles                    # tokens.css (v3 light + dark palettes), global.css (keyframes), game.css
                              # (layout; breakpoints are CSS media queries, never JS)
 /worker/src
-  index.ts                  # Hono app: GET /api/round, POST /api/guess, mounts /api/rooms; exports Room
+  index.ts                  # Hono app: GET /api/round (?day= for an archived day), POST /api/guess,
+                            # mounts /api/rooms; exports Room
   round.ts                    # checking a guess and building the masked view: shared by solo and rooms
   room.ts, roomRoutes.ts      # the Room Durable Object (members, round, expiry alarm); /api/rooms routes
   catalog.ts                  # curated {id, artist, title} lists + dated schedule -> deterministic daily pick
@@ -201,7 +204,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   resolveSong.ts, songs.ts         # catalog entry -> playable Song (null below MIN_LYRIC_WORDS);
                                     # isolate memo, fallback chain, emergency song for a full outage
   similarity.ts, sampleSimilarity.ts # reads the precomputed KV table per guess; dev/e2e placeholder
-  state.ts                            # AES-GCM-sealed round state (songId + foundKeys) via Web Crypto
+  state.ts                            # AES-GCM-sealed round state (songId + foundKeys + day) via Web Crypto
 /worker
   wrangler.toml              # Worker config: ROOMS Durable Object + migration, room rate limits,
                               # SIMILARITY binding (commented)

@@ -52,14 +52,20 @@ export function parseGuessWord(word: unknown): string | null {
 // Takes the resolved Song rather than an id: every caller has already resolved
 // it by the time it gets here, and looking it up again would repeat a Cache API
 // read and a full JSON parse of the lyrics for nothing.
-export async function buildRoundView(song: Song, foundKeys: Iterable<string>, env: RoundEnv): Promise<RoundView> {
+export async function buildRoundView(
+  song: Song,
+  foundKeys: Iterable<string>,
+  env: RoundEnv,
+  day: string
+): Promise<RoundView> {
   const foundSet = new Set(foundKeys);
   const devReveal = devRevealOn(env);
   const victory = isVictory(song, foundSet);
-  const state = await sealState({ songId: song.id, foundKeys: [...foundSet] }, env.STATE_SECRET);
+  const state = await sealState({ songId: song.id, foundKeys: [...foundSet], day }, env.STATE_SECRET);
 
   return {
     state,
+    day,
     // Once the round is won, every still-hidden word's real text rides along
     // as `revealHint` (see DisplayToken and CLAUDE.md's anti-cheat section):
     // `victory` is recomputed here from server-held found words, so a player

@@ -8,6 +8,16 @@ describe("sealState / openState", () => {
     expect(await openState(token, "secret")).toEqual({ songId: "abc", foundKeys: ["le", "ete"] });
   });
 
+  it("round-trips the day a round is the song of", async () => {
+    const token = await sealState({ songId: "abc", foundKeys: [], day: "2026-09-26" }, "secret");
+    expect((await openState(token, "secret"))?.day).toBe("2026-09-26");
+  });
+
+  it("refuses a payload whose day isn't a calendar day", async () => {
+    const token = await sealState({ songId: "abc", foundKeys: [], day: "2026-02-30" }, "secret");
+    expect(await openState(token, "secret")).toBeNull();
+  });
+
   it("rejects a token signed with a different secret", async () => {
     const token = await sealState({ songId: "abc", foundKeys: [] }, "secret-a");
     expect(await openState(token, "secret-b")).toBeNull();

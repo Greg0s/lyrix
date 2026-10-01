@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { utcDay } from "../../../src/game/daily";
 import type { RoundView } from "../../../src/game/types";
 import type { TriedWord } from "../../../src/hooks/useGame";
 import { flushSavedRound, loadSavedRound, saveRound, saveRoundSoon, todayKey } from "../../../src/roundStorage";
@@ -27,6 +28,7 @@ function fakeStorage(initial: Record<string, string> = {}): Storage {
 
 const round: RoundView = {
   state: "signed-state",
+  day: utcDay(),
   title: { tokens: [{ text: "____", isWord: true, revealed: false }] },
   sections: [],
   victory: false,

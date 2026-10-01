@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CELEBRATION_MS } from "../../../src/components/confetti";
+import { utcDay } from "../../../src/game/daily";
 import type { GuessResult, RoundView } from "../../../src/game/types";
 import { saveRound } from "../../../src/roundStorage";
 
@@ -41,6 +42,7 @@ function tokens(text: string, revealed = false) {
 function round(state = "state-0"): RoundView {
   return {
     state,
+    day: utcDay(),
     title: { tokens: tokens("Le refuge de novembre") },
     sections: [
       {

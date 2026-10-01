@@ -14,6 +14,7 @@ import {
   type RoomRoundMessage,
   type RoomSnapshot,
 } from "../../../src/game/room";
+import { utcDay } from "../../../src/game/daily";
 import type { RoundView } from "../../../src/game/types";
 
 /**
@@ -123,6 +124,7 @@ function round(state = "state-0", found: readonly string[] = []): RoundView {
   const victory = ["le", "refuge", "de", "novembre"].every((word) => found.includes(word));
   return {
     state,
+    day: utcDay(),
     title: { tokens: tokens("Le refuge de novembre", found) },
     sections: [{ label: "Couplet 1", lines: [{ tokens: tokens("Le vent referme la porte du jardin", found) }] }],
     victory,
