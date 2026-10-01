@@ -599,6 +599,8 @@ export function useGame(day: string | null = null) {
     aloneAfter: alone && onRoomDay(state) ? winner : null,
     /** The day the player's room plays, once it has said so; null out of a room. */
     roomDay: state.shared?.round?.day ?? null,
+    /** Whether the player asked for the answer the group found on the room's day. */
+    roomRevealed: state.shared?.revealed ?? false,
     /** Every day the player's room played, for the group's collection. */
     roomDays: state.shared?.days ?? NO_ROOM_DAYS,
     revealAnswer,

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { daysToFind, nextDayToFind } from "../game/archive";
+import { daysToFind, groupEntry, nextDayToFind, type ArchiveEntry } from "../game/archive";
 import { revealedPercent } from "../game/progress";
 import { parseInvitePath } from "../game/room";
 import { closestGuessBySlot, placeNearGuesses } from "../game/slots";
 import { useGame, type Feedback } from "../hooks/useGame";
 import { useRoom } from "../hooks/useRoom";
 import { useRoute } from "../hooks/useRoute";
+import { isAnswerRevealed } from "../roomStorage";
 import { loadArchive } from "../roundStorage";
 import { utcDay } from "../game/daily";
 import { ARCHIVES, TODAY } from "../routes";
@@ -140,6 +141,21 @@ export function GameScreen() {
     return { daysLeft: daysToFind(archive).length, nextDay: day === null ? null : nextDayToFind(archive, day) };
   }, [won, day]);
 
+  // In a room, its days as this player may see them, for the archives screen.
+  const { roomDays, roomRevealed } = game;
+  const roomCode = room.view?.code ?? null;
+  const member = room.view?.you ?? null;
+  const groupDays = useMemo(() => {
+    if (roomCode === null || member === null || roomDays.length === 0) return null;
+    const days: Record<string, ArchiveEntry> = {};
+    for (const summary of roomDays) {
+      // The room's day: the answer may have just been shown, before storage is read again.
+      const revealed = (summary.day === roomDay && roomRevealed) || isAnswerRevealed(roomCode, summary.day);
+      days[summary.day] = groupEntry(summary, member, revealed);
+    }
+    return days;
+  }, [roomDays, roomCode, member, roomDay, roomRevealed]);
+
   const header = (
     <AppHeader
       roomPlayers={room.view ? room.view.members.length : null}
@@ -171,7 +187,7 @@ export function GameScreen() {
     </div>
   );
 
-  if (route.name === "archives") return shell(<ArchivesScreen onNavigate={navigate} />);
+  if (route.name === "archives") return shell(<ArchivesScreen onNavigate={navigate} group={groupDays} />);
 
   if (game.error && !round) {
     return shell(

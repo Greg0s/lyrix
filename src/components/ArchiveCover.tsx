@@ -84,7 +84,7 @@ export const ArchiveCover = memo(function ArchiveCover({ archived, onNavigate }:
     const label =
       status === "today"
         ? `Chanson du jour, trouvée : ${title}${entry.artist ? `, ${entry.artist}` : ""}`
-        : `${date} : ${title}${entry.artist ? `, ${entry.artist}` : ""}, trouvée en ${triesLabel(entry.tries)}`;
+        : `${date} : ${title}${entry.artist ? `, ${entry.artist}` : ""}, trouvée${entry.byGroup ? " avec le salon" : ""} en ${triesLabel(entry.tries)}`;
     return (
       <RouteLink to={to} onNavigate={onNavigate} className="lyrix-cover is-solved" aria-label={label}>
         <div className="lyrix-cover-top" aria-hidden="true">
@@ -125,10 +125,14 @@ export const ArchiveCover = memo(function ArchiveCover({ archived, onNavigate }:
         to={to}
         onNavigate={onNavigate}
         className="lyrix-cover is-progress"
-        aria-label={`${date} : en cours, ${entry.percent} % des paroles`}
+        aria-label={
+          entry.groupFound
+            ? `${date} : le salon l'a trouvée, à toi de finir, ${entry.percent} % des paroles`
+            : `${date} : en cours, ${entry.percent} % des paroles`
+        }
       >
         <div className="lyrix-cover-top" aria-hidden="true">
-          <span className="lyrix-cover-kicker is-accent">En cours</span>
+          <span className="lyrix-cover-kicker is-accent">{entry.groupFound ? "Le salon l'a trouvée" : "En cours"}</span>
           <span className="lyrix-cover-when">{shortDayLabel(day)}</span>
         </div>
         <MaskedTitle tokens={entry.title} />

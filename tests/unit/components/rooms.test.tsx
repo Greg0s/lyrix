@@ -1097,6 +1097,33 @@ describe("the day the room plays", () => {
     window.history.replaceState(null, "", "/");
   });
 
+  it("shows the group's collection in the archives, a day won without the player still hidden", async () => {
+    const yesterday = utcDay(new Date(Date.now() - DAY_MS));
+    seedRoom(entry(camille.id, [camille, leo]));
+    render(<GameScreen />);
+    const title = (found: boolean) =>
+      ["Le", "refuge", "de", "novembre"].flatMap((text, index) => [
+        ...(index === 0 ? [] : [{ text: " ", isWord: false, revealed: true }]),
+        { text: found || text !== "novembre" ? text : "________", isWord: true, revealed: found || text !== "novembre" },
+      ]);
+    latestSocket().receive({
+      ...roundMessage(),
+      days: [
+        { day: ARCHIVED, title: title(true), percent: 60, victory: true, guesses: 7, artist: "Anaïs Verger", winner: leo, titleBeforeWin: title(false) },
+        { day: yesterday, title: title(true), percent: 70, victory: true, guesses: 5, artist: "Anaïs Verger", winner: camille },
+      ],
+    });
+    await waitFor(() => expect(screen.getByPlaceholderText(PLACEHOLDER)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: "Archives" }));
+    await screen.findByRole("heading", { name: "Les 30 derniers jours" });
+
+    expect(screen.getByRole("link", { name: /: le salon l'a trouvée, à toi de finir, 60 % des paroles$/ })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /: Le refuge de novembre, Anaïs Verger, trouvée avec le salon en 5 essais$/ })).toBeTruthy();
+    expect(screen.getAllByText("Le refuge de novembre")).toHaveLength(1);
+    window.history.replaceState(null, "", "/");
+  });
+
   it("stays where it is while the player only browses the archives", async () => {
     seedRoom();
     await mountGame();
