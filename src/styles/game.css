@@ -1427,6 +1427,7 @@
 
 .lyrix-modal {
   width: 100%;
+  max-width: 500px;
   max-height: calc(100vh - 40px);
   overflow-y: auto;
   background: var(--color-surface);
@@ -1445,12 +1446,7 @@
   outline: none;
 }
 
-.lyrix-modal.is-narrow {
-  max-width: 460px;
-}
-
 .lyrix-modal.is-wide {
-  max-width: 500px;
   gap: 20px;
 }
 

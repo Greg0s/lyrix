@@ -117,6 +117,25 @@ test("opens the rules from the header and closes them with Escape", async ({ pag
   await expect(page.getByPlaceholder("Propose un mot…")).toBeFocused();
 });
 
+test("opens the rules as wide as the multiplayer dialog", async ({ page }) => {
+  await page.goto("/");
+  const widthOf = async (button: string, dialog: string) => {
+    await page.getByRole("button", { name: button }).click();
+    // offsetWidth, not boundingBox: the entry animation scales the dialog.
+    const width = await page
+      .getByRole("dialog", { name: dialog })
+      .evaluate((element) => (element as HTMLElement).offsetWidth);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    return width;
+  };
+
+  const rules = await widthOf("Comment jouer", "Comment on joue ?");
+  const multiplayer = await widthOf("Jouer à plusieurs", "Jouer à plusieurs");
+  expect(rules).toBeGreaterThan(0);
+  expect(rules).toBe(multiplayer);
+});
+
 test("shows an error message when a guess fails to submit, and recovers on the next one", async ({ page }) => {
   await page.route("**/api/guess", (route) => route.abort("failed"));
 
