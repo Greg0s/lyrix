@@ -53,9 +53,9 @@ const LAUNCH_SONGS: readonly CatalogEntry[] = [
 // would always be the song coming back the next day. Decades interleaved, so
 // two days running rarely sound alike. Spares, should `npm run catalog:check`
 // refuse one of these before that date: "Nuit de folie" (Début de Soirée),
-// "Résiste" (France Gall), "Quand la musique est bonne" (Jean-Jacques
-// Goldman), "L'Hymne de nos campagnes" (Tryo), "Belle" (Garou, Daniel
-// Lavoie, Patrick Fiori), "Andalouse" (Kendji Girac).
+// "Quand la musique est bonne" (Jean-Jacques Goldman), "L'Hymne de nos
+// campagnes" (Tryo), "Belle" (Garou, Daniel Lavoie, Patrick Fiori),
+// "Andalouse" (Kendji Girac).
 const OCTOBER_2026_SONGS: readonly CatalogEntry[] = [
   { id: "derniere-danse", artist: "Indila", title: "Dernière danse" },
   { id: "les-copains-dabord", artist: "Georges Brassens", title: "Les Copains d'abord" },
@@ -76,7 +76,7 @@ const OCTOBER_2026_SONGS: readonly CatalogEntry[] = [
   { id: "tout-le-bonheur-du-monde", artist: "Sinsemilia", title: "Tout le bonheur du monde" },
   { id: "les-lacs-du-connemara", artist: "Michel Sardou", title: "Les Lacs du Connemara" },
   { id: "le-dernier-jour-du-disco", artist: "Juliette Armanet", title: "Le Dernier Jour du disco" },
-  { id: "les-feuilles-mortes", artist: "Yves Montand", title: "Les Feuilles mortes" },
+  { id: "resiste", artist: "France Gall", title: "Résiste" },
   { id: "la-tribu-de-dana", artist: "Manau", title: "La Tribu de Dana" },
   { id: "elle-a-les-yeux-revolver", artist: "Marc Lavoine", title: "Elle a les yeux revolver" },
   { id: "moi-lolita", artist: "Alizée", title: "Moi... Lolita" },
