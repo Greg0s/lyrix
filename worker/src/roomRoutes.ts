@@ -9,8 +9,9 @@ import { generateRoomCode, isRoomCode } from "../../src/game/room";
  *   POST /api/rooms                    create a room; the creator is its host -> RoomEntry
  *   POST /api/rooms/:code/members      join one                               -> RoomEntry
  *   POST /api/rooms/:code/leave        leave it (body: { token })             -> 204
- *   POST /api/rooms/:code/guess        guess for the room (body: { token, word }) -> RoomGuessResult
- *   POST /api/rooms/:code/alone        once the room has won, keep looking alone (body: { token, state? }) -> RoundView
+ *   POST /api/rooms/:code/guess        guess for the room's day (body: { token, word, day? }) -> RoomGuessResult
+ *   POST /api/rooms/:code/alone        once the room has won, keep looking alone (body: { token, state?, day? }) -> RoundView
+ *   POST /api/rooms/:code/day          take the whole room to another day's song (body: { token, day }) -> RoomRound
  *   GET  /api/rooms/:code/ws?token=    the member's live connection (WebSocket)
  */
 
@@ -124,16 +125,25 @@ roomRoutes.post("/:code/leave", async (c) => {
 roomRoutes.post("/:code/guess", async (c) => {
   const code = c.req.param("code");
   if (!isRoomCode(code)) return c.json({ error: "not a member of a live room" }, 404);
-  const { token, word } = await readBody(c);
-  return roomStub(c.env, code).fetch(internalPost("/guess", { token, word }));
+  const { token, word, day } = await readBody(c);
+  return roomStub(c.env, code).fetch(internalPost("/guess", { token, word, day }));
+});
+
+// Takes the whole room to another day's song (#B). Same shape as /guess: a
+// member's token, and the same 404 for a wrong one.
+roomRoutes.post("/:code/day", async (c) => {
+  const code = c.req.param("code");
+  if (!isRoomCode(code)) return c.json({ error: "not a member of a live room" }, 404);
+  const { token, day } = await readBody(c);
+  return roomStub(c.env, code).fetch(internalPost("/day", { token, day }));
 });
 
 // Same shape as /guess: a member's token, and the same 404 for a wrong one.
 roomRoutes.post("/:code/alone", async (c) => {
   const code = c.req.param("code");
   if (!isRoomCode(code)) return c.json({ error: "not a member of a live room" }, 404);
-  const { token, state } = await readBody(c);
-  return roomStub(c.env, code).fetch(internalPost("/alone", { token, state }));
+  const { token, state, day } = await readBody(c);
+  return roomStub(c.env, code).fetch(internalPost("/alone", { token, state, day }));
 });
 
 // Not rate-limited: it takes a member's token, which can't be guessed, and

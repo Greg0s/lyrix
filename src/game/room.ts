@@ -1,6 +1,6 @@
-import { msUntilNextSong } from "./daily";
+import { isDayKey, msUntilNextSong } from "./daily";
 import { parseNearSlots } from "./slots";
-import type { NearSlot, RoundView } from "./types";
+import type { DisplayToken, NearSlot, RoundView } from "./types";
 
 /**
  * Rooms ("salons", issue #29): a group of players looking for the day's song
@@ -13,6 +13,10 @@ import type { NearSlot, RoundView } from "./types";
  * the room's guesses, found words included, and builds the one masked view
  * every member sees. The found words live there and only there - a member
  * sends a word, never a list of what they think is found.
+ *
+ * The round a room plays is the song of one day: today's, or a day of the
+ * archives any member takes the whole room to (`day`). It keeps one round
+ * per day it played, until the room ends at midnight.
  */
 
 /** No 0/O, 1/I/L: a code read aloud or copied off a screen can't be misread. */
@@ -55,6 +59,12 @@ export interface RoomSnapshot {
   members: RoomMember[];
   /** Epoch ms of the next UTC midnight after the room was created: the room ends with the day's song. */
   expiresAt: number;
+  /**
+   * The day whose song the room plays (YYYY-MM-DD): today's, or a day of the
+   * archives. Missing from a room created before rooms played the archives,
+   * which plays today's.
+   */
+  day?: string;
 }
 
 /** What creating or joining a room answers. */
@@ -66,10 +76,10 @@ export interface RoomEntry {
   room: RoomSnapshot;
 }
 
-export interface RoomEvent {
-  kind: "joined" | "left";
-  member: RoomMember;
-}
+export type RoomEvent =
+  | { kind: "joined" | "left"; member: RoomMember }
+  /** A member took the room to another day's song. */
+  | { kind: "day"; member: RoomMember; day: string };
 
 /** Every message the room's WebSocket sends: the room as it now stands, and what changed, when worth telling. */
 export interface RoomMessage {
@@ -107,6 +117,8 @@ export interface RoomRound {
    * looking on their own (POST /api/rooms/:code/alone).
    */
   winningKey?: string;
+  /** Every day the room played, the current one included. */
+  days?: RoomDaySummary[];
 }
 
 /** Sent to a member on (re)connection, and to everyone after each new guess. */
@@ -114,6 +126,28 @@ export interface RoomRoundMessage extends RoomRound {
   type: "round";
   /** The key of the guess this message announces; absent on a (re)connection. */
   latest?: string;
+}
+
+/**
+ * What the room found on one day it played, for the group's collection in the
+ * archives. The title is the room's: spelled out once won, which a member
+ * still looking on their own must not be shown (`titleBeforeWin` is theirs).
+ */
+export interface RoomDaySummary {
+  day: string;
+  /** The title as the room has it: found words spelled out, the others blanks of their length. */
+  title: DisplayToken[];
+  /** Share of the song's words the room revealed, 0-100. */
+  percent: number;
+  victory: boolean;
+  /** How many words the room tried. */
+  guesses: number;
+  /** Once won. */
+  artist?: string;
+  /** Once won: who completed the title. */
+  winner?: RoomMember;
+  /** Once won: the title as it stood just before the winning word, what a member looking alone may see. */
+  titleBeforeWin?: DisplayToken[];
 }
 
 /** What POST /api/rooms/:code/guess answers. */
@@ -236,7 +270,7 @@ export function parseRoomMember(value: unknown): RoomMember | null {
 
 export function parseRoomSnapshot(value: unknown): RoomSnapshot | null {
   if (!isRecord(value)) return null;
-  const { code, host, members, expiresAt } = value;
+  const { code, host, members, expiresAt, day } = value;
   if (typeof code !== "string" || !isRoomCode(code)) return null;
   if (typeof expiresAt !== "number" || !Number.isFinite(expiresAt)) return null;
   const parsedHost = parseRoomMember(host);
@@ -247,7 +281,8 @@ export function parseRoomSnapshot(value: unknown): RoomSnapshot | null {
     if (!member) return null;
     parsedMembers.push(member);
   }
-  return { code, host: parsedHost, members: parsedMembers, expiresAt };
+  if (day !== undefined && !isDayKey(day)) return null;
+  return { code, host: parsedHost, members: parsedMembers, expiresAt, ...(day !== undefined ? { day } : {}) };
 }
 
 export function parseRoomEntry(value: unknown): RoomEntry | null {
@@ -264,9 +299,11 @@ export function parseRoomMessage(value: unknown): RoomMessage | null {
   if (!room) return null;
   if (value.event === undefined) return { type: "room", room };
   if (!isRecord(value.event)) return null;
-  const { kind } = value.event;
+  const { kind, day } = value.event;
   const member = parseRoomMember(value.event.member);
-  if ((kind !== "joined" && kind !== "left") || !member) return null;
+  if (!member) return null;
+  if (kind === "day") return isDayKey(day) ? { type: "room", room, event: { kind, member, day } } : null;
+  if (kind !== "joined" && kind !== "left") return null;
   return { type: "room", room, event: { kind, member } };
 }
 
@@ -298,6 +335,42 @@ export function parseRoomGuess(value: unknown): RoomGuess | null {
   };
 }
 
+function isDisplayTokens(value: unknown): value is DisplayToken[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (token) =>
+        isRecord(token) &&
+        typeof token.text === "string" &&
+        typeof token.isWord === "boolean" &&
+        typeof token.revealed === "boolean"
+    )
+  );
+}
+
+/** Only what a summary may hold: a hidden word's text never rides along, whatever was sent. */
+function tokensOnly(tokens: DisplayToken[]): DisplayToken[] {
+  return tokens.map(({ text, isWord, revealed }) => ({ text, isWord, revealed }));
+}
+
+export function parseRoomDaySummary(value: unknown): RoomDaySummary | null {
+  if (!isRecord(value) || !isDayKey(value.day) || !isDisplayTokens(value.title)) return null;
+  const { percent, victory, guesses } = value;
+  if (typeof percent !== "number" || !Number.isFinite(percent) || typeof victory !== "boolean") return null;
+  if (typeof guesses !== "number" || !Number.isInteger(guesses) || guesses < 0) return null;
+  const winner = value.winner === undefined ? null : parseRoomMember(value.winner);
+  return {
+    day: value.day,
+    title: tokensOnly(value.title),
+    percent,
+    victory,
+    guesses,
+    ...(typeof value.artist === "string" ? { artist: value.artist } : {}),
+    ...(winner ? { winner } : {}),
+    ...(isDisplayTokens(value.titleBeforeWin) ? { titleBeforeWin: tokensOnly(value.titleBeforeWin) } : {}),
+  };
+}
+
 function parseRoomRound(value: Record<string, unknown>): RoomRound | null {
   if (!isRoundView(value.round) || !Array.isArray(value.guesses)) return null;
   const guesses: RoomGuess[] = [];
@@ -306,9 +379,16 @@ function parseRoomRound(value: Record<string, unknown>): RoomRound | null {
     if (!guess) return null;
     guesses.push(guess);
   }
-  return typeof value.winningKey === "string"
-    ? { round: value.round, guesses, winningKey: value.winningKey }
-    : { round: value.round, guesses };
+  // A malformed summary is dropped, never the round with it.
+  const days = Array.isArray(value.days)
+    ? value.days.map(parseRoomDaySummary).filter((summary): summary is RoomDaySummary => summary !== null)
+    : undefined;
+  return {
+    round: value.round,
+    guesses,
+    ...(typeof value.winningKey === "string" ? { winningKey: value.winningKey } : {}),
+    ...(days ? { days } : {}),
+  };
 }
 
 export function parseRoomRoundMessage(value: unknown): RoomRoundMessage | null {

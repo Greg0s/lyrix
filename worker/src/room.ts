@@ -14,11 +14,13 @@ import {
   type RoomMember,
   type RoomMessage,
   type RoomRound,
+  type RoomDaySummary,
   type RoomRoundMessage,
   type RoomSnapshot,
 } from "../../src/game/room";
-import { dayStart, utcDay } from "../../src/game/daily";
-import { isVictory } from "../../src/game/mask";
+import { dayStart, isPlayableDay, utcDay } from "../../src/game/daily";
+import { buildTitleView, isVictory } from "../../src/game/mask";
+import { revealedPercent } from "../../src/game/progress";
 import type { RoundView, Song } from "../../src/game/types";
 import { buildRoundView, evaluateGuess, MAX_WORD_LENGTH, parseGuessWord, type RoundEnv } from "./round";
 import { getSongById, getSongOfDay } from "./songs";
@@ -34,10 +36,12 @@ import { openState } from "./state";
  * costs nothing: the object is evicted between messages, and rebuilds what it
  * needs from storage and from the sockets' attachments when it wakes.
  *
- * It also holds the room's round (issue #30): the day's song, pinned when the
- * room first needs it, and every guess its members made. Found words live
- * here and nowhere else - a member only ever sends a word - and every member
- * is sent the same masked view, built from them.
+ * It also holds the room's rounds (issue #30): the song of the day the room
+ * plays - today's, or a day of the archives any member takes it to - pinned
+ * when the room first needs it, and every guess its members made, one round
+ * per day played. Found words live here and nowhere else - a member only
+ * ever sends a word - and every member is sent the same masked view, built
+ * from them.
  *
  * Retention: a pseudo is kept in this object's storage for as long as its
  * member is in the room, and nowhere else. Everything is deleted when the
@@ -60,6 +64,10 @@ interface RoomRecord {
   nextNumber: number;
   /** In arrival order. */
   members: MemberRecord[];
+  /** The day whose song the room plays. Missing from a room created before rooms played the archives: today's. */
+  day?: string;
+  /** Every day the room has a round for, in the order first played. */
+  days?: string[];
 }
 
 /** The room's round, stored apart from its members: a guess never rewrites the member list. */
@@ -71,6 +79,8 @@ interface RoundRecord {
   guesses: RoomGuess[];
   /** The guess that completed the title, once one has. */
   winningKey?: string;
+  /** What the group's collection shows of this day, written with each guess (never rebuilt per broadcast). */
+  summary?: RoomDaySummary;
 }
 
 interface SocketAttachment {
@@ -102,7 +112,12 @@ export interface RoomContext {
 }
 
 const STORAGE_KEY = "room";
-const ROUND_STORAGE_KEY = "round";
+/** A round from before rooms played several days: today's, the only one. */
+const LEGACY_ROUND_KEY = "round";
+
+function roundKey(day: string): string {
+  return `round:${day}`;
+}
 /** WebSocket.OPEN, which plain Node (the unit tests) has no global for. */
 const SOCKET_OPEN = 1;
 /** Close codes a server may not send itself; a close is answered with a plain 1000 instead. */
@@ -132,6 +147,14 @@ function roundDay(round: RoundRecord): string {
   return round.day ?? utcDay();
 }
 
+function roomDay(room: RoomRecord): string {
+  return room.day ?? utcDay();
+}
+
+function tokensOnly(tokens: RoundView["title"]["tokens"]): RoundView["title"]["tokens"] {
+  return tokens.map(({ text, isWord, revealed }) => ({ text, isWord, revealed }));
+}
+
 function foundKeys(round: RoundRecord): Set<string> {
   return new Set(round.guesses.filter((guess) => guess.found).map((guess) => guess.key));
 }
@@ -148,8 +171,8 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 export class Room {
   // undefined until read from storage; null once known not to exist.
   #room: RoomRecord | null | undefined;
-  // undefined until read from storage; null when the room hasn't needed one yet.
-  #round: RoundRecord | null | undefined;
+  // The rounds read or pinned so far, by day.
+  readonly #rounds = new Map<string, RoundRecord>();
 
   constructor(
     private readonly ctx: RoomContext,
@@ -173,6 +196,7 @@ export class Room {
     if (route === "POST /leave") return this.#leave(await readBody(request));
     if (route === "POST /guess") return this.#guess(await readBody(request));
     if (route === "POST /alone") return this.#alone(await readBody(request));
+    if (route === "POST /day") return this.#setDay(await readBody(request));
     return json({ error: "not found" }, 404);
   }
 
@@ -183,7 +207,7 @@ export class Room {
 
     // Nothing left over from an earlier room with this code (a round written
     // while that one was being deleted) may carry over into this one.
-    this.#round = null;
+    this.#rounds.clear();
     await this.ctx.storage.deleteAll();
 
     // The creator is there from the start: nobody is around to be told they arrived.
@@ -278,7 +302,7 @@ export class Room {
     this.#broadcast(room, event);
     // And the round as it stands, to the new socket alone: whatever it missed
     // while away, a (re)connection catches up on in one message.
-    const message = await this.#roundMessage().catch(() => null);
+    const message = await this.#roundMessage(room).catch(() => null);
     if (message) {
       try {
         socket.send(JSON.stringify(message));
@@ -294,16 +318,18 @@ export class Room {
    * proposed changes nothing and says so; any other is checked against the
    * room's song, kept, and sent to every member with the room's new view.
    */
-  async #guess({ token, word }: Record<string, unknown>): Promise<Response> {
+  async #guess({ token, word, day }: Record<string, unknown>): Promise<Response> {
     const room = await this.#load();
     const member = room && typeof token === "string" ? room.members.find((m) => m.token === token) : undefined;
     if (!room || !member) return json({ error: "not a member of a live room" }, 404);
     const trimmed = parseGuessWord(word);
     if (trimmed === null) return json({ error: `word must be between 1 and ${MAX_WORD_LENGTH} characters` }, 400);
+    // A word typed for a day the room has just left is not a word for the next one.
+    if (day !== undefined && day !== roomDay(room)) return json({ error: "the room has moved to another day" }, 409);
 
     let loaded: { round: RoundRecord; song: Song };
     try {
-      loaded = await this.#loadRound();
+      loaded = await this.#loadRound(room, roomDay(room));
     } catch {
       return json({ error: "the song is unavailable, try again" }, 503);
     }
@@ -315,7 +341,7 @@ export class Room {
     // of the same word could have landed meanwhile.
     const earlier = round.guesses.find((guess) => guess.key === outcome.key);
     if (earlier) {
-      const result: RoomGuessResult = { ...(await this.#roundOf(round, song)), guess: earlier, duplicate: true };
+      const result: RoomGuessResult = { ...(await this.#roundOf(room, round, song)), guess: earlier, duplicate: true };
       return json(result, 200);
     }
 
@@ -323,9 +349,11 @@ export class Room {
     const wonBefore = isVictory(song, foundKeys(round));
     round.guesses.unshift(guess);
     if (!wonBefore && isVictory(song, foundKeys(round))) round.winningKey = guess.key;
-    await this.ctx.storage.put(ROUND_STORAGE_KEY, round);
+    const view = await buildRoundView(song, foundKeys(round), this.env, roundDay(round));
+    this.#summarizeFrom(round, song, view);
+    await this.ctx.storage.put(roundKey(roundDay(round)), round);
 
-    const current = await this.#roundOf(round, song);
+    const current = await this.#roundOf(room, round, song, view);
     const message: RoomRoundMessage = { type: "round", ...current, latest: guess.key };
     this.#send(JSON.stringify(message));
     const result: RoomGuessResult = { ...current, guess, duplicate: false };
@@ -339,14 +367,15 @@ export class Room {
    * own solo round (`state`, verified here) had found. Refused before the
    * group has won: until then, the room's own view is all there is.
    */
-  async #alone({ token, state }: Record<string, unknown>): Promise<Response> {
+  async #alone({ token, state, day }: Record<string, unknown>): Promise<Response> {
     const room = await this.#load();
     const member = room && typeof token === "string" ? room.members.find((m) => m.token === token) : undefined;
     if (!room || !member) return json({ error: "not a member of a live room" }, 404);
+    if (day !== undefined && day !== roomDay(room)) return json({ error: "the room has moved to another day" }, 409);
 
     let loaded: { round: RoundRecord; song: Song };
     try {
-      loaded = await this.#loadRound();
+      loaded = await this.#loadRound(room, roomDay(room));
     } catch {
       return json({ error: "the song is unavailable, try again" }, 503);
     }
@@ -364,36 +393,118 @@ export class Room {
     return json(view, 200);
   }
 
-  /** The room's round, pinned to today's song the first time it is needed. */
-  async #loadRound(): Promise<{ round: RoundRecord; song: Song }> {
-    if (this.#round === undefined) this.#round = (await this.ctx.storage.get<RoundRecord>(ROUND_STORAGE_KEY)) ?? null;
-    if (!this.#round) {
-      const day = utcDay();
-      const today = await getSongOfDay(dayStart(day));
-      // Another request may have pinned it while the song was being resolved.
-      if (!this.#round) {
-        this.#round = { songId: today.id, day, guesses: [] };
-        await this.ctx.storage.put(ROUND_STORAGE_KEY, this.#round);
-      }
+  /**
+   * Takes the whole room to another day's song (#B): today's, or a day of the
+   * archives. Its round there is picked up where the room left it, or pinned
+   * the first time, and everyone is sent it, with who moved the room.
+   */
+  async #setDay({ token, day }: Record<string, unknown>): Promise<Response> {
+    const room = await this.#load();
+    const member = room && typeof token === "string" ? room.members.find((m) => m.token === token) : undefined;
+    if (!room || !member) return json({ error: "not a member of a live room" }, 404);
+    if (typeof day !== "string" || !isPlayableDay(day)) return json({ error: "no round for that day" }, 400);
+
+    let loaded: { round: RoundRecord; song: Song };
+    try {
+      loaded = await this.#loadRound(room, day);
+    } catch {
+      return json({ error: "the song is unavailable, try again" }, 503);
     }
-    const round: RoundRecord = this.#round;
+    const current = await this.#roundOf(room, loaded.round, loaded.song);
+    if (roomDay(room) === day) return json(current, 200);
+
+    room.day = day;
+    await this.#save(room);
+    this.#broadcast(room, { kind: "day", member: publicMember(member), day });
+    const message: RoomRoundMessage = { type: "round", ...current };
+    this.#send(JSON.stringify(message));
+    return json(current, 200);
+  }
+
+  /**
+   * The room's round of a day, pinned to that day's song the first time it is
+   * needed. A room from before rooms played several days kept today's round
+   * under one key: it is taken as today's.
+   */
+  async #loadRound(room: RoomRecord, day: string): Promise<{ round: RoundRecord; song: Song }> {
+    let round = this.#rounds.get(day) ?? (await this.ctx.storage.get<RoundRecord>(roundKey(day))) ?? null;
+    if (!round) {
+      const legacy = await this.ctx.storage.get<RoundRecord>(LEGACY_ROUND_KEY);
+      if (legacy && roundDay(legacy) === day) round = { ...legacy, day };
+    }
+    if (!round) {
+      const pinned = await getSongOfDay(dayStart(day));
+      // Another request may have pinned it while the song was being resolved.
+      round = this.#rounds.get(day) ?? { songId: pinned.id, day, guesses: [] };
+    }
+    if (!this.#rounds.has(day)) {
+      this.#rounds.set(day, round);
+      await this.ctx.storage.put(roundKey(day), round);
+    }
+    if (!(room.days ?? []).includes(day)) {
+      room.days = [...(room.days ?? []), day];
+      await this.#save(room);
+    }
     // Memoized per isolate (songs.ts): after the first guess, this costs nothing.
     const song = await getSongById(round.songId);
     if (!song) throw new Error("the room's song can't be resolved");
+    if (!round.summary) await this.#summarize(round, song);
     return { round, song };
   }
 
-  async #roundOf(round: RoundRecord, song: Song): Promise<RoomRound> {
-    return {
-      round: await buildRoundView(song, foundKeys(round), this.env, roundDay(round)),
-      guesses: round.guesses,
-      ...(round.winningKey !== undefined ? { winningKey: round.winningKey } : {}),
+  /**
+   * What the group's collection shows of a round, kept with it. Rebuilt on
+   * each guess, never per broadcast: a message carries every day's summary,
+   * and none of them may cost a pass over its song each time.
+   */
+  async #summarize(round: RoundRecord, song: Song): Promise<void> {
+    this.#summarizeFrom(round, song, await buildRoundView(song, foundKeys(round), this.env, roundDay(round)));
+  }
+
+  /** The same, from the round's view already built: a guess builds it once, for its answer and for this. */
+  #summarizeFrom(round: RoundRecord, song: Song, view: RoundView): void {
+    const keys = foundKeys(round);
+    const winner = round.guesses.find((guess) => guess.key === round.winningKey)?.by;
+    let titleBeforeWin = round.summary?.titleBeforeWin;
+    if (round.winningKey !== undefined && !titleBeforeWin) {
+      const before = new Set(keys);
+      before.delete(round.winningKey);
+      titleBeforeWin = tokensOnly(buildTitleView(song, before));
+    }
+    round.summary = {
+      day: roundDay(round),
+      title: tokensOnly(view.title.tokens),
+      percent: revealedPercent(view),
+      victory: view.victory,
+      guesses: round.guesses.length,
+      ...(view.victory && view.artist !== undefined ? { artist: view.artist } : {}),
+      ...(winner ? { winner } : {}),
+      ...(titleBeforeWin ? { titleBeforeWin } : {}),
     };
   }
 
-  async #roundMessage(): Promise<RoomRoundMessage> {
-    const { round, song } = await this.#loadRound();
-    return { type: "round", ...(await this.#roundOf(round, song)) };
+  /** Every day the room played, as the group's collection shows it. */
+  async #summaries(room: RoomRecord): Promise<RoomDaySummary[]> {
+    const summaries: RoomDaySummary[] = [];
+    for (const day of room.days ?? []) {
+      const round = this.#rounds.get(day) ?? (await this.ctx.storage.get<RoundRecord>(roundKey(day)));
+      if (round?.summary) summaries.push(round.summary);
+    }
+    return summaries;
+  }
+
+  async #roundOf(room: RoomRecord, round: RoundRecord, song: Song, view?: RoundView): Promise<RoomRound> {
+    return {
+      round: view ?? (await buildRoundView(song, foundKeys(round), this.env, roundDay(round))),
+      guesses: round.guesses,
+      ...(round.winningKey !== undefined ? { winningKey: round.winningKey } : {}),
+      days: await this.#summaries(room),
+    };
+  }
+
+  async #roundMessage(room: RoomRecord): Promise<RoomRoundMessage> {
+    const { round, song } = await this.#loadRound(room, roomDay(room));
+    return { type: "round", ...(await this.#roundOf(room, round, song)) };
   }
 
   async webSocketMessage(ws: RoomSocket, message: string | ArrayBuffer): Promise<void> {
@@ -457,7 +568,7 @@ export class Room {
 
   async #destroy(): Promise<void> {
     this.#room = null;
-    this.#round = null;
+    this.#rounds.clear();
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
   }
@@ -483,6 +594,7 @@ export class Room {
       host: publicMember(host),
       members: room.members.filter((m) => online.has(m.id)).map(publicMember),
       expiresAt: room.expiresAt,
+      day: roomDay(room),
     };
   }
 

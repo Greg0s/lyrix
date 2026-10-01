@@ -6,8 +6,10 @@ import {
   memberName,
   normalizeRoomCodeInput,
   parseInvitePath,
+  parseRoomDaySummary,
   parseRoomEntry,
   parseRoomMessage,
+  parseRoomRoundMessage,
   parseRoomSnapshot,
   playerCountLabel,
   PSEUDO_MAX_LENGTH,
@@ -170,6 +172,28 @@ describe("parsing what comes off the network", () => {
     expect(parseRoomMessage({ type: "room", room: snapshot, event: { kind: "kicked", member: snapshot.host } })).toBeNull();
     expect(parseRoomMessage("pong")).toBeNull();
     expect(parseRoomMessage(null)).toBeNull();
+  });
+
+  it("reads the day a room plays, and a member taking it to another", () => {
+    expect(parseRoomSnapshot({ ...snapshot, day: "2026-09-20" })?.day).toBe("2026-09-20");
+    expect(parseRoomSnapshot({ ...snapshot, day: "2026-02-30" })).toBeNull();
+    const moved = { type: "room", room: snapshot, event: { kind: "day", member: snapshot.host, day: "2026-09-20" } };
+    expect(parseRoomMessage(moved)).toEqual(moved);
+    expect(parseRoomMessage({ ...moved, event: { kind: "day", member: snapshot.host } })).toBeNull();
+  });
+
+  it("reads a day's summary, keeping no hidden word's text, and drops a malformed one alone", () => {
+    const hidden = { text: "______", isWord: true, revealed: false, devHint: "refuge", revealHint: "refuge" };
+    const summary = { day: "2026-09-20", title: [hidden], percent: 12, victory: false, guesses: 3 };
+    expect(parseRoomDaySummary(summary)).toEqual({
+      ...summary,
+      title: [{ text: "______", isWord: true, revealed: false }],
+    });
+    expect(parseRoomDaySummary({ ...summary, guesses: -1 })).toBeNull();
+
+    const round = { state: "s", day: "2026-09-20", title: { tokens: [] }, sections: [], victory: false };
+    const message = parseRoomRoundMessage({ type: "round", round, guesses: [], days: [summary, { day: "nope" }] });
+    expect(message?.days?.map((day) => day.day)).toEqual(["2026-09-20"]);
   });
 
   it("reads an empty pseudo as unnamed", () => {
