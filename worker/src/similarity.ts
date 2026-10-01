@@ -160,22 +160,41 @@ interface MemoizedTable {
   expiresAt: number;
 }
 
-// One slot: a given day has one song in play, so anything more would only hold
-// on to tables nobody is going to ask for again.
-let memoized: MemoizedTable | null = null;
+/**
+ * How many songs' tables an isolate keeps parsed. Today's song is not the only
+ * one in play: the archives let players spread over the last 30 days, and a
+ * single slot would make two players on different days re-read and re-parse
+ * a whole table on every guess of either. A parsed table is a few megabytes,
+ * so the least recently used goes past this many.
+ */
+const MAX_MEMOIZED_TABLES = 8;
 
-/** Drops the isolate's parsed table, and what it has already said about it. For tests; production relies on the TTLs above. */
+/** By song id, least recently used first (a Map iterates in insertion order, and a hit is re-inserted). */
+const memoized = new Map<string, MemoizedTable>();
+
+/** Drops the isolate's parsed tables, and what it has already said about them. For tests; production relies on the TTLs above. */
 export function resetSimilarityMemo(): void {
-  memoized = null;
+  memoized.clear();
   announcedTables.clear();
 }
 
 function memoizedFor(env: SimilarityEnv, song: Song, now: number): MemoizedTable | null {
-  if (!memoized || memoized.expiresAt <= now) return null;
-  if (memoized.songId !== song.id) return null;
-  if (memoized.bound !== (env.SIMILARITY !== undefined)) return null;
-  if (memoized.sample !== (env.SIMILARITY_SAMPLE === "1")) return null;
-  return memoized;
+  const entry = memoized.get(song.id);
+  if (!entry || entry.expiresAt <= now) return null;
+  if (entry.bound !== (env.SIMILARITY !== undefined)) return null;
+  if (entry.sample !== (env.SIMILARITY_SAMPLE === "1")) return null;
+  memoized.delete(song.id);
+  memoized.set(song.id, entry);
+  return entry;
+}
+
+function remember(entry: MemoizedTable): void {
+  memoized.delete(entry.songId);
+  memoized.set(entry.songId, entry);
+  if (memoized.size > MAX_MEMOIZED_TABLES) {
+    const oldest = memoized.keys().next();
+    if (!oldest.done) memoized.delete(oldest.value);
+  }
 }
 
 async function readTable(env: SimilarityEnv, song: Song): Promise<SimilarityTable | null> {
@@ -226,13 +245,13 @@ export async function loadSimilarityTable(env: SimilarityEnv, song: Song): Promi
   if (hit) return hit.table;
 
   const table = await readTable(env, song);
-  memoized = {
+  remember({
     bound: env.SIMILARITY !== undefined,
     sample: env.SIMILARITY_SAMPLE === "1",
     songId: song.id,
     table,
     expiresAt: now + (table ? TABLE_MEMO_TTL_MS : MISS_MEMO_TTL_MS),
-  };
+  });
   return table;
 }
 

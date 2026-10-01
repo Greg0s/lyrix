@@ -1,24 +1,45 @@
 import type { TriedWord } from "./hooks/useGame";
+import type { ArchiveEntry } from "./game/archive";
+import { archiveDays, isDayKey, utcDay } from "./game/daily";
+import { revealedPercent } from "./game/progress";
 import { parseNearSlots } from "./game/slots";
-import type { RoundView } from "./game/types";
+import type { DisplayToken, RoundView } from "./game/types";
 
-const STORAGE_KEY = "lyrix:round";
+export type { ArchiveEntry };
 
-interface SavedRound {
-  date: string;
-  round: RoundView;
+/**
+ * One round per day, so the archives can resume any of the last ARCHIVE_DAYS:
+ *
+ * - `lyrix:day:<day>`: the sealed state and the words tried. A few kilobytes:
+ *   the Worker rebuilds the view from the state (POST /api/round/resume).
+ * - `lyrix:view:<day>`: the whole masked view, for today only, so a reload
+ *   resumes today's round without waiting on the network. A view is tens of
+ *   kilobytes (about 47 KB for a 450-word song), thirty of them would crowd
+ *   localStorage's few megabytes.
+ * - `lyrix:archive`: a summary per day (title as left, share revealed, tries,
+ *   won), all the archives screen reads.
+ *
+ * Days that left the window are deleted, and a past day's view with them.
+ */
+const DAY_PREFIX = "lyrix:day:";
+const VIEW_PREFIX = "lyrix:view:";
+const ARCHIVE_KEY = "lyrix:archive";
+/** `lyrix:group:<day>:<room code>`: a room's progress, waiting to join the player's own (GroupSnapshot). */
+const GROUP_PREFIX = "lyrix:group:";
+/** Before the archives: one round, today's, forgotten at midnight. */
+const LEGACY_KEY = "lyrix:round";
+
+export interface SavedDay {
+  state: string;
   triedWords: TriedWord[];
-}
-
-/** UTC day key, matching the Worker's rollover boundary (see worker/src/catalog.ts's pickDailyEntry). */
-export function todayKey(date: Date = new Date()): string {
-  return date.toISOString().slice(0, 10);
+  /** Only for today's round: the view it can resume from without the network. */
+  round?: RoundView;
 }
 
 // Parses rather than type-guards, so a round saved before proximity scoring
 // existed (no `score` field), or before close words were shown in the lyrics
 // (no `near` field), still loads instead of being thrown away, which would
-// silently restart the player's one puzzle of the day.
+// silently restart the player's puzzle.
 function parseTriedWord(value: unknown): TriedWord | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
@@ -34,6 +55,17 @@ function parseTriedWord(value: unknown): TriedWord | null {
   };
 }
 
+function parseTriedWords(value: unknown): TriedWord[] | null {
+  if (!Array.isArray(value)) return null;
+  const triedWords: TriedWord[] = [];
+  for (const entry of value) {
+    const word = parseTriedWord(entry);
+    if (!word) return null;
+    triedWords.push(word);
+  }
+  return triedWords;
+}
+
 function isRoundView(value: unknown): value is RoundView {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
@@ -46,46 +78,190 @@ function isRoundView(value: unknown): value is RoundView {
   );
 }
 
-function parseSavedRound(value: unknown): SavedRound | null {
-  if (typeof value !== "object" || value === null) return null;
+function isDisplayToken(value: unknown): value is DisplayToken {
+  if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
-  if (typeof candidate.date !== "string" || !isRoundView(candidate.round)) return null;
-  if (!Array.isArray(candidate.triedWords)) return null;
-
-  const triedWords: TriedWord[] = [];
-  for (const entry of candidate.triedWords) {
-    const word = parseTriedWord(entry);
-    if (!word) return null;
-    triedWords.push(word);
-  }
-  return { date: candidate.date, round: candidate.round, triedWords };
+  return typeof candidate.text === "string" && typeof candidate.isWord === "boolean" && typeof candidate.revealed === "boolean";
 }
 
-/** Only returns a result when it was saved for today - a leftover round from a previous day is treated as absent. */
+function parseArchiveEntry(value: unknown): ArchiveEntry | null {
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as Record<string, unknown>;
+  if (!Array.isArray(candidate.title) || !candidate.title.every(isDisplayToken)) return null;
+  if (typeof candidate.percent !== "number" || typeof candidate.tries !== "number") return null;
+  if (typeof candidate.victory !== "boolean") return null;
+  return {
+    title: candidate.title,
+    percent: candidate.percent,
+    victory: candidate.victory,
+    tries: candidate.tries,
+    ...(typeof candidate.artist === "string" ? { artist: candidate.artist } : {}),
+  };
+}
+
+function readJson(storage: Storage, key: string): unknown {
+  const raw = storage.getItem(key);
+  return raw === null ? null : (JSON.parse(raw) as unknown);
+}
+
+function readDay(storage: Storage, day: string): { state: string; triedWords: TriedWord[] } | null {
+  const value = readJson(storage, DAY_PREFIX + day);
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as Record<string, unknown>;
+  const triedWords = parseTriedWords(candidate.triedWords);
+  if (typeof candidate.state !== "string" || !triedWords) return null;
+  return { state: candidate.state, triedWords };
+}
+
+function readArchive(storage: Storage): Record<string, ArchiveEntry> {
+  const value = readJson(storage, ARCHIVE_KEY);
+  const archive: Record<string, ArchiveEntry> = {};
+  if (typeof value !== "object" || value === null) return archive;
+  for (const [day, raw] of Object.entries(value)) {
+    const entry = parseArchiveEntry(raw);
+    if (isDayKey(day) && entry) archive[day] = entry;
+  }
+  return archive;
+}
+
+/** What the archives keep of a round: never a hidden word's text, dev or post-victory hint included. */
+function summarize(round: RoundView, triedWords: readonly TriedWord[]): ArchiveEntry {
+  return {
+    title: round.title.tokens.map(({ text, isWord, revealed }) => ({ text, isWord, revealed })),
+    percent: revealedPercent(round),
+    victory: round.victory,
+    tries: triedWords.length,
+    ...(round.victory && round.artist !== undefined ? { artist: round.artist } : {}),
+  };
+}
+
+/** The day a round is the song of; a view from before the archives (no `day`) is today's. */
+function dayOf(round: RoundView, now: Date): string {
+  return isDayKey(round.day) ? round.day : utcDay(now);
+}
+
+function storageKeys(storage: Storage): string[] {
+  const keys: string[] = [];
+  for (let index = 0; index < storage.length; index++) {
+    const key = storage.key(index);
+    if (key !== null) keys.push(key);
+  }
+  return keys;
+}
+
+/**
+ * Brings storage in line with `now`: the round saved before the archives
+ * becomes its day's entry (yesterday's included, which used to be lost at
+ * midnight), days that left the window go, and so does any view but today's.
+ */
+function tidy(storage: Storage, now: Date): void {
+  const today = utcDay(now);
+  const window = new Set(archiveDays(now));
+
+  const legacy = readJson(storage, LEGACY_KEY);
+  if (legacy !== null) {
+    storage.removeItem(LEGACY_KEY);
+    const candidate = legacy as Record<string, unknown>;
+    const triedWords = parseTriedWords(candidate.triedWords);
+    if (typeof candidate.date === "string" && window.has(candidate.date) && isRoundView(candidate.round) && triedWords) {
+      const round: RoundView = { ...candidate.round, day: candidate.date };
+      write(storage, round, triedWords, today);
+    }
+  }
+
+  const archive = readArchive(storage);
+  let archiveChanged = false;
+  for (const key of storageKeys(storage)) {
+    if (key.startsWith(DAY_PREFIX) && !window.has(key.slice(DAY_PREFIX.length))) storage.removeItem(key);
+    if (key.startsWith(GROUP_PREFIX) && !window.has(key.slice(GROUP_PREFIX.length, GROUP_PREFIX.length + 10))) {
+      storage.removeItem(key);
+    }
+    if (key.startsWith(VIEW_PREFIX) && key.slice(VIEW_PREFIX.length) !== today) storage.removeItem(key);
+  }
+  for (const day of Object.keys(archive)) {
+    if (window.has(day)) continue;
+    delete archive[day];
+    archiveChanged = true;
+  }
+  if (archiveChanged) storage.setItem(ARCHIVE_KEY, JSON.stringify(archive));
+}
+
+// Tidied once per storage per page: a day rolling over while the page stays
+// open is caught by the next save.
+const tidiedOn = new WeakMap<Storage, string>();
+
+function tidyOnce(storage: Storage, now: Date): void {
+  const today = utcDay(now);
+  if (tidiedOn.get(storage) === today) return;
+  tidiedOn.set(storage, today);
+  tidy(storage, now);
+}
+
+function write(storage: Storage, round: RoundView, triedWords: TriedWord[], today: string): void {
+  const day = isDayKey(round.day) ? round.day : today;
+  storage.setItem(DAY_PREFIX + day, JSON.stringify({ state: round.state, triedWords }));
+  const archive = readArchive(storage);
+  archive[day] = summarize(round, triedWords);
+  storage.setItem(ARCHIVE_KEY, JSON.stringify(archive));
+  // Last: the largest write, and the only one a full storage may refuse
+  // without costing the day its progress.
+  if (day === today) storage.setItem(VIEW_PREFIX + day, JSON.stringify(round));
+}
+
+/** Today's round, ready to show without the network: only when its view was saved with it. */
 export function loadSavedRound(
-  storage: Storage | undefined = globalThis.localStorage
+  storage: Storage | undefined = globalThis.localStorage,
+  now: Date = new Date()
 ): { round: RoundView; triedWords: TriedWord[] } | null {
+  const saved = loadSavedDay(utcDay(now), storage, now);
+  return saved?.round ? { round: saved.round, triedWords: saved.triedWords } : null;
+}
+
+/** What is saved of a day's round: its state and tried words, plus its view when it is today's. */
+export function loadSavedDay(
+  day: string,
+  storage: Storage | undefined = globalThis.localStorage,
+  now: Date = new Date()
+): SavedDay | null {
   if (!storage) return null;
   try {
-    const raw = storage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = parseSavedRound(JSON.parse(raw) as unknown);
-    if (!parsed || parsed.date !== todayKey()) return null;
-    return { round: parsed.round, triedWords: parsed.triedWords };
+    tidyOnce(storage, now);
+    const saved = readDay(storage, day);
+    if (!saved) return null;
+    if (day !== utcDay(now)) return saved;
+    const view = readJson(storage, VIEW_PREFIX + day);
+    // Written together; should one write have failed, the view must not
+    // stand for another state than the one the round carries on with.
+    return isRoundView(view) && view.state === saved.state ? { ...saved, round: view } : saved;
   } catch {
     return null;
+  }
+}
+
+/** Every day of the window the player has played, by day. */
+export function loadArchive(
+  storage: Storage | undefined = globalThis.localStorage,
+  now: Date = new Date()
+): Record<string, ArchiveEntry> {
+  if (!storage) return {};
+  try {
+    tidyOnce(storage, now);
+    return readArchive(storage);
+  } catch {
+    return {};
   }
 }
 
 export function saveRound(
   round: RoundView,
   triedWords: TriedWord[],
-  storage: Storage | undefined = globalThis.localStorage
+  storage: Storage | undefined = globalThis.localStorage,
+  now: Date = new Date()
 ): void {
   if (!storage) return;
   try {
-    const saved: SavedRound = { date: todayKey(), round, triedWords };
-    storage.setItem(STORAGE_KEY, JSON.stringify(saved));
+    tidyOnce(storage, now);
+    write(storage, { ...round, day: dayOf(round, now) }, triedWords, utcDay(now));
   } catch {
     // localStorage can throw (private browsing, quota, disabled storage) - persistence is a nice-to-have, never fatal.
   }
@@ -96,8 +272,8 @@ export function saveRound(
  * masked view is hundreds of tokens, so serializing it and handing it to
  * localStorage (a synchronous, disk-backed write) cost a few milliseconds
  * right where the player is waiting to see their guess appear. So the write
- * is scheduled instead of done inline, and only the latest one survives: two
- * guesses in quick succession write once, not twice.
+ * is scheduled instead of done inline, and only the latest one per day
+ * survives: two guesses in quick succession write once, not twice.
  */
 interface PendingWrite {
   round: RoundView;
@@ -105,7 +281,7 @@ interface PendingWrite {
   storage: Storage;
 }
 
-let pendingWrite: PendingWrite | null = null;
+const pendingWrites = new Map<string, PendingWrite>();
 let cancelScheduled: (() => void) | null = null;
 let flushOnHideRegistered = false;
 
@@ -124,9 +300,9 @@ function schedule(run: () => void): () => void {
 export function flushSavedRound(): void {
   cancelScheduled?.();
   cancelScheduled = null;
-  const pending = pendingWrite;
-  pendingWrite = null;
-  if (pending) saveRound(pending.round, pending.triedWords, pending.storage);
+  const pending = [...pendingWrites.values()];
+  pendingWrites.clear();
+  for (const write of pending) saveRound(write.round, write.triedWords, write.storage);
 }
 
 function registerFlushOnHide(): void {
@@ -142,7 +318,7 @@ function registerFlushOnHide(): void {
   });
 }
 
-/** Same as saveRound, off the critical path. The newest call wins; see flushSavedRound. */
+/** Same as saveRound, off the critical path. The newest call per day wins; see flushSavedRound. */
 export function saveRoundSoon(
   round: RoundView,
   triedWords: TriedWord[],
@@ -150,6 +326,77 @@ export function saveRoundSoon(
 ): void {
   if (!storage) return;
   registerFlushOnHide();
-  pendingWrite = { round, triedWords, storage };
+  pendingWrites.set(dayOf(round, new Date()), { round, triedWords, storage });
   cancelScheduled ??= schedule(flushSavedRound);
 }
+
+/**
+ * What a room found on a day, kept while the player is in it: the room's
+ * sealed state, and its found words to list among the player's. Once out of
+ * the room (left, expired, or on the next visit), it joins the player's own
+ * round of that day, the found words of both put together (useGame), and is
+ * deleted. Not kept while the player looks alone after the group's win: their
+ * solo round already holds the group's progress but the winning word.
+ */
+export interface GroupSnapshot {
+  day: string;
+  code: string;
+  state: string;
+  found: TriedWord[];
+}
+
+function groupKey(day: string, code: string): string {
+  return `${GROUP_PREFIX}${day}:${code}`;
+}
+
+function parseGroupSnapshot(value: unknown): GroupSnapshot | null {
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as Record<string, unknown>;
+  const found = parseTriedWords(candidate.found);
+  if (!isDayKey(candidate.day) || typeof candidate.code !== "string" || typeof candidate.state !== "string" || !found) {
+    return null;
+  }
+  return { day: candidate.day, code: candidate.code, state: candidate.state, found };
+}
+
+// Small (a state and a few words) and once per room event: written inline.
+export function saveGroupSnapshot(snapshot: GroupSnapshot, storage: Storage | undefined = globalThis.localStorage): void {
+  try {
+    storage?.setItem(groupKey(snapshot.day, snapshot.code), JSON.stringify(snapshot));
+  } catch {
+    // Persistence is a nice-to-have: never fatal.
+  }
+}
+
+export function clearGroupSnapshot(
+  snapshot: Pick<GroupSnapshot, "day" | "code">,
+  storage: Storage | undefined = globalThis.localStorage
+): void {
+  try {
+    storage?.removeItem(groupKey(snapshot.day, snapshot.code));
+  } catch {
+    // Same as above.
+  }
+}
+
+/** Every room's progress still waiting to join the player's own, for days still in the archives. */
+export function loadGroupSnapshots(
+  storage: Storage | undefined = globalThis.localStorage,
+  now: Date = new Date()
+): GroupSnapshot[] {
+  if (!storage) return [];
+  try {
+    tidyOnce(storage, now);
+    const snapshots: GroupSnapshot[] = [];
+    for (const key of storageKeys(storage)) {
+      if (!key.startsWith(GROUP_PREFIX)) continue;
+      const snapshot = parseGroupSnapshot(readJson(storage, key));
+      if (snapshot) snapshots.push(snapshot);
+      else storage.removeItem(key);
+    }
+    return snapshots;
+  } catch {
+    return [];
+  }
+}
+

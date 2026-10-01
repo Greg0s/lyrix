@@ -338,3 +338,20 @@ Switching between "Créer un salon" and "Rejoindre" nudged the "Jouer à plusieu
 - **A retrying negative assertion passes on something that came and went.** `await expect(locator).toHaveCount(0)` polls for 5 s, and the confetti clears itself after 3 s, so "no confetti after a reload" would have passed even with a burst. The e2e specs read the count once, right after the victory panel shows (a burst comes with it): `expect(await locator.count()).toBe(0)`.
 
 Also: `tests/unit/ci/favicon.test.ts` fails on a Windows checkout with `core.autocrlf=true`, on `main` as on any branch: `public/favicon.svg` is checked out with CRLF and compared byte for byte with the LF the generator writes. Not caused by a change; run it on the base commit before blaming one.
+
+## 2026-10-01 — Growing the catalog would have rewritten every past day
+
+Planning the archives (replay any of the last 30 days) turned up two traps in the daily pick, `catalog[daysSinceEpoch % catalog.length]`:
+
+- **Adding a song changes the song of every past day.** The modulo is over the catalog's length, so one more entry reshuffles the whole history: "Saturday 26" would replay another song than the one served that day. The pick is now a list of dated segments (`schedule`, `worker/src/catalog.ts`); new songs start a new segment on a day not yet played, and the first segment keeps the launch formula unchanged. Pinned by the day-by-day table in `tests/unit/worker/catalog.test.ts`, computed with the code that actually served those days.
+- **A 30-song catalog and a 30-day window give tomorrow away.** With 30 songs, tomorrow's song is the one from 30 days ago, which is the oldest day in the archives. The second segment plays its 30 new songs first, so no day in the window ever repeats the next one; checked over three years by the same test file (and checked to fail when the segment starts one day late).
+
+Also: the game went live on 2026-09-11 at 22:19 UTC (deploy of PR #12), so 2026-09-12 is the first full day with a song (`FIRST_SONG_DAY`); the archives show older days as unavailable.
+
+## 2026-10-01 — The archives: a load StrictMode stranded, and a mock that hid it
+
+- **A load aborted by StrictMode's unmount was taken for done.** `useGame` remembers which day it loaded (`loadedFor`) so the mount effect doesn't fetch again. Under StrictMode (dev, and `npm run dev:all`), the first mount started the load and recorded the day, the simulated unmount aborted the fetch, and the remount saw the day recorded and loaded nothing: "Chargement de la partie…" forever. The effect that loads now aborts *and forgets* in its own cleanup. Caught by driving the dev server, not by the suite: component tests didn't mount under StrictMode, and their `fetchRound` mock resolved even once aborted. `tests/unit/components/archives.test.tsx` mounts under StrictMode with a mock that rejects like `fetch` does (checked to fail on the old effect). **Takeaway**: a fetch mock must honour its `AbortSignal`, or every abort path is untested.
+- **global.css's `a:hover` (0,1,1) outranks a one-class component colour (0,1,0).** A cover is an `<a>`: on hover its day number turned link-coloured. Colours on link-shaped components go on two classes (`.lyrix-cover.is-new`).
+- **eslint-plugin-react-hooks flagged untouched code once a second component shared the file.** Adding `VictoryFoot` inside `TitleGuess.tsx` made the `refs` rule report `roving.ref` reads that had passed for months; moving it to its own file cleared them.
+- **A past day is saved as its sealed state, not its view**: a masked view is about 47 KB for a 450-word song (measured with `buildRoundView`), so thirty of them would crowd localStorage; `POST /api/round/resume` rebuilds a view from its state.
+- **A merge raced the round's own load.** Merging a room's progress on the next visit ran while today's round was still loading: the merged view was saved, then the fresh round landed over it, on screen and in storage. The merge now waits for the round to load (`useGame`, `outOfRoom`); caught by "brings in the progress of a room that expired while the page was closed" in `tests/unit/components/rooms.test.tsx`.

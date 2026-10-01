@@ -6,13 +6,13 @@ This file gives Claude Code the context and rules needed to work on this project
 
 A free web game inspired by Pedantix, built around song lyrics instead of Wikipedia articles. The player types words to progressively reveal a song's lyrics; the round is won once the title is fully uncovered.
 
-- One song per day, same puzzle for everyone (Motus/Wordle-style), rotating at UTC midnight from a curated catalog (`worker/src/catalog.ts`). No "replay with a different song" — once solved, the player waits for tomorrow's.
+- One song per day, same puzzle for everyone (Motus/Wordle-style), rotating at UTC midnight from a curated catalog (`worker/src/catalog.ts`). No "replay with a different song": once solved, the player waits for tomorrow's, or plays a day they missed in the archives (the last 30 days, `/archives`), never a day to come.
 - Target audience: French-speaking, tech-savvy web users. No user accounts or personal data in the MVP.
 - Project name: **Lyrix**.
 
 ## Current Phase: MVP (no 3D)
 
-The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header, one song card whose hidden words are accent bars, a sticky guess dock, and a side column (progress, tried words). Short CSS animations only, all disabled under `prefers-reduced-motion` — no 3D. Do not add 3D dependencies (`three`, `@react-three/fiber`, `@react-three/drei`) unless explicitly asked; 3D is a planned post-MVP phase (see "Out of Scope"). MVP scope: masked lyrics (blanks matching word length, punctuation/line breaks preserved), a text input that reveals every occurrence of a correctly guessed word, and a win state once the title is fully uncovered.
+The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header, one song card whose hidden words are accent bars, a sticky guess dock, and a side column (progress, tried words). The archives follow the "Lyrix Archives" mockup's "Collection" variant (1c, as integrated in "Lyrix v4"): a cover per song found, an empty slot per day still to play. Short CSS animations only, all disabled under `prefers-reduced-motion` — no 3D. Do not add 3D dependencies (`three`, `@react-three/fiber`, `@react-three/drei`) unless explicitly asked; 3D is a planned post-MVP phase (see "Out of Scope"). MVP scope: masked lyrics (blanks matching word length, punctuation/line breaks preserved), a text input that reveals every occurrence of a correctly guessed word, and a win state once the title is fully uncovered.
 
 ## Tech Stack
 
@@ -104,8 +104,12 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 - **Theming**: light and dark palettes, both in `src/styles/tokens.css` (dark under `:root[data-theme="dark"]`). Components use tokens only, never a raw colour, and a text token is never a surface: dark fills use `--color-solid*` and stay dark in both themes (text on them is `--color-on-ink*`), bright fills take `--color-on-bright` text. The theme follows the system until the player picks one with the header's toggle (`src/theme.ts`, stored in localStorage); `index.html`'s inline script applies it before first paint and must stay in step with `initialTheme()` (`tests/unit/theme.test.ts`).
 - **Rooms** (#29): a room knows its code, its members, and its round. Its wire contract, codes (`ABCDEFGHJKMNPQRSTUVWXYZ23456789`, 6 characters) and pseudo sanitizing live in `src/game/room.ts`, shared by both sides. Two rules keep codes from being enumerated: every join attempt is rate-limited, and no other route may answer differently for a live code than for a dead one (an unknown token and an unknown room close the socket the same way, and get the same 404 from `/guess`; leave always answers 204). A pseudo is personal data: stored only in its room's Durable Object, deleted with the room, never logged.
 - **Invite links** (`/salon/<code>`, `src/game/room.ts`): opening one offers to join that room with the code typed in, through the same rate-limited join as a typed code — the link itself asks the server nothing. It is answered with the invite page, index.html under an invitation's link preview (`scripts/lib/invitePage.ts`, emitted by the build as `dist/salon/index.html`, served by `public/_redirects`; the dev server does it on the fly). That preview is the same for every code: never look the room up for it, nor show its host's pseudo.
-- **A room's round lives in its Durable Object** (#30), never on a client: a member sends a word (`POST /api/rooms/:code/guess`), the object checks it with the same code as the solo route (`worker/src/round.ts`), keeps it, and sends every member the room's masked view plus its guess list — over the socket on (re)connection and after each guess. The song is pinned the first time the room needs it. Victory, and with it `revealHint`, is the room's, but only the member who completed the title (`RoomRound.winningKey`) sees it straight away: everyone else keeps looking alone, on a solo round the room signs for them (`POST /api/rooms/:code/alone`: the group's finds but the winning word, plus their own verified solo state), until they win it or press "Afficher la réponse" (remembered per room, `roomStorage`). While they look alone, the room's later finds are never announced to them. A teammate's close guesses are placed in everyone's lyrics. While in a room, the solo round (`roundStorage`) is set aside untouched and comes back on leaving; the room's round is never saved locally. An answer and a broadcast can cross: a view only replaces one with fewer guesses.
+- **A room's round lives in its Durable Object** (#30), never on a client: a member sends a word (`POST /api/rooms/:code/guess`), the object checks it with the same code as the solo route (`worker/src/round.ts`), keeps it, and sends every member the room's masked view plus its guess list — over the socket on (re)connection and after each guess. The song is pinned the first time the room needs it. Victory, and with it `revealHint`, is the room's, but only the member who completed the title (`RoomRound.winningKey`) sees it straight away: everyone else keeps looking alone, on a solo round the room signs for them (`POST /api/rooms/:code/alone`: the group's finds but the winning word, plus their own verified solo state), until they win it or press "Afficher la réponse" (remembered per room, `roomStorage`). While they look alone, the room's later finds are never announced to them. A teammate's close guesses are placed in everyone's lyrics. While in a room, the solo round (`roundStorage`) is set aside untouched; the room's round is never saved locally, only its sealed state and found words as a `GroupSnapshot` (per day and room). Once out of every room (left, expired, or on a later visit, after the day's round has loaded), each snapshot joins the player's own round of its day through `POST /api/round/resume`: the union of both, so nothing found alone or together is lost. No snapshot is kept while the player looks alone: their solo round already holds everything but the winning word, which they never get from the room (decided with the developer). An answer and a broadcast can cross: a view only replaces one with fewer guesses.
 - **LRCLIB data isn't guaranteed clean**: `plainLyrics`/`syncedLyrics` are LRC-format text, not prose. Everything unsung is dropped before masking (`cleanLyrics`) — a player must never be asked to guess `[Refrain]`, `♪`, or the artist out of an `[ar:…]` tag — and a result too thin to be a puzzle is refused (`MIN_LYRIC_WORDS`) so the day's pick falls through to the next catalog entry. The catalog is only as good as LRCLIB's copy of it and the suite mocks the network on purpose, so run `npm run catalog:check` after editing `worker/src/catalog.ts`, and whenever a day's round looks wrong.
+- **A day's song never changes once played** (archives replay the last 30 days): `worker/src/catalog.ts`'s `schedule` is a list of dated segments, each playing one list in order. New songs go in a new segment starting on a day not yet played — never into a list already playing, which would shift every later day — and an id that has been played is never changed or removed. The days already played are pinned in `tests/unit/worker/catalog.test.ts` (only ever add rows), which also checks that no day the archives hold is tomorrow's song. No song before `FIRST_SONG_DAY` (2026-09-12): the archives show those days as unavailable.
+- **Archived days are played through the same round, keyed by day**: `GET /api/round?day=YYYY-MM-DD` serves any day `isPlayableDay` allows (the last `ARCHIVE_DAYS`, from `FIRST_SONG_DAY`, never one to come: tomorrow's song stays secret), on the song that day had. The day is sealed in the state and comes back as `RoundView.day` on every view, guesses and rooms included. With players spread over 30 songs, the Worker keeps that many songs and several similarity tables memoized (least recently used out): never back to one slot.
+- **A past day is saved as its sealed state, not its view** (`roundStorage.ts`): a view is tens of kilobytes, thirty would crowd localStorage. Only today's view is kept, for an instant reload; any other day is rebuilt by `POST /api/round/resume`, which takes one or more states of the same round (song and day) and merges their found words — only states the Worker sealed, so nothing found can be forged. The archives screen reads only the summary index (`loadArchive`), which never holds a hidden word's text.
+- **The archives screen asks the server nothing** (`ArchivesScreen`): a day never played shows no shape of its title, a day before `FIRST_SONG_DAY` can't be opened, and a day of the archives joins them only once a word is tried on it. Addresses (`src/routes.ts`): `/archives` and `/archives/<day>` are answered by Pages' SPA fallback (no `404.html`, no `_redirects` rule for them: `tests/unit/ci/spaFallback.test.ts`); an address the archives don't serve becomes `/archives`. **A day of the archives is always played alone**: in a room, the room's round stays today's, its card and news stay off the day's screen, and the "looking alone" round (`/alone`) only ever replaces today's.
 
 ## Semantic Proximity Scoring
 
@@ -129,17 +133,26 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                           # _redirects (Pages: invite links -> the invite page)
 /src
   main.tsx, App.tsx     # React entry point, top-level render of GameScreen
-  roundStorage.ts        # localStorage persistence so a reload resumes today's round
-                          # (deferred/idle writes, flushed on tab hide/close)
+  routes.ts              # the screens' addresses: / (today), /archives, /archives/<day>
+  roundStorage.ts        # localStorage, one round per day of the archives: state + tried words per day,
+                          # today's view (instant reload), a summary index for the archives screen;
+                          # deferred/idle writes, flushed on tab hide/close
   roomStorage.ts          # the room the player is in (code, member token), so a reload reconnects
   theme.ts                 # light/dark: stored choice or system setting, applied as <html data-theme>
-  /api                    # client.ts: fetchRound, submitGuess; rooms.ts: create/join/leave/guess + socket URL;
+  /api                    # client.ts: fetchRound (today or a day), resumeRound, submitGuess;
+                          # rooms.ts: create/join/leave/guess + socket URL;
                           # base.ts: the Worker's URL (VITE_API_BASE_URL in production)
   /components             # presentational React components (layout: "Lyrix v3" mockup)
-    GameScreen.tsx        # top-level layout; wires useGame() and useRoom(), places close guesses onto the
+    GameScreen.tsx        # top-level layout; wires useRoute(), useGame(day) and useRoom(); shows the archives
+                           # screen or a round (today's, or a day's under DayBar); places close guesses onto the
                            # round (slots.ts), owns which dialog is open, the input ref, and
                            # the "show all lyrics" checkbox's local, unsigned reveal-all toggle
-    AppHeader.tsx, Logo.tsx, GroupIcon.tsx  # sticky top bar, CSS logo mark + wordmark
+    AppHeader.tsx, Logo.tsx, GroupIcon.tsx, CalendarIcon.tsx, ChevronIcon.tsx  # sticky top bar
+                           # (multiplayer, archives, help, theme), CSS logo mark + wordmark, icons
+    ArchivesScreen.tsx, ArchiveCover.tsx  # the last 30 days as covers, from loadArchive() only (no network)
+    DayBar.tsx, RouteLink.tsx  # a day of the archives: its date, the days either side; an <a> that
+                               # changes screen in place
+    VictoryFoot.tsx        # under a won round: today's points to the archives, a day's to the next one
     ThemeToggle.tsx         # header's sun/moon button; the theme is its own local state
     GroupFoundBanner.tsx   # "X a trouvé la chanson pour le groupe" + "Afficher la réponse" (#30)
     TitleGuess.tsx         # masked title, victory panel, and the "show all lyrics"
@@ -172,6 +185,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                             # in a room, plays the room's round instead (fed by useRoom, #30);
                             # `celebration`: a guess of the player's own just completed the title (#42)
     useRovingBlanks.ts       # one tab stop per title/lyrics, arrow keys move between bars (#33)
+    useRoute.ts               # the screen shown, in step with the address bar (History API, no router)
     useRoom.ts                # room state, its WebSocket (reconnect with backoff, keep-alive); room
                               # events reach the dock's feedback line through useGame's announce(),
                               # round messages go to useGame's receiveRoomRound()
@@ -182,25 +196,29 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     analyze.ts               # one tokenize+normalize pass per song, memoized (see "Performance")
     mask.ts                   # masked DisplayToken views + victory check
     progress.ts                # share of word occurrences revealed (progress card)
-    daily.ts                    # time until the next song (UTC midnight), countdown format
+    daily.ts                    # UTC day keys, the archives' window (ARCHIVE_DAYS, FIRST_SONG_DAY),
+                                 # time until the next song, countdown format
     similarity.ts, functionWords.ts, slots.ts  # 0-100 proximity scale; excluded function words;
                                                 # addressing hidden words by position
     room.ts                     # rooms' wire contract: codes, pseudos, close codes, room round, message
                                  # parsing; invite link paths
+    archive.ts, frenchDates.ts  # the archives' days (status, what's left to find, a cover's title size);
+                                 # days written in French, in UTC
   /styles                    # tokens.css (v3 light + dark palettes), global.css (keyframes), game.css
                              # (layout; breakpoints are CSS media queries, never JS)
 /worker/src
-  index.ts                  # Hono app: GET /api/round, POST /api/guess, mounts /api/rooms; exports Room
+  index.ts                  # Hono app: GET /api/round (?day= for an archived day), POST /api/round/resume
+                            # (view from sealed states, merged), POST /api/guess, mounts /api/rooms; exports Room
   round.ts                    # checking a guess and building the masked view: shared by solo and rooms
   room.ts, roomRoutes.ts      # the Room Durable Object (members, round, expiry alarm); /api/rooms routes
-  catalog.ts                  # curated {id, artist, title} list + deterministic daily pick
+  catalog.ts                  # curated {id, artist, title} lists + dated schedule -> deterministic daily pick
   lrclib.ts, lyrics.ts          # LRCLIB /api/search client; cleanLyrics (drops LRC markup: timestamps,
                                  # id tags, section headers, instrumental filler) + section parsing
   cache.ts                       # Workers Cache API wrapper, no-ops under plain-Node Vitest
   resolveSong.ts, songs.ts         # catalog entry -> playable Song (null below MIN_LYRIC_WORDS);
                                     # isolate memo, fallback chain, emergency song for a full outage
   similarity.ts, sampleSimilarity.ts # reads the precomputed KV table per guess; dev/e2e placeholder
-  state.ts                            # AES-GCM-sealed round state (songId + foundKeys) via Web Crypto
+  state.ts                            # AES-GCM-sealed round state (songId + foundKeys + day) via Web Crypto
 /worker
   wrangler.toml              # Worker config: ROOMS Durable Object + migration, room rate limits,
                               # SIMILARITY binding (commented)

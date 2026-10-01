@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CELEBRATION_MS } from "../../../src/components/confetti";
+import { utcDay } from "../../../src/game/daily";
 import type { GuessResult, RoundView } from "../../../src/game/types";
 import { saveRound } from "../../../src/roundStorage";
 
@@ -41,6 +42,7 @@ function tokens(text: string, revealed = false) {
 function round(state = "state-0"): RoundView {
   return {
     state,
+    day: utcDay(),
     title: { tokens: tokens("Le refuge de novembre") },
     sections: [
       {
@@ -117,7 +119,7 @@ describe("a round in progress", () => {
     fireEvent.change(input, { target: { value: "vent" } });
     fireEvent.submit(input);
     await waitFor(() => expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy());
-    await waitFor(() => expect(window.localStorage.getItem("lyrix:round")).toBeTruthy());
+    await waitFor(() => expect(window.localStorage.getItem(`lyrix:day:${utcDay()}`)).toBeTruthy());
 
     cleanup();
     fetchRound.mockClear();
@@ -138,11 +140,11 @@ describe("a round in progress", () => {
     fireEvent.change(input, { target: { value: "vent" } });
     fireEvent.submit(input);
     await waitFor(() => expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy());
-    expect(window.localStorage.getItem("lyrix:round")).toBeNull();
+    expect(window.localStorage.getItem(`lyrix:day:${utcDay()}`)).toBeNull();
 
     window.dispatchEvent(new Event("pagehide"));
 
-    const saved = window.localStorage.getItem("lyrix:round");
+    const saved = window.localStorage.getItem(`lyrix:day:${utcDay()}`);
     expect(saved).toBeTruthy();
     expect(saved).toContain("vent");
   });

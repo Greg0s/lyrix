@@ -234,9 +234,16 @@
 }
 
 @media (max-width: 879px) {
-  .lyrix-pill-label.is-help {
+  .lyrix-pill-label.is-help,
+  .lyrix-pill-label.is-archives {
     display: none;
   }
+}
+
+/* The screen shown: the archives' button, while they are open. */
+.lyrix-pill.is-outline.is-current {
+  border-color: var(--color-ink);
+  box-shadow: inset 0 0 0 1px var(--color-ink);
 }
 
 /* In a room, the icon carries a presence dot and the label counts the players. */
@@ -321,6 +328,26 @@
     order: 0;
     position: sticky;
     top: 96px;
+  }
+
+  .lyrix-main.has-day-bar {
+    grid-template-rows: auto 1fr;
+    row-gap: 20px;
+  }
+
+  .lyrix-main.has-day-bar .lyrix-day-bar {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .lyrix-main.has-day-bar .lyrix-game-col {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .lyrix-main.has-day-bar .lyrix-aside {
+    grid-column: 2;
+    grid-row: 1 / span 2;
   }
 }
 
@@ -650,6 +677,78 @@
   width: 16px;
   height: 16px;
   margin: 0;
+}
+
+/* Under a won round, the way to the archives (VictoryFoot). */
+.lyrix-victory-foot {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-solid-raised);
+}
+
+.lyrix-victory-foot p {
+  margin: 0;
+}
+
+.lyrix-victory-foot-text {
+  flex: 1 1 220px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.lyrix-victory-next {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lyrix-victory-next-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-on-ink-muted);
+}
+
+.lyrix-victory-next-day {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.lyrix-victory-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lyrix-victory-foot .lyrix-button {
+  align-self: auto;
+}
+
+/* On the dark panel: a button outlined in its own raised shade. */
+.lyrix-button.is-ghost {
+  background: transparent;
+  color: var(--color-on-ink);
+  box-shadow: inset 0 0 0 1px var(--color-solid-raised);
+  font-weight: 600;
+}
+
+.lyrix-button.is-ghost:hover {
+  background: var(--color-solid-raised);
+}
+
+.lyrix-victory-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 14px;
 }
 
 /*
@@ -1913,3 +2012,437 @@
 .lyrix-room-leave:active {
   transform: scale(0.97);
 }
+
+/* ---------- Archives: the last 30 days (ArchivesScreen, the "Collection" mockup) ---------- */
+
+.lyrix-archives {
+  width: 100%;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lyrix-archives-head {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lyrix-back-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+  text-decoration: none;
+}
+
+.lyrix-back-link:hover {
+  color: var(--color-ink);
+}
+
+.lyrix-archives-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 32px;
+}
+
+.lyrix-archives-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lyrix-archives-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.1rem, 5vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+}
+
+.lyrix-archives-lede {
+  margin: 0;
+  max-width: 56ch;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: var(--color-ink-soft);
+  text-wrap: pretty;
+}
+
+.lyrix-archives-count {
+  margin: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.lyrix-archives-solved {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 7vw, 4.6rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+
+.lyrix-archives-of {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 2px;
+  font-size: 0.9rem;
+  color: var(--color-ink-muted);
+}
+
+.lyrix-archives-total {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+@media (max-width: 639px) {
+  .lyrix-archives-lede {
+    display: none;
+  }
+}
+
+.lyrix-covers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .lyrix-covers {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 880px) {
+  .lyrix-archives {
+    padding: 32px 32px 56px;
+    gap: 28px;
+  }
+
+  .lyrix-covers {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+/* A day: square, its kicker on top, its content below. */
+.lyrix-cover {
+  aspect-ratio: 1;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: var(--color-ink);
+  text-decoration: none;
+  transition: transform 0.18s ease;
+  animation: lyrix-rise 0.45s var(--ease-out) both;
+}
+
+a.lyrix-cover:hover {
+  transform: translateY(-3px);
+}
+
+a.lyrix-cover:focus-visible {
+  outline-offset: 3px;
+}
+
+.lyrix-cover p {
+  margin: 0;
+}
+
+.lyrix-cover-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 16px;
+}
+
+.lyrix-cover-kicker {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-ink-muted);
+}
+
+.lyrix-cover-kicker.is-accent,
+.lyrix-cover-leaving {
+  color: var(--accent-deep);
+}
+
+.lyrix-cover-leaving {
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.lyrix-cover-when {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+  white-space: nowrap;
+}
+
+/* Found: a dark sleeve with the song on it. */
+.lyrix-cover.is-solved {
+  background: var(--color-solid);
+  color: var(--color-on-ink);
+}
+
+.lyrix-cover.is-solved .lyrix-cover-when {
+  color: var(--color-on-ink-muted);
+}
+
+/* The logo's bar, as on the mark. */
+.lyrix-cover-dash {
+  width: 22px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--accent-solid);
+}
+
+.lyrix-cover-title {
+  font-family: var(--font-display);
+  font-size: var(--cover-title-size, 22px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.04;
+  text-wrap: balance;
+  /* coverTitleSize keeps every word on one line; this is only a safety net. */
+  overflow-wrap: break-word;
+}
+
+.lyrix-cover .lyrix-cover-artist {
+  margin-top: 6px;
+  font-size: 0.76rem;
+  color: var(--color-on-ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Two classes, to keep the ink over global.css's a:hover link colour. */
+.lyrix-cover.is-progress,
+.lyrix-cover.is-new {
+  color: var(--color-ink);
+}
+
+/* Started: the title as left, its hidden words as bars. */
+.lyrix-cover.is-progress {
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.lyrix-cover-masked {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.lyrix-cover-bar {
+  color: transparent;
+  background: var(--accent-solid);
+  border-radius: 0.2em;
+  padding: 0 0.06em;
+  user-select: none;
+}
+
+.lyrix-cover-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.lyrix-cover-track {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--color-track);
+  overflow: hidden;
+}
+
+.lyrix-cover-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent-solid);
+}
+
+/* Today's song: the accent sleeve, its bars and track in ink. */
+.lyrix-cover.is-today {
+  background: var(--accent-solid);
+  color: var(--color-on-bright);
+}
+
+.lyrix-cover.is-today .lyrix-cover-kicker {
+  color: var(--color-on-bright);
+}
+
+.lyrix-cover.is-today .lyrix-cover-bar,
+.lyrix-cover.is-today .lyrix-cover-fill {
+  background: var(--color-on-bright);
+}
+
+.lyrix-cover.is-today .lyrix-cover-track {
+  background: color-mix(in oklch, var(--color-on-bright) 18%, transparent);
+}
+
+.lyrix-cover-play {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+/* Not played yet, or before the game had songs: an empty slot. */
+.lyrix-cover.is-new,
+.lyrix-cover.is-unavailable {
+  border: 1.5px dashed var(--color-border-dashed);
+}
+
+.lyrix-cover-date {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.lyrix-cover-day {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 0.9;
+}
+
+.lyrix-cover-month,
+.lyrix-cover-foot {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+}
+
+.lyrix-cover-foot {
+  font-size: 0.8rem;
+}
+
+.lyrix-cover.is-unavailable {
+  color: var(--color-ink-faint);
+}
+
+.lyrix-cover.is-unavailable .lyrix-cover-kicker,
+.lyrix-cover.is-unavailable .lyrix-cover-month,
+.lyrix-cover.is-unavailable .lyrix-cover-foot {
+  color: var(--color-ink-faint);
+}
+
+/* ---------- A day of the archives: the bar above its song (DayBar) ---------- */
+
+/* Above everything on a phone, the side column included; above the song on a wide screen. */
+.lyrix-day-bar {
+  order: -2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  animation: lyrix-rise 0.45s var(--ease-out) both;
+}
+
+.lyrix-day-bar-days {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lyrix-day-step {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+a.lyrix-day-step:hover {
+  color: var(--color-ink);
+  background: var(--color-surface-hover);
+}
+
+.lyrix-day-step.is-disabled {
+  color: var(--color-ink-faint);
+  opacity: 0.5;
+}
+
+.lyrix-day-bar-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 6px;
+  min-width: 0;
+}
+
+.lyrix-day-bar-date {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.lyrix-day-bar-when {
+  font-size: 0.82rem;
+  color: var(--color-ink-muted);
+}
+
+.lyrix-day-bar-all {
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+@media (max-width: 639px) {
+  .lyrix-day-bar-all {
+    padding: 10px;
+  }
+
+  .lyrix-day-bar-all-label {
+    display: none;
+  }
+
+  .lyrix-day-bar-date {
+    font-size: 1rem;
+  }
+}
+

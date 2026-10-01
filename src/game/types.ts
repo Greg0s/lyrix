@@ -53,6 +53,8 @@ export interface RoundView {
    * ids are slugs of the title (#40).
    */
   state: string;
+  /** The UTC day (YYYY-MM-DD) this round is the song of: today, or a day of the archives. */
+  day: string;
   title: { tokens: DisplayToken[] };
   sections: DisplaySection[];
   victory: boolean;

@@ -17,10 +17,11 @@ import {
   type RoomRoundMessage,
   type RoomSnapshot,
 } from "../../src/game/room";
+import { dayStart, utcDay } from "../../src/game/daily";
 import { isVictory } from "../../src/game/mask";
 import type { RoundView, Song } from "../../src/game/types";
 import { buildRoundView, evaluateGuess, MAX_WORD_LENGTH, parseGuessWord, type RoundEnv } from "./round";
-import { getSongById, getTodaysSong } from "./songs";
+import { getSongById, getSongOfDay } from "./songs";
 import { openState } from "./state";
 
 /**
@@ -64,6 +65,8 @@ interface RoomRecord {
 /** The room's round, stored apart from its members: a guess never rewrites the member list. */
 interface RoundRecord {
   songId: string;
+  /** The UTC day the song is the song of. Missing from a round pinned before the archives: always today's, as a room never outlives its day. */
+  day?: string;
   /** Newest first. */
   guesses: RoomGuess[];
   /** The guess that completed the title, once one has. */
@@ -123,6 +126,10 @@ function newMember(number: number, pseudo: unknown): MemberRecord {
 function attachedMemberId(ws: RoomSocket): string | null {
   const attachment = ws.deserializeAttachment() as Partial<SocketAttachment> | null;
   return typeof attachment?.memberId === "string" ? attachment.memberId : null;
+}
+
+function roundDay(round: RoundRecord): string {
+  return round.day ?? utcDay();
 }
 
 function foundKeys(round: RoundRecord): Set<string> {
@@ -353,7 +360,7 @@ export class Room {
     // Only the player's own progress on this same song: a found word of theirs
     // is theirs to keep, the winning one included.
     if (own && own.songId === song.id) for (const key of own.foundKeys) keys.add(key);
-    const view: RoundView = await buildRoundView(song, keys, this.env);
+    const view: RoundView = await buildRoundView(song, keys, this.env, roundDay(round));
     return json(view, 200);
   }
 
@@ -361,10 +368,11 @@ export class Room {
   async #loadRound(): Promise<{ round: RoundRecord; song: Song }> {
     if (this.#round === undefined) this.#round = (await this.ctx.storage.get<RoundRecord>(ROUND_STORAGE_KEY)) ?? null;
     if (!this.#round) {
-      const today = await getTodaysSong();
+      const day = utcDay();
+      const today = await getSongOfDay(dayStart(day));
       // Another request may have pinned it while the song was being resolved.
       if (!this.#round) {
-        this.#round = { songId: today.id, guesses: [] };
+        this.#round = { songId: today.id, day, guesses: [] };
         await this.ctx.storage.put(ROUND_STORAGE_KEY, this.#round);
       }
     }
@@ -377,7 +385,7 @@ export class Room {
 
   async #roundOf(round: RoundRecord, song: Song): Promise<RoomRound> {
     return {
-      round: await buildRoundView(song, foundKeys(round), this.env),
+      round: await buildRoundView(song, foundKeys(round), this.env, roundDay(round)),
       guesses: round.guesses,
       ...(round.winningKey !== undefined ? { winningKey: round.winningKey } : {}),
     };
