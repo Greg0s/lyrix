@@ -355,3 +355,13 @@ Also: the game went live on 2026-09-11 at 22:19 UTC (deploy of PR #12), so 2026-
 - **eslint-plugin-react-hooks flagged untouched code once a second component shared the file.** Adding `VictoryFoot` inside `TitleGuess.tsx` made the `refs` rule report `roving.ref` reads that had passed for months; moving it to its own file cleared them.
 - **A past day is saved as its sealed state, not its view**: a masked view is about 47 KB for a 450-word song (measured with `buildRoundView`), so thirty of them would crowd localStorage; `POST /api/round/resume` rebuilds a view from its state.
 - **A merge raced the round's own load.** Merging a room's progress on the next visit ran while today's round was still loading: the merged view was saved, then the fresh round landed over it, on screen and in storage. The merge now waits for the round to load (`useGame`, `outOfRoom`); caught by "brings in the progress of a room that expired while the page was closed" in `tests/unit/components/rooms.test.tsx`.
+
+## 2026-10-01 — Rooms on the archives: a notice wiped by the move it announced
+
+Phase B (a room plays one day at a time, everyone follows) turned up:
+
+- **Switching days cleared the dock's notice, which was the reason for the switch.** `useGame`'s day switch resets the feedback line for the new song; in a room, the notice is "Léo a lancé l'archive du …", the very event that moved the screen. A switch in a room keeps it. Caught by "is followed when a teammate takes the room to a day of the archives" (`tests/unit/components/rooms.test.tsx`).
+- **"Follow the room" and "move the room" must each trigger on their own change only.** The screen follows when the room's day changes; the room moves when the player's day changes. Effects keyed on both and acting on any difference fight each other (the player's click is undone by the follow before the room has moved). Each effect keeps the last value it acted on (`lastRoomDay`, `lastDay` in `GameScreen`) and acts on a change of its own input; when two members move at once, everyone converges on the room's last broadcast.
+- **TypeScript doesn't narrow a union on a non-unit discriminant.** `RoomEvent` is `{ kind: "joined" | "left" } | { kind: "day"; day }`: after `kind === "joined"` and `kind === "left"` checks, `change.day` still didn't type-check. Test the unit member (`kind === "day"`) first.
+- A component test's failure in "keeps a single tab stop once the bar holding it is found" showed up once in a run of the whole suite under load and not in the four full runs since: noted here in case it comes back, as a flaky test is a test to fix, not to rerun.
+

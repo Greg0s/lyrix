@@ -377,3 +377,33 @@ test.describe("on a narrow phone", () => {
     await expect(button.locator(".lyrix-presence-dot")).toBeVisible();
   });
 });
+
+// Phase B of the archives: a room plays one day at a time, and everyone follows.
+test("takes the whole room to a day of the archives, and back to today's song", async ({ browser }) => {
+  const host = await openGame(browser);
+  const guest = await openGame(browser);
+  const code = await createRoom(host, "Camille");
+  await joinRoom(guest, code, "Léo");
+  await expect(roomCard(guest)).toBeVisible();
+
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  await host.getByRole("button", { name: "Archives" }).click();
+  const moved = host.waitForResponse((res) => res.url().endsWith("/day") && res.ok());
+  await host.getByRole("link", { name: /: à découvrir$/ }).first().click();
+  // The archive's round, read off its dev hints: the day's song may not be today's.
+  const { round } = (await (await moved).json()) as { round: RoundView };
+  expect(round.day).toBe(yesterday);
+
+  await expect(host).toHaveURL(new RegExp(`/archives/${yesterday}$`));
+  await expect(guest).toHaveURL(new RegExp(`/archives/${yesterday}$`));
+  await expect(feedback(guest)).toContainText("Camille a lancé l'archive du");
+
+  const word = lyricsOnlyWord(round);
+  await guess(host, word);
+  await expect(guest.locator(".token-word-found", { hasText: word }).first()).toBeVisible();
+
+  await guest.getByRole("link", { name: "Jour suivant : Chanson du jour" }).click();
+  await expect(guest).toHaveURL(/\/$/);
+  await expect(host).toHaveURL(/\/$/);
+  await expect(feedback(host)).toContainText("Léo a ramené le salon sur la chanson du jour");
+});
