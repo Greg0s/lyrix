@@ -140,6 +140,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                           # deferred/idle writes, flushed on tab hide/close
   roomStorage.ts          # the room the player is in (code, member token), so a reload reconnects;
                           # the answers shown, per room and day
+  promoStorage.ts          # when the multiplayer card was closed (this month's count, last day)
   theme.ts                 # light/dark: stored choice or system setting, applied as <html data-theme>
   /api                    # client.ts: fetchRound (today or a day), resumeRound, submitGuess;
                           # rooms.ts: create/join/leave/guess + socket URL;
@@ -181,8 +182,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     RoomCard.tsx, RoomMembers.tsx, CopyButton.tsx, playerColor.ts  # dark "Salon" card, member
                               # list/grid, code/invite link copy ("Copié !" flash; share sheet on
                               # a phone), a player's stable colour
-    MultiplayerPromo.tsx       # "Chercher à plusieurs" card, hidden while in a room or for good once
-                               # closed from its cross (localStorage)
+    MultiplayerPromo.tsx       # "Chercher à plusieurs" card, hidden while in a room, or once closed from
+                               # its cross: for the UTC day, for the month after 5 times (promoStorage.ts)
   /hooks
     useGame.ts              # round/guess state machine; hydrates from roundStorage before network;
                             # in a room, plays the room's round instead (fed by useRoom, #30);
