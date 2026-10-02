@@ -73,3 +73,14 @@ test("never opens a day to come", async ({ page }) => {
   const answer = await page.request.get(`/api/round?day=${tomorrow}`);
   expect(answer.status()).toBe(404);
 });
+
+test("shows the way back to the archives as a round button on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 740 });
+  await page.goto(`/archives/${yesterday}`);
+  const button = page.getByRole("navigation", { name: "Jours des archives" }).getByRole("link", { name: "Toutes les archives" });
+  await expect(button).toBeVisible();
+  const box = await button.boundingBox();
+  expect(box?.width).toBe(38);
+  expect(box?.height).toBe(38);
+  expect(await button.evaluate((el) => getComputedStyle(el).borderRadius)).toBe("999px");
+});
