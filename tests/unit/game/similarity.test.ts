@@ -4,12 +4,10 @@ import {
   HOT_SCORE,
   MAX_MISSED_SCORE,
   MAX_PROXIMITY_SCORE,
-  NEAR_MAX_OPACITY,
-  NEAR_MIN_OPACITY,
   NEAR_SCORE,
   numberProximityScore,
   proximityHeat,
-  proximityOpacity,
+  proximityNearHeat,
   proximityTier,
   scoreFromRank,
   sortByProximity,
@@ -122,28 +120,26 @@ describe("proximityHeat", () => {
   });
 });
 
-describe("proximityOpacity", () => {
-  it("writes the least close guess shown at the faintest legible opacity", () => {
-    expect(proximityOpacity(NEAR_SCORE)).toBe(NEAR_MIN_OPACITY);
+describe("proximityNearHeat", () => {
+  it("puts the least close guess shown at the cold end of the ramp", () => {
+    expect(proximityNearHeat(NEAR_SCORE)).toBe(0);
   });
 
-  it("writes the closest a missed word can be fully opaque", () => {
-    expect(proximityOpacity(MAX_MISSED_SCORE)).toBe(NEAR_MAX_OPACITY);
+  it("puts the closest a missed word can be at the hot end", () => {
+    expect(proximityNearHeat(MAX_MISSED_SCORE)).toBe(1);
   });
 
-  it("grows in proportion to the score between the two", () => {
-    expect(proximityOpacity(71)).toBe(0.715);
-    expect(proximityOpacity(55)).toBeLessThan(proximityOpacity(56));
-    expect(proximityOpacity(70) - proximityOpacity(60)).toBeCloseTo(
-      proximityOpacity(90) - proximityOpacity(80),
-      2,
-    );
+  it("grows in proportion to the score between the two, a step per score", () => {
+    expect(proximityNearHeat(71)).toBe(0.53);
+    for (let score = NEAR_SCORE; score < MAX_MISSED_SCORE; score++) {
+      expect(proximityNearHeat(score)).toBeLessThan(proximityNearHeat(score + 1));
+    }
   });
 
   it("stays within its range outside the scores shown", () => {
-    expect(proximityOpacity(0)).toBe(NEAR_MIN_OPACITY);
-    expect(proximityOpacity(MAX_PROXIMITY_SCORE)).toBe(NEAR_MAX_OPACITY);
-    expect(proximityOpacity(Number.NaN)).toBe(NEAR_MIN_OPACITY);
+    expect(proximityNearHeat(0)).toBe(0);
+    expect(proximityNearHeat(MAX_PROXIMITY_SCORE)).toBe(1);
+    expect(proximityNearHeat(Number.NaN)).toBe(0);
   });
 });
 

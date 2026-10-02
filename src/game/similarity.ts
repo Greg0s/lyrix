@@ -103,29 +103,17 @@ export function proximityHeat(score: number): number {
 }
 
 /**
- * How opaque a close guess is written over its hidden word's bar: the bar
- * stays the accent orange whatever the score, and the guess comes through
- * more clearly the closer it is. A guess on the edge of being shown at all
- * (NEAR_SCORE) is as faint as it may be while still legible - 2:1 against the
- * bar, below WCAG's 3:1 for bold text on purpose, for a wider spread between
- * scores (tests/unit/theme.test.ts) - and the best a missed word can score is
- * written fully opaque.
+ * Where a close guess's bar sits on the same cold-to-hot ramp as the chips,
+ * from 0 to 1 in hundredths: the ramp spans the scores a close guess can have,
+ * from the least close shown (NEAR_SCORE) to the best a missed word can score
+ * (MAX_MISSED_SCORE), so every bar uses all of it. A chip's heat
+ * (proximityHeat) spans every score instead, so a bar can sit further towards
+ * cold than its guess's chip.
  */
-export const NEAR_MIN_OPACITY = 0.4;
-export const NEAR_MAX_OPACITY = 1;
-
-/**
- * A close guess's opacity, from NEAR_MIN_OPACITY to NEAR_MAX_OPACITY in proportion to its
- * score, in thousandths: hundredths would give neighbouring scores the same one.
- */
-export function proximityOpacity(score: number): number {
-  if (!Number.isFinite(score)) return NEAR_MIN_OPACITY;
-  const closeness = Math.min(
-    1,
-    Math.max(0, (score - NEAR_SCORE) / (MAX_MISSED_SCORE - NEAR_SCORE)),
-  );
-  const opacity = NEAR_MIN_OPACITY + closeness * (NEAR_MAX_OPACITY - NEAR_MIN_OPACITY);
-  return Math.round(opacity * 1000) / 1000;
+export function proximityNearHeat(score: number): number {
+  if (!Number.isFinite(score)) return 0;
+  const heat = (score - NEAR_SCORE) / (MAX_MISSED_SCORE - NEAR_SCORE);
+  return Math.round(Math.min(1, Math.max(0, heat)) * 100) / 100;
 }
 
 // Found words rank first even if they carry no score, so a round saved
