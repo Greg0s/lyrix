@@ -1340,7 +1340,13 @@
   color: var(--color-ink-muted);
 }
 
+.lyrix-promo-wrap {
+  position: relative;
+  animation: lyrix-rise 0.55s var(--ease-out) 0.24s both;
+}
+
 .lyrix-promo {
+  width: 100%;
   text-align: left;
   background: transparent;
   border: 1.5px dashed var(--color-border-dashed);
@@ -1356,7 +1362,6 @@
     background 0.2s ease,
     border-color 0.2s ease,
     transform 0.12s ease;
-  animation: lyrix-rise 0.55s var(--ease-out) 0.24s both;
 }
 
 .lyrix-promo:hover {
@@ -1381,6 +1386,7 @@
 }
 
 .lyrix-promo-body {
+  padding-right: 24px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1396,6 +1402,29 @@
   font-size: 0.88rem;
   line-height: 1.5;
   color: var(--color-ink-muted);
+}
+
+/* Clear of the card's text: the body leaves room for it on the right. */
+.lyrix-promo-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--color-ink-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.lyrix-promo-close:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
 }
 
 /* ---------- Dialogs ---------- */

@@ -181,7 +181,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     RoomCard.tsx, RoomMembers.tsx, CopyButton.tsx, playerColor.ts  # dark "Salon" card, member
                               # list/grid, code/invite link copy ("Copié !" flash; share sheet on
                               # a phone), a player's stable colour
-    MultiplayerPromo.tsx       # "Chercher à plusieurs" card, hidden while in a room
+    MultiplayerPromo.tsx       # "Chercher à plusieurs" card, hidden while in a room or for good once
+                               # closed from its cross (localStorage)
   /hooks
     useGame.ts              # round/guess state machine; hydrates from roundStorage before network;
                             # in a room, plays the room's round instead (fed by useRoom, #30);

@@ -380,6 +380,21 @@ describe("the dialogs (v3 header)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Chercher à plusieurs/ }));
     expect(screen.getByRole("dialog", { name: "Jouer à plusieurs" })).toBeTruthy();
   });
+
+  it("closes the side card for good from its cross, without opening the dialog or re-rendering the lyrics", async () => {
+    await mountGame();
+
+    fireEvent.click(screen.getByRole("button", { name: "Masquer cette suggestion" }));
+    expect(screen.queryByRole("button", { name: /Chercher à plusieurs/ })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(wordTokenRenders.count).toBe(0);
+    // The header's button still leads to rooms.
+    expect(screen.getByRole("button", { name: "Jouer à plusieurs" })).toBeTruthy();
+
+    cleanup();
+    await mountGame();
+    expect(screen.queryByRole("button", { name: /Chercher à plusieurs/ })).toBeNull();
+  });
 });
 
 describe("the theme toggle", () => {
