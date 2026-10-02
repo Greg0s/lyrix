@@ -538,18 +538,23 @@
 }
 
 /*
- * A hidden word holding the closest guess so far: the bar turns the accent
- * orange of the title bars and the logo, the same whatever the score, and the
- * guess is written over it in full, more opaque the closer it is
- * (--near-opacity, from NEAR_MIN_OPACITY to 0.99, set inline from the score by
- * proximityOpacity in src/game/similarity.ts). The word's own masked text
- * stays underneath, transparent, in the same grid cell as the guess: the bar
- * is as wide as the longer of the two, so a guess longer than the word widens
- * its bar rather than being shrunk or cut. A margin at each end (the padding)
- * keeps its first and last letters off the bar's edges.
+ * A hidden word holding the closest guess so far: the guess is written over
+ * the bar in full, and the bar is shaded along the same cold -> warm -> hot
+ * ramp as the "Tes mots" chips, ink and outline included (--heat, set inline
+ * from the score by proximityNearHeat in src/game/similarity.ts; the ramp is
+ * mixed with the chips', further down). These are the warm tier's colours, for
+ * a browser that can't mix them. The word's own masked text stays underneath,
+ * transparent, in the same grid cell as the guess: the bar is as wide as the
+ * longer of the two, so a guess longer than the word widens its bar rather
+ * than being shrunk or cut. A margin at each end (the padding) keeps its first
+ * and last letters off the bar's edges.
  */
 .token-blank.token-word-near {
-  background: var(--accent-solid);
+  --heat-bg: var(--proximity-warm-bg);
+  --heat-border: var(--proximity-warm-border);
+  --heat-ink: var(--proximity-warm-ink);
+  background: var(--heat-bg);
+  box-shadow: inset 0 0 0 1.5px var(--heat-border);
   padding-inline: 0.3em;
 }
 
@@ -570,8 +575,7 @@
 }
 
 .token-near-guess {
-  color: var(--color-on-bright);
-  opacity: var(--near-opacity, 0.99);
+  color: var(--heat-ink);
   font-weight: 600;
   white-space: nowrap;
   pointer-events: none;
@@ -1267,18 +1271,20 @@
 
 /*
  * Every score its own shade: --heat (0 to 1, set inline from the score by
- * proximityHeat in src/game/similarity.ts) slides along the cold -> warm -> hot
- * tokens, so a 41 and a 58 no longer look alike. Guarded, because a colour
- * built from custom properties that the browser can't mix would fall back to
- * nothing rather than to the tier colours above.
+ * proximityHeat in src/game/similarity.ts, or proximityNearHeat on a close
+ * guess's bar) slides along the cold -> warm -> hot tokens, so a 41 and a 58
+ * no longer look alike. Guarded, because a colour built from custom
+ * properties that the browser can't mix would fall back to nothing rather
+ * than to the tier colours above.
  */
 @supports (color: color-mix(in oklch, red, blue)) {
   .lyrix-chip.tier-hot,
   .lyrix-chip.tier-warm,
-  .lyrix-chip.tier-cold {
+  .lyrix-chip.tier-cold,
+  .token-blank.token-word-near {
     --to-warm: clamp(0%, calc(var(--heat, 0.5) * 200%), 100%);
     --to-hot: clamp(0%, calc((var(--heat, 0.5) - 0.5) * 200%), 100%);
-    background: color-mix(
+    --heat-bg: color-mix(
       in oklch,
       var(--proximity-hot-bg) var(--to-hot),
       color-mix(
@@ -1287,7 +1293,7 @@
         var(--proximity-cold-bg)
       )
     );
-    border-color: color-mix(
+    --heat-border: color-mix(
       in oklch,
       var(--proximity-hot-border) var(--to-hot),
       color-mix(
@@ -1296,7 +1302,7 @@
         var(--proximity-cold-border)
       )
     );
-    color: color-mix(
+    --heat-ink: color-mix(
       in oklch,
       var(--proximity-hot-ink) var(--to-hot),
       color-mix(
@@ -1305,6 +1311,14 @@
         var(--proximity-cold-ink)
       )
     );
+  }
+
+  .lyrix-chip.tier-hot,
+  .lyrix-chip.tier-warm,
+  .lyrix-chip.tier-cold {
+    background: var(--heat-bg);
+    border-color: var(--heat-border);
+    color: var(--heat-ink);
   }
 }
 

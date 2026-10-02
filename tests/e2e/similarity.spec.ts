@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { proximityHeat } from "../../src/game/similarity";
+import { proximityHeat, proximityNearHeat } from "../../src/game/similarity";
 import type { GuessResult, RoundView } from "../../src/game/types";
 import { titleWords } from "./titleWords";
 
@@ -94,22 +94,24 @@ test("colours and ranks tried words by how close they are to the song", async ({
   await expect(page.getByRole("link", { name: "frWac2Vec" })).toBeVisible();
 });
 
-test("writes each close word more opaque the closer it is, on the same orange bar", async ({
+test("shades each close word's bar along the chips' cold-to-hot ramp, its text always readable", async ({
   page,
 }) => {
   await page.goto("/");
   await guess(page, CLOSE_WORD);
 
   // The placeholder table spreads a word over a few hidden words, a step
-  // further off each time, and each of those steps gets its own opacity.
+  // further off each time, and each of those steps gets its own shade.
   const placed = page.locator(".token-word-near", { hasText: CLOSE_WORD });
   await expect(placed.first()).toBeVisible();
-  const slots: { score: number; opacity: number; background: string }[] = [];
+  const slots: { score: number; heat: number; opacity: number; background: string; contrast: number }[] = [];
   for (const slot of await placed.all()) {
-    slots.push(
-      await slot.evaluate(async (element) => {
-        // Read once settled, the guess's fade-in included: mid-way every
-        // slot shows about the same.
+    const heat = await heatOf(slot);
+    slots.push({
+      heat,
+      ...(await slot.evaluate(async (element) => {
+        // Read once settled, the guess's fade-in and the bar's transition
+        // included: mid-way every slot shows about the same.
         await Promise.all(
           element
             .getAnimations({ subtree: true })
@@ -118,38 +120,51 @@ test("writes each close word more opaque the closer it is, on the same orange ba
         const guessed = element.querySelector(".token-near-guess");
         if (!guessed) throw new Error("no guess on a close word's bar");
         const score = /\((\d+)\/100\)/.exec(element.getAttribute("title") ?? "");
+        // WCAG contrast of the guess's ink on its bar, both painted to sRGB.
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        if (!context) throw new Error("no 2D canvas");
+        const luminance = (color: string) => {
+          context.clearRect(0, 0, 1, 1);
+          context.fillStyle = color;
+          context.fillRect(0, 0, 1, 1);
+          const [r = 0, g = 0, b = 0] = [...context.getImageData(0, 0, 1, 1).data].map((channel) => {
+            const c = channel / 255;
+            return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+          });
+          return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const background = getComputedStyle(element).backgroundColor;
+        const [lighter, darker] = [luminance(background), luminance(getComputedStyle(guessed).color)].sort(
+          (x, y) => y - x,
+        );
         return {
           score: Number(score?.[1]),
           opacity: Number(getComputedStyle(guessed).opacity),
-          background: getComputedStyle(element).backgroundColor,
+          background,
+          contrast: (lighter + 0.05) / (darker + 0.05),
         };
-      }),
-    );
+      })),
+    });
   }
   const scores = slots.map((slot) => slot.score);
   expect(new Set(scores).size).toBeGreaterThan(1);
 
-  // The bar never changes: it is the accent orange whatever the score.
-  const accent = await page.evaluate(() => {
-    const probe = document.createElement("span");
-    probe.style.background = "var(--accent-solid)";
-    document.body.append(probe);
-    const color = getComputedStyle(probe).backgroundColor;
-    probe.remove();
-    return color;
-  });
-  for (const slot of slots) expect(slot.background).toBe(accent);
-
-  // The closer the guess, the more opaque it is written.
-  const closest = slots.find((slot) => slot.score === Math.max(...scores));
-  const farthest = slots.find((slot) => slot.score === Math.min(...scores));
-  expect(closest?.opacity).toBeGreaterThan(farthest?.opacity ?? 1);
   for (const slot of slots) {
-    expect(slot.opacity).toBeGreaterThanOrEqual(0.65);
-    expect(slot.opacity).toBeLessThanOrEqual(0.99);
+    // Its place on the ramp is its score's...
+    expect(slot.heat).toBe(proximityNearHeat(slot.score));
+    // ...and the guess is written in full, readable on any shade (WCAG AA).
+    expect(slot.opacity).toBe(1);
+    expect(slot.contrast).toBeGreaterThanOrEqual(4.5);
   }
 
-  // The chip keeps its cold-to-hot shade, from the guess's own score.
+  // Two different scores, two different bars.
+  const closest = slots.find((slot) => slot.score === Math.max(...scores));
+  const farthest = slots.find((slot) => slot.score === Math.min(...scores));
+  expect(closest?.background).not.toBe(farthest?.background);
+
+  // The chip keeps its own shade, from the guess's own score.
   expect(await heatOf(chipOf(page, CLOSE_WORD))).toBe(
     proximityHeat(Math.max(...scores)),
   );

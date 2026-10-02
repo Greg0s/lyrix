@@ -114,7 +114,7 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 
 ## Semantic Proximity Scoring
 
-Cemantix-style hinting: a guess that isn't in the lyrics comes back with a 0-100 proximity score, and one close enough to a hidden word is shown in its place on the accent-orange bar, more opaque the closer it is (`proximityOpacity`, 0.65 to 0.99), until a closer guess or the word itself takes the slot back. The table is precomputed **offline** per song (`npm run similarity:build`); the guess-time path is one KV read plus a couple of lookups — never add runtime inference (including Workers AI) to it. **Only numbers ever cross the wire**: a missed guess's score plus the positions of hidden words it's close to, never their text. With no `SIMILARITY` namespace bound, every score is `null` and the game behaves exactly as before scoring existed — that must stay true.
+Cemantix-style hinting: a guess that isn't in the lyrics comes back with a 0-100 proximity score, and one close enough to a hidden word is shown in its place, on a bar shaded along the "Tes mots" chips' cold-to-hot ramp by its score (`proximityNearHeat`), its text always at 4.5:1 or more, until a closer guess or the word itself takes the slot back. The table is precomputed **offline** per song (`npm run similarity:build`); the guess-time path is one KV read plus a couple of lookups — never add runtime inference (including Workers AI) to it. **Only numbers ever cross the wire**: a missed guess's score plus the positions of hidden words it's close to, never their text. With no `SIMILARITY` namespace bound, every score is `null` and the game behaves exactly as before scoring existed — that must stay true.
 
 Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.md`**. Player-facing setup steps: `README.md`.
 
@@ -170,7 +170,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                             # bar, revealed-via-checkbox text (DisplayToken.revealHint), dev
                             # hint; a tapped or focused bar shows its letter count (local state);
                             # screen readers read "mot caché, N lettres", never the underscores
-    heatStyle.ts             # inline --heat a chip is shaded with, --near-opacity a close guess is written at
+    heatStyle.ts             # inline --heat a chip, or a close guess's bar, is shaded with
     GuessForm.tsx             # sticky guess dock: input, feedback line, shake on a miss
     ProgressCard.tsx, TriedWords.tsx  # side column: % revealed + counts; past guesses,
                                       # sorted by score, crediting the embedding model;
