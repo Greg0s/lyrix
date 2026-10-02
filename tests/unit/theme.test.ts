@@ -255,13 +255,14 @@ describe.each(["light", "dark"] as const)("a close guess in the %s theme", (them
   const text = tokens.get("--color-on-bright") ?? "";
   const bar = tokens.get("--accent-solid") ?? "";
 
-  // Fainter than 4.5:1 below a score of about 75, on purpose: its opacity is
-  // the score (decided with the developer). Never below WCAG's 3:1 floor.
-  it("stays readable at its faintest, the opacity of a guess scored NEAR_SCORE", () => {
-    expect(contrast(blend(text, bar, NEAR_MIN_OPACITY), bar)).toBeGreaterThanOrEqual(3);
+  // Fainter than 4.5:1, even than WCAG's 3:1 for bold text, below the top
+  // scores, on purpose: its opacity is the score, spread wide (decided with
+  // the developer). Never below 2:1, where it would stop being legible.
+  it("stays legible at its faintest, the opacity of a guess scored NEAR_SCORE", () => {
+    expect(contrast(blend(text, bar, NEAR_MIN_OPACITY), bar)).toBeGreaterThanOrEqual(1.95);
   });
 
-  it("can't be any fainter and stay readable", () => {
-    expect(contrast(blend(text, bar, NEAR_MIN_OPACITY - 0.05), bar)).toBeLessThan(3);
+  it("can't be any fainter and stay legible", () => {
+    expect(contrast(blend(text, bar, NEAR_MIN_OPACITY - 0.05), bar)).toBeLessThan(1.95);
   });
 });

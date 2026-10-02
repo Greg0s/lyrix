@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { proximityHeat } from "../../src/game/similarity";
+import { NEAR_MAX_OPACITY, NEAR_MIN_OPACITY, proximityHeat } from "../../src/game/similarity";
 import type { GuessResult, RoundView } from "../../src/game/types";
 import { titleWords } from "./titleWords";
 
@@ -145,8 +145,8 @@ test("writes each close word more opaque the closer it is, on the same orange ba
   const farthest = slots.find((slot) => slot.score === Math.min(...scores));
   expect(closest?.opacity).toBeGreaterThan(farthest?.opacity ?? 1);
   for (const slot of slots) {
-    expect(slot.opacity).toBeGreaterThanOrEqual(0.65);
-    expect(slot.opacity).toBeLessThanOrEqual(0.99);
+    expect(slot.opacity).toBeGreaterThanOrEqual(NEAR_MIN_OPACITY);
+    expect(slot.opacity).toBeLessThanOrEqual(NEAR_MAX_OPACITY);
   }
 
   // The chip keeps its cold-to-hot shade, from the guess's own score.

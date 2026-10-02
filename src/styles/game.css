@@ -541,7 +541,7 @@
  * A hidden word holding the closest guess so far: the bar turns the accent
  * orange of the title bars and the logo, the same whatever the score, and the
  * guess is written over it in full, more opaque the closer it is
- * (--near-opacity, from NEAR_MIN_OPACITY to 0.99, set inline from the score by
+ * (--near-opacity, from NEAR_MIN_OPACITY to NEAR_MAX_OPACITY, set inline from the score by
  * proximityOpacity in src/game/similarity.ts). The word's own masked text
  * stays underneath, transparent, in the same grid cell as the guess: the bar
  * is as wide as the longer of the two, so a guess longer than the word widens
@@ -571,7 +571,7 @@
 
 .token-near-guess {
   color: var(--color-on-bright);
-  opacity: var(--near-opacity, 0.99);
+  opacity: var(--near-opacity, 1);
   font-weight: 600;
   white-space: nowrap;
   pointer-events: none;

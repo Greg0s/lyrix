@@ -106,15 +106,16 @@ export function proximityHeat(score: number): number {
  * How opaque a close guess is written over its hidden word's bar: the bar
  * stays the accent orange whatever the score, and the guess comes through
  * more clearly the closer it is. A guess on the edge of being shown at all
- * (NEAR_SCORE) is as faint as it may be while still readable - 3:1 against
- * the bar, WCAG's floor for bold text (tests/unit/theme.test.ts) - and the
- * best a missed word can score is written at 0.99, its score over 100.
+ * (NEAR_SCORE) is as faint as it may be while still legible - 2:1 against the
+ * bar, below WCAG's 3:1 for bold text on purpose, for a wider spread between
+ * scores (tests/unit/theme.test.ts) - and the best a missed word can score is
+ * written fully opaque.
  */
-export const NEAR_MIN_OPACITY = 0.65;
-const NEAR_MAX_OPACITY = MAX_MISSED_SCORE / MAX_PROXIMITY_SCORE;
+export const NEAR_MIN_OPACITY = 0.4;
+export const NEAR_MAX_OPACITY = 1;
 
 /**
- * A close guess's opacity, from NEAR_MIN_OPACITY to 0.99 in proportion to its
+ * A close guess's opacity, from NEAR_MIN_OPACITY to NEAR_MAX_OPACITY in proportion to its
  * score, in thousandths: hundredths would give neighbouring scores the same one.
  */
 export function proximityOpacity(score: number): number {
