@@ -2492,8 +2492,13 @@ a.lyrix-day-step:hover {
 }
 
 @media (max-width: 639px) {
-  .lyrix-day-bar-all {
-    padding: 10px;
+  /* Icon only: a 38px circle, like the day steps beside it. Outranks `.lyrix-pill.is-outline`'s padding. */
+  .lyrix-pill.lyrix-day-bar-all {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
   }
 
   .lyrix-day-bar-all-label {
