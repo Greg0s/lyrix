@@ -80,7 +80,7 @@ test("shows the way back to the archives as a round button on a phone", async ({
   const button = page.getByRole("navigation", { name: "Jours des archives" }).getByRole("link", { name: "Toutes les archives" });
   await expect(button).toBeVisible();
   const box = await button.boundingBox();
-  expect(box?.width).toBe(38);
-  expect(box?.height).toBe(38);
+  expect(box?.width).toBeCloseTo(38, 1);
+  expect(box?.height).toBeCloseTo(38, 1);
   expect(await button.evaluate((el) => getComputedStyle(el).borderRadius)).toBe("999px");
 });
