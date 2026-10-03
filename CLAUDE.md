@@ -151,7 +151,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                            # round (slots.ts), owns which dialog is open, the input ref, and
                            # the "show all lyrics" checkbox's local, unsigned reveal-all toggle
     AppHeader.tsx, Logo.tsx, GroupIcon.tsx, CalendarIcon.tsx, ChevronIcon.tsx  # sticky top bar
-                           # (multiplayer, archives, help, theme), CSS logo mark + wordmark, icons
+                           # (logo: a link to today's song; multiplayer, archives, help, theme), CSS logo mark + wordmark, icons
     ArchivesScreen.tsx, ArchiveCover.tsx  # the last 30 days as covers, from loadArchive() only (no network)
     DayBar.tsx, RouteLink.tsx  # a day of the archives: its date, the days either side; an <a> that
                                # changes screen in place

@@ -168,6 +168,35 @@ describe("the archives screen", () => {
   });
 });
 
+describe("the header's logo", () => {
+  async function clickLogo(): Promise<void> {
+    const logo = screen.getByRole("link", { name: "Lyrix, chanson du jour" });
+    expect(logo.getAttribute("href")).toBe("/");
+    await act(async () => {
+      fireEvent.click(logo);
+    });
+  }
+
+  it("goes from the archives screen to today's song", async () => {
+    await mount("/archives");
+    await screen.findByRole("heading", { name: "Les 30 derniers jours" });
+    await clickLogo();
+    expect(window.location.pathname).toBe("/");
+    expect(await screen.findByPlaceholderText("Propose un mot…")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Les 30 derniers jours" })).toBeNull();
+  });
+
+  it("goes from a day of the archives to today's song", async () => {
+    await mount(`/archives/${DAY}`);
+    await screen.findByText("Samedi 26 septembre");
+    await clickLogo();
+    expect(window.location.pathname).toBe("/");
+    await screen.findByPlaceholderText("Propose un mot…");
+    expect(screen.queryByText("Samedi 26 septembre")).toBeNull();
+    expect(fetchRound).toHaveBeenLastCalledWith(expect.anything(), undefined);
+  });
+});
+
 describe("a day of the archives", () => {
   it("is played on its own round, alone, under a bar naming the day", async () => {
     await mount(`/archives/${DAY}`);
