@@ -53,9 +53,15 @@
   gap: 8px;
 }
 
-/* The logo is a link to today's song; it looks the same as plain text. */
-.lyrix-logo-link {
+/* The logo is a link to today's song; it looks the same as plain text, hovered
+   or not. A tap leaves a phone's :hover on it until the next tap elsewhere, and
+   global.css's a:hover would tint the wordmark all that time. */
+.lyrix-logo-link,
+.lyrix-logo-link:hover {
   color: inherit;
+}
+
+.lyrix-logo-link {
   text-decoration: none;
   border-radius: 9px;
 }
