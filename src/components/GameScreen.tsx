@@ -163,6 +163,7 @@ export function GameScreen() {
       archivesOpen={route.name === "archives"}
       onOpenArchives={openArchives}
       onOpenHelp={openHelp}
+      onNavigate={navigate}
     />
   );
   const dialogs = (
