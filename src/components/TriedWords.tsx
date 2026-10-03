@@ -1,4 +1,4 @@
-import { memo, useId, useMemo, useState } from "react";
+import { memo, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { proximityTier, sortByProximity } from "../game/similarity";
 import type { TriedWord } from "../hooks/useGame";
 import { heatStyle } from "./heatStyle";
@@ -16,11 +16,27 @@ interface TriedWordsProps {
  * collapsed to its header (title + word count) and opens on a tap; from 880px
  * up it is always open and the toggle is inert (game.css). Open/closed is
  * local state: toggling it never re-renders the lyrics.
+ *
+ * Toggling keeps the header where the player tapped it, so the card opens
+ * downward. Left alone, the browser's scroll anchoring holds the lyrics below
+ * still instead whenever the page is scrolled, and the card grows upward,
+ * pushing its own header off screen.
  */
 export const TriedWords = memo(function TriedWords({ triedWords, group }: TriedWordsProps) {
   const title = group ? "Mots du groupe" : "Tes mots";
   const [open, setOpen] = useState(false);
   const bodyId = useId();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  // The toggle's distance from the top of the viewport when it was tapped; null otherwise.
+  const tappedTop = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const top = tappedTop.current;
+    tappedTop.current = null;
+    const toggle = toggleRef.current;
+    if (top === null || !toggle) return;
+    const shift = toggle.getBoundingClientRect().top - top;
+    if (shift !== 0) window.scrollBy(0, shift);
+  }, [open]);
   // Sorted for display only: the stored list stays in guess order, so a reload
   // doesn't rewrite the player's history. Memoized with the list it sorts, so
   // typing the next guess doesn't re-sort and re-render every chip.
@@ -40,7 +56,11 @@ export const TriedWords = memo(function TriedWords({ triedWords, group }: TriedW
           className="lyrix-words-toggle"
           aria-expanded={open}
           aria-controls={bodyId}
-          onClick={() => setOpen((value) => !value)}
+          ref={toggleRef}
+          onClick={(event) => {
+            tappedTop.current = event.currentTarget.getBoundingClientRect().top;
+            setOpen((value) => !value);
+          }}
         >
           <span className="lyrix-card-title">{title}</span>
           <span className="lyrix-words-count">
