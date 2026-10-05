@@ -43,7 +43,7 @@ function isTouchScreen(): boolean {
 
 export function GameScreen() {
   // `day`: the round played, null for today's song (see useRoute's gameDay).
-  const { route, gameDay: day, navigate, closePage } = useRoute();
+  const { route, gameDay: day, navigate } = useRoute();
   const game = useGame(day);
   // Room events ("X a rejoint le salon.", a teammate's guess) go to the guess
   // dock's feedback line; the room's round replaces the solo one (#30).
@@ -90,14 +90,17 @@ export function GameScreen() {
   const [revealedDay, setRevealedDay] = useState<string | null | undefined>(undefined);
   const revealAllLyrics = revealedDay !== undefined && revealedDay === day;
   const openArchives = useCallback(() => navigate(ARCHIVES), [navigate]);
-  // The header's page buttons toggle: pressed on their own page, they close it.
+  // The header's page buttons toggle: pressed on their own page, they close it,
+  // always to today's song, wherever the player came from (decided with the
+  // developer). Back still reopens the page, as after any link.
+  const goToday = useCallback(() => navigate(TODAY), [navigate]);
   const onArchivesPage = route.name === "archives";
   const onHelpPage = route.name === "help";
   const toggleArchives = useCallback(
-    () => (onArchivesPage ? closePage() : navigate(ARCHIVES)),
-    [onArchivesPage, closePage, navigate]
+    () => navigate(onArchivesPage ? TODAY : ARCHIVES),
+    [onArchivesPage, navigate]
   );
-  const toggleHelp = useCallback(() => (onHelpPage ? closePage() : navigate(HELP)), [onHelpPage, closePage, navigate]);
+  const toggleHelp = useCallback(() => navigate(onHelpPage ? TODAY : HELP), [onHelpPage, navigate]);
   const playDay = useCallback((target: string) => navigate({ name: "day", day: target }), [navigate]);
   // What had focus when a dialog opened (its button), to hand it back on a touch screen.
   const openerRef = useRef<HTMLElement | null>(null);
@@ -196,7 +199,7 @@ export function GameScreen() {
   );
 
   if (route.name === "archives") return shell(<ArchivesScreen onNavigate={navigate} group={groupDays} />);
-  if (route.name === "help") return shell(<HowToPlay onClose={closePage} />);
+  if (route.name === "help") return shell(<HowToPlay onClose={goToday} />);
 
   if (game.error && !round) {
     return shell(

@@ -1,7 +1,7 @@
 import { nearStyle } from "./heatStyle";
 
 interface HowToPlayProps {
-  /** Leaves the page for where the player was (useRoute's closePage). */
+  /** Leaves the page for today's song. */
   onClose: () => void;
 }
 
