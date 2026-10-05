@@ -11,7 +11,7 @@ import { generateRoomCode, isRoomCode } from "../../src/game/room";
  *   POST /api/rooms/:code/leave        leave it (body: { token })             -> 204
  *   POST /api/rooms/:code/guess        guess for the room's day (body: { token, word, day?, tab? }) -> RoomGuessResult
  *   POST /api/rooms/:code/alone        once the room has won, keep looking alone (body: { token, state?, day? }) -> RoundView
- *   POST /api/rooms/:code/day          take the whole room to another day's song (body: { token, day }) -> RoomRound
+ *   POST /api/rooms/:code/day          take the whole room to another day's song (body: { token, day, tab? }) -> RoomRound
  *   GET  /api/rooms/:code/ws?token=&tab=  the member's live connection (WebSocket)
  */
 
@@ -134,8 +134,8 @@ roomRoutes.post("/:code/guess", async (c) => {
 roomRoutes.post("/:code/day", async (c) => {
   const code = c.req.param("code");
   if (!isRoomCode(code)) return c.json({ error: "not a member of a live room" }, 404);
-  const { token, day } = await readBody(c);
-  return roomStub(c.env, code).fetch(internalPost("/day", { token, day }));
+  const { token, day, tab } = await readBody(c);
+  return roomStub(c.env, code).fetch(internalPost("/day", { token, day, tab }));
 });
 
 // Same shape as /guess: a member's token, and the same 404 for a wrong one.

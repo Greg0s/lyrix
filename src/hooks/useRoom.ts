@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createRoom, joinRoom, leaveRoom, moveRoom, roomSocketUrl, type RoomFailure } from "../api/rooms";
 import { utcDay } from "../game/daily";
 import { longDayLabel } from "../game/frenchDates";
@@ -92,6 +92,9 @@ export function useRoom(
 ) {
   const [entry, setEntry] = useState<RoomEntry | null>(() => loadSavedRoom());
   const [linkDown, setLinkDown] = useState(false);
+  // Drops the live connection so that it reconnects, and gets the room as it
+  // stands with the welcome; a no-op out of a room.
+  const resync = useRef<() => void>(() => {});
 
   const code = entry?.room.code ?? null;
   const token = entry?.token ?? null;
@@ -211,8 +214,10 @@ export function useRoom(
     document.addEventListener("visibilitychange", retryNow);
 
     open();
+    resync.current = () => socket?.close(1000, "resync");
     return () => {
       disposed = true;
+      resync.current = () => {};
       window.removeEventListener("online", retryNow);
       document.removeEventListener("visibilitychange", retryNow);
       window.clearTimeout(retryTimer);
@@ -260,9 +265,16 @@ export function useRoom(
   const moveTo = useCallback(
     (day: string) => {
       if (!entry) return;
-      moveRoom(entry.room.code, entry.token, day).catch(() => announce("Le salon n'a pas pu changer de jour."));
+      moveRoom(entry.room.code, entry.token, day)
+        .then((round) => onRound({ type: "round", ...round }))
+        .catch(() => {
+          announce("Le salon n'a pas pu changer de jour.");
+          // The room may have moved all the same, its round sent to every
+          // socket but this tab's: the welcome of a new connection carries it.
+          resync.current();
+        });
     },
-    [announce, entry]
+    [announce, entry, onRound]
   );
 
   const leave = useCallback(() => {

@@ -1205,7 +1205,49 @@ describe("the day the room plays", () => {
     });
 
     await waitFor(() => expect(dayCalls()).toHaveLength(1));
-    expect(JSON.parse(String(dayCalls()[0]?.[1]?.body))).toEqual({ token: "token-m1", day: ARCHIVED });
+    expect(JSON.parse(String(dayCalls()[0]?.[1]?.body))).toEqual({
+      token: "token-m1",
+      day: ARCHIVED,
+      tab: expect.stringMatching(/^[0-9a-f]{32}$/),
+    });
+    window.history.replaceState(null, "", "/");
+  });
+
+  // The room spares this tab the broadcast of the round it moved to (its
+  // socket is named by the tab sent along): the answer carries it instead.
+  it("shows the room's round of the day it opened from the answer, with nothing on the socket", async () => {
+    answer(200, archivedMessage([roomGuess("jardin", leo, true)]));
+    seedRoom();
+    await mountGame();
+
+    await act(async () => {
+      window.history.pushState(null, "", `/archives/${ARCHIVED}`);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    // No round message comes over the socket here: only the answer can have brought it.
+    await waitFor(() => expect(lyricsText()).toContain("jardin"));
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("reconnects for the room as it stands when the move's answer is lost", async () => {
+    answer(500);
+    seedRoom();
+    await mountGame();
+    const socket = latestSocket();
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    await act(async () => {
+      window.history.pushState(null, "", `/archives/${ARCHIVED}`);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    await waitFor(() => expect(feedbackText()).toBe("Le salon n'a pas pu changer de jour."));
+    expect(socket.readyState).toBe(SOCKET_CLOSED);
+    act(() => vi.advanceTimersByTime(RECONNECT_DELAYS_MS[0]));
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    vi.mocked(Math.random).mockRestore();
     window.history.replaceState(null, "", "/");
   });
 
