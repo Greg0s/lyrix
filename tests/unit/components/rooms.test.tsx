@@ -721,7 +721,7 @@ describe("the room's round (#30)", () => {
 
     await waitFor(() => expect(feedbackText()).toBe("« vent » trouvé !"));
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://localhost:3000/api/rooms/ABC234/guess");
-    expect(sentBody()).toEqual({ token: "token-m1", word: "vent", day: utcDay() });
+    expect(sentBody()).toEqual({ token: "token-m1", word: "vent", day: utcDay(), tab: expect.stringMatching(/^[0-9a-f]{32}$/) });
     expect(submitGuess).not.toHaveBeenCalled();
     expect(lyricsText()).toContain("vent");
     // The player's own colour is the accent.

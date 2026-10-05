@@ -1,5 +1,6 @@
 import {
   isRoomCode,
+  isTabId,
   roomExpiresAt,
   ROOM_CLOSE_EXPIRED,
   ROOM_CLOSE_LEFT,
@@ -85,6 +86,8 @@ interface RoundRecord {
 
 interface SocketAttachment {
   memberId: string;
+  /** The browser tab the connection is from (see generateTabId); missing from a client that predates it. */
+  tab?: string;
 }
 
 /** The part of a hibernatable WebSocket the room uses: a real one in production, a fake in the unit tests. */
@@ -143,6 +146,13 @@ function attachedMemberId(ws: RoomSocket): string | null {
   return typeof attachment?.memberId === "string" ? attachment.memberId : null;
 }
 
+/** Whether `ws` is `member`'s connection from `tab`: the one a guess's own answer already updates. */
+function isTabOf(ws: RoomSocket, member: MemberRecord, tab: unknown): boolean {
+  if (!isTabId(tab)) return false;
+  const attachment = ws.deserializeAttachment() as Partial<SocketAttachment> | null;
+  return attachment?.memberId === member.id && attachment.tab === tab;
+}
+
 function roundDay(round: RoundRecord): string {
   return round.day ?? utcDay();
 }
@@ -190,7 +200,7 @@ export class Room {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const route = `${request.method} ${url.pathname}`;
-    if (route === "GET /connect") return this.#connect(url.searchParams.get("token"));
+    if (route === "GET /connect") return this.#connect(url.searchParams.get("token"), url.searchParams.get("tab"));
     if (route === "POST /create") return this.#create(await readBody(request));
     if (route === "POST /join") return this.#join(await readBody(request));
     if (route === "POST /leave") return this.#leave(await readBody(request));
@@ -263,11 +273,11 @@ export class Room {
     return new Response(null, { status: 204 });
   }
 
-  async #connect(token: string | null): Promise<Response> {
+  async #connect(token: string | null, tab: string | null): Promise<Response> {
     const [client, server] = Object.values(new WebSocketPair());
     // The server end has to be accepted (or turned away) before the upgrade
     // is answered; what admit sends it meanwhile is queued for the client.
-    await this.admit(server, token);
+    await this.admit(server, token, tab);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -280,7 +290,7 @@ export class Room {
    * gone or the token isn't a member's: telling those apart would let anyone
    * probe for live codes without going through the rate-limited join.
    */
-  async admit(socket: RoomSocket, token: string | null): Promise<void> {
+  async admit(socket: RoomSocket, token: string | null, tab: string | null = null): Promise<void> {
     const room = await this.#load();
     const member = room && token ? room.members.find((m) => m.token === token) : undefined;
     if (!room || !member) {
@@ -290,7 +300,10 @@ export class Room {
     }
 
     this.ctx.acceptWebSocket(socket, [member.id]);
-    socket.serializeAttachment({ memberId: member.id } satisfies SocketAttachment);
+    socket.serializeAttachment({
+      memberId: member.id,
+      ...(isTabId(tab) ? { tab } : {}),
+    } satisfies SocketAttachment);
     let event: RoomEvent | undefined;
     if (!member.announced) {
       member.announced = true;
@@ -318,7 +331,7 @@ export class Room {
    * proposed changes nothing and says so; any other is checked against the
    * room's song, kept, and sent to every member with the room's new view.
    */
-  async #guess({ token, word, day }: Record<string, unknown>): Promise<Response> {
+  async #guess({ token, word, day, tab }: Record<string, unknown>): Promise<Response> {
     const room = await this.#load();
     const member = room && typeof token === "string" ? room.members.find((m) => m.token === token) : undefined;
     if (!room || !member) return json({ error: "not a member of a live room" }, 404);
@@ -355,7 +368,10 @@ export class Room {
 
     const current = await this.#roundOf(room, round, song, view);
     const message: RoomRoundMessage = { type: "round", ...current, latest: guess.key };
-    this.#send(JSON.stringify(message));
+    // Not to the tab that guessed: this answer brings it the same round, and
+    // the room's round is the largest thing it ever sends. The member's other
+    // tabs still get it.
+    this.#send(JSON.stringify(message), (ws) => isTabOf(ws, member, tab));
     const result: RoomGuessResult = { ...current, guess, duplicate: false };
     return json(result, 200);
   }
@@ -573,8 +589,9 @@ export class Room {
     await this.ctx.storage.deleteAll();
   }
 
-  #openSockets(except?: RoomSocket): RoomSocket[] {
-    return this.ctx.getWebSockets().filter((ws) => ws !== except && ws.readyState === SOCKET_OPEN);
+  #openSockets(except?: RoomSocket | ((ws: RoomSocket) => boolean)): RoomSocket[] {
+    const skipped = typeof except === "function" ? except : (ws: RoomSocket) => ws === except;
+    return this.ctx.getWebSockets().filter((ws) => !skipped(ws) && ws.readyState === SOCKET_OPEN);
   }
 
   /** Ids of the members with at least one open connection. */
@@ -611,7 +628,7 @@ export class Room {
     this.#send(JSON.stringify(message), except);
   }
 
-  #send(text: string, except?: RoomSocket): void {
+  #send(text: string, except?: RoomSocket | ((ws: RoomSocket) => boolean)): void {
     for (const ws of this.#openSockets(except)) {
       try {
         ws.send(text);

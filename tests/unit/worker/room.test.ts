@@ -957,3 +957,64 @@ describe("the day a room plays", () => {
     expect(freshSocket.lastRound().round.day).toBe(TODAY);
   });
 });
+
+// A guess's answer and its broadcast carry the same round, the largest thing
+// a room sends: the tab that guessed used to receive it twice.
+describe("a guess's broadcast", () => {
+  const TAB = "a".repeat(32);
+  const OTHER_TAB = "b".repeat(32);
+
+  async function connectTab(entry: RoomEntry, tab: string): Promise<FakeSocket> {
+    const socket = new FakeSocket();
+    await rooms.room(entry.room.code).admit(socket, entry.token, tab);
+    return socket;
+  }
+
+  function guessFrom(entry: RoomEntry, word: string, tab: string): Promise<Response> {
+    return post(`/api/rooms/${entry.room.code}/guess`, { token: entry.token, word, tab });
+  }
+
+  it("spares the tab that guessed, whose answer carries the round, but not the member's other tabs", async () => {
+    const host = await createRoom("Camille");
+    const guessing = await connectTab(host, TAB);
+    const otherTab = await connectTab(host, OTHER_TAB);
+    const guest = await joinRoom(host.room.code, "Léo");
+    const guestSocket = await connect(guest);
+    const before = guessing.rounds().length;
+
+    const response = await guessFrom(host, "vent", TAB);
+
+    expect(response.status).toBe(200);
+    expect(revealed(parseRoomGuessResult(await response.json())?.round ?? ({} as RoundView))).toContain("vent");
+    expect(guessing.rounds()).toHaveLength(before);
+    for (const socket of [otherTab, guestSocket]) expect(socket.lastRound().latest).toBe("vent");
+  });
+
+  it("never spares another member's tab, whatever tab a guess names", async () => {
+    const host = await createRoom("Camille");
+    const hostSocket = await connectTab(host, TAB);
+    const guest = await joinRoom(host.room.code, "Léo");
+    await connectTab(guest, OTHER_TAB);
+
+    expect((await guessFrom(guest, "vent", TAB)).status).toBe(200);
+    expect(hostSocket.lastRound().latest).toBe("vent");
+  });
+
+  it("reaches every tab of a client that names none", async () => {
+    const host = await createRoom("Camille");
+    const socket = await connectTab(host, TAB);
+
+    await guessIn(host, "vent");
+    expect(socket.lastRound().latest).toBe("vent");
+  });
+
+  it("carries the tab through the Worker's socket route", async () => {
+    const host = await createRoom("Camille");
+    // The upgrade itself needs the Workers runtime (WebSocketPair): only what reaches the object counts here.
+    await Promise.resolve(
+      app.request(`/api/rooms/${host.room.code}/ws?token=t&tab=${TAB}`, { headers: { Upgrade: "websocket" } }, env)
+    ).catch(() => {});
+    const forwarded = rooms.requests.at(-1);
+    expect(forwarded && new URL(forwarded.url).searchParams.get("tab")).toBe(TAB);
+  });
+});
