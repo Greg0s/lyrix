@@ -410,3 +410,9 @@ Once loads could time out, two places that told "the Worker refused this" from "
 ## 2026-10-05 — A room's day vanished from the group's collection after hibernation
 
 `Room.#loadRound` stored a day's round the moment it was pinned, and only then worked out its `RoomDaySummary`, in memory. A day the room opened but nobody guessed on therefore had no stored summary: shown in the group's collection while the object stayed awake, gone once it woke from hibernation, back at the first guess. The summary is now computed before the round is stored, and a stored round missing one gets it stored on its next load. Anything a Durable Object derives and means to keep must be written after it is derived, not before. Regression test: "keeps a day the room opened without guessing in the group's collection, after a wake" (`tests/unit/worker/room.test.ts`).
+
+## 2026-10-05 — A heat-shaded element's own --heat-* fallbacks undid the ramp
+
+The rules' sample bars (`.lyrix-help-sample`) declared the warm tier's colours as their `--heat-bg`/`--heat-border`/`--heat-ink`, like `.token-word-near` does, but in a rule written *after* the `@supports (color-mix…)` block that mixes those properties from `--heat`. Same specificity, later rule: the plain warm values won, and all three bars came out orange whatever their score. jsdom computes no colours, so only a browser sees it. A rule placed after the mix takes its fallbacks inside `var(--heat-bg, …)` instead of redefining the properties. Regression test: "shades the rules' sample bars from cold to hot…" (`tests/e2e/play.spec.ts`), which asserts three distinct computed backgrounds.
+
+Also seen today: the full e2e suite is intermittently flaky on a loaded Windows machine (`similarity.spec.ts`, `rooms.spec.ts`, the in-flight `Valider` check), on `main`'s code as well; each failing test passes when rerun alone.

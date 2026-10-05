@@ -1289,7 +1289,7 @@
 /*
  * Every score its own shade: --heat (0 to 1, set inline from the score by
  * proximityHeat in src/game/similarity.ts, or proximityNearHeat on a close
- * guess's bar) slides along the cold -> warm -> hot tokens, so a 41 and a 58
+ * guess's bar and the rules' sample bars) slides along the cold -> warm -> hot tokens, so a 41 and a 58
  * no longer look alike. Guarded, because a colour built from custom
  * properties that the browser can't mix would fall back to nothing rather
  * than to the tier colours above.
@@ -1298,7 +1298,8 @@
   .lyrix-chip.tier-hot,
   .lyrix-chip.tier-warm,
   .lyrix-chip.tier-cold,
-  .token-blank.token-word-near {
+  .token-blank.token-word-near,
+  .lyrix-help-sample {
     --to-warm: clamp(0%, calc(var(--heat, 0.5) * 200%), 100%);
     --to-hot: clamp(0%, calc((var(--heat, 0.5) - 0.5) * 200%), 100%);
     --heat-bg: color-mix(
@@ -1547,6 +1548,9 @@
   max-width: 640px;
   margin: 0 auto;
   padding: 20px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .lyrix-help {
@@ -1580,7 +1584,7 @@
 
 .lyrix-help-example {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 12px;
   padding: 14px 16px;
   background: var(--color-sunken);
@@ -1594,27 +1598,82 @@
   color: var(--color-ink-soft);
 }
 
-.lyrix-help-sample {
-  position: relative;
-  display: inline-block;
-  flex-shrink: 0;
-  font-family: var(--font-display);
-  font-size: 1.3rem;
-  font-weight: 800;
-  padding: 0 0.18em 0 0.34em;
-  border-radius: 0.2em;
-  background: var(--accent-solid);
-  color: transparent;
+.lyrix-help-samples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.lyrix-help-sample-guess {
-  position: absolute;
-  inset: 0;
+/*
+ * A close guess's bar, as the lyrics show one (.token-word-near): shaded
+ * along the cold -> hot ramp by --heat (nearStyle), mixed further up with the
+ * chips'. Declared after that mix, so the warm tier's colours, for a browser
+ * that can't mix them, are fallbacks rather than --heat-* values of its own.
+ */
+.lyrix-help-sample {
+  padding: 0.1em 0.45em;
+  border-radius: 0.2em;
+  background: var(--heat-bg, var(--proximity-warm-bg));
+  box-shadow: inset 0 0 0 1.5px var(--heat-border, var(--proximity-warm-border));
+  color: var(--heat-ink, var(--proximity-warm-ink));
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+/* ---------- The rules' FAQ (HowToPlay.tsx): native disclosures, one per question ---------- */
+
+.lyrix-faq {
+  gap: 0;
+  padding: 22px 28px;
+}
+
+.lyrix-faq-title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.lyrix-faq-item {
+  border-top: 1px solid var(--color-border);
+}
+
+.lyrix-faq-item summary {
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: var(--color-on-bright);
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
   font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  list-style: none;
+}
+
+.lyrix-faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.lyrix-faq-chevron {
+  flex-shrink: 0;
+  color: var(--color-ink-muted);
+  transition: transform 0.2s ease;
+}
+
+.lyrix-faq-item[open] .lyrix-faq-chevron {
+  transform: rotate(180deg);
+}
+
+.lyrix-faq-item p {
+  margin: 0 0 16px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--color-ink-soft);
 }
 
 /* ---------- Rooms (MultiplayerModal.tsx, RoomCard.tsx) ---------- */

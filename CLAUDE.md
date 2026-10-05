@@ -177,7 +177,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                                       # sorted by score, crediting the embedding model;
                                       # "Mots du groupe" in a room, a colour dot per chip
                                       # (collapsed by default below 880px)
-    Modal.tsx, HowToPlay.tsx   # dialog shell (Escape/backdrop, exit animation); the rules' page (/comment-jouer)
+    Modal.tsx, HowToPlay.tsx   # dialog shell (Escape/backdrop, exit animation); the rules' page (/comment-jouer):
+                              # a short summary with sample close-guess bars, then a FAQ (native <details>)
     MultiplayerModal.tsx      # rooms (#29): "Créer un salon" / "Rejoindre" tabs, or the room once in one;
                               # opened on "Rejoindre" by an invite link (GameScreen reads the path)
     RoomCard.tsx, RoomMembers.tsx, CopyButton.tsx, playerColor.ts  # dark "Salon" card, member

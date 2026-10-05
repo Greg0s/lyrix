@@ -127,6 +127,18 @@ test("opens the rules as a page from the header, and closes them from the same b
   await expect(page.locator('[data-stat="tried"]')).toHaveText("1 essai");
 });
 
+test("shades the rules' sample bars from cold to hot, as the lyrics shade close guesses", async ({ page }) => {
+  await page.goto("/comment-jouer");
+  const bars = page.locator(".lyrix-help-sample");
+  await expect(bars).toHaveCount(3);
+  // A rule of the sample's own once overrode the mixed colours: all three came out the same.
+  const colours = await bars.evaluateAll((elements) => elements.map((element) => getComputedStyle(element).backgroundColor));
+  expect(new Set(colours).size).toBe(3);
+
+  await page.getByText(/^Que veulent dire les couleurs/).click();
+  await expect(page.getByText(/^Elles vont du rouge/)).toBeVisible();
+});
+
 test("follows Back from the rules to the round", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
