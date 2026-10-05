@@ -967,6 +967,24 @@ describe("the day a room plays", () => {
   // The group's collection rides along with every guess: once the object woke
   // from hibernation, each other day's round used to be read on its own, one
   // await after the other, and read again on the next guess.
+  // The day was summarized in memory only until someone guessed on it: once
+  // the object woke from hibernation, it was gone from the group's collection.
+  it("keeps a day the room opened without guessing in the group's collection, after a wake", async () => {
+    const host = await createRoom("Camille");
+    await connect(host);
+    await setDay(host, ARCHIVED);
+    await setDay(host, TODAY);
+
+    // A fresh object, as after hibernation: nothing in memory.
+    const fresh = new Room(rooms.state(host.room.code), env);
+    const socket = new FakeSocket();
+    await fresh.admit(socket, host.token);
+
+    const days = socket.lastRound().days ?? [];
+    expect(days.map((summary) => summary.day)).toEqual([TODAY, ARCHIVED]);
+    expect(days.find((summary) => summary.day === ARCHIVED)?.guesses).toBe(0);
+  });
+
   it("reads the other days' rounds in one storage call after a wake, and not again", async () => {
     const host = await createRoom("Camille");
     await connect(host);

@@ -469,10 +469,8 @@ export class Room {
       // Another request may have pinned it while the song was being resolved.
       round = this.#rounds.get(day) ?? { songId: pinned.id, day, guesses: [] };
     }
-    if (!this.#rounds.has(day)) {
-      this.#rounds.set(day, round);
-      await this.ctx.storage.put(roundKey(day), round);
-    }
+    const fresh = !this.#rounds.has(day);
+    if (fresh) this.#rounds.set(day, round);
     if (!(room.days ?? []).includes(day)) {
       room.days = [...(room.days ?? []), day];
       await this.#save(room);
@@ -480,7 +478,12 @@ export class Room {
     // Memoized per isolate (songs.ts): after the first guess, this costs nothing.
     const song = await getSongById(round.songId);
     if (!song) throw new Error("the room's song can't be resolved");
-    if (!round.summary) await this.#summarize(round, song);
+    // Stored with its summary: a day the room opened but didn't guess on yet
+    // used to keep it in memory only, and left the group's collection once
+    // the object woke from hibernation.
+    const unsummarized = !round.summary;
+    if (unsummarized) await this.#summarize(round, song);
+    if (fresh || unsummarized) await this.ctx.storage.put(roundKey(day), round);
     return { round, song };
   }
 
