@@ -302,6 +302,25 @@ describe("a guess in flight", () => {
     expect(input.value).toBe("port");
     expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy();
   });
+  // A network that never answers is given up on (GUESS_TIMEOUT_MS,
+  // tests/unit/api/timeout.test.ts): what the player gets is the dock back,
+  // told the word didn't go, with the word still there to send again.
+  it("gives the dock back once the guess has timed out", async () => {
+    submitGuess.mockRejectedValueOnce(new DOMException("request timed out", "TimeoutError"));
+    const input = await mountGame();
+    fireEvent.change(input, { target: { value: "vent" } });
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(screen.getByText("Le mot n'a pas pu être envoyé, réessaie.")).toBeTruthy());
+    const button = screen.getByRole("button", { name: "Valider" });
+    expect(button.getAttribute("aria-disabled")).toBe("false");
+    expect(input.value).toBe("vent");
+
+    submitGuess.mockResolvedValueOnce(missed);
+    fireEvent.submit(input);
+    await waitFor(() => expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy());
+    expect(submitGuess).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("the Valider button", () => {

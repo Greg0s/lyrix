@@ -1,6 +1,6 @@
 import { ARCHIVE_DAYS } from "../../src/game/daily";
 import type { Song } from "../../src/game/types";
-import { catalog, catalogRotation, FALLBACK_SONG_ID } from "./catalog";
+import { catalog, catalogRotation, FALLBACK_SONG_ID, type CatalogEntry } from "./catalog";
 import { getCachedSong, putCachedSong } from "./cache";
 import { resolveFromLrclib } from "./resolveSong";
 
@@ -77,9 +77,32 @@ function memoize(song: Song): Song {
   return song;
 }
 
+/**
+ * Songs being resolved right now, by id. A cold isolate can be handed several
+ * requests for the same song at once - above all at UTC midnight, when every
+ * player moves to the new one and no cache holds it yet - and each used to
+ * run its own Cache API lookup and LRCLIB search. They now share the first
+ * one's. Dropped once settled: a song that couldn't be resolved is tried
+ * again by the next request, as before.
+ */
+const resolving = new Map<string, Promise<Song | null>>();
+
 /** Drops the isolate's memoized songs. For tests: production never needs it, since a resolved song never changes. */
 export function resetSongMemo(): void {
   memoizedSongs.clear();
+  resolving.clear();
+}
+
+async function resolve(id: string, entry: CatalogEntry): Promise<Song | null> {
+  const cached = await getCachedSong(id);
+  if (cached) return memoize(cached);
+
+  const song = await resolveFromLrclib(entry);
+  if (song) {
+    await putCachedSong(id, song);
+    return memoize(song);
+  }
+  return song;
 }
 
 export async function getSongById(id: string): Promise<Song | null> {
@@ -91,15 +114,11 @@ export async function getSongById(id: string): Promise<Song | null> {
   const entry = catalog.find((candidate) => candidate.id === id);
   if (!entry) return null;
 
-  const cached = await getCachedSong(id);
-  if (cached) return memoize(cached);
-
-  const song = await resolveFromLrclib(entry);
-  if (song) {
-    await putCachedSong(id, song);
-    return memoize(song);
-  }
-  return song;
+  const pending = resolving.get(id);
+  if (pending) return pending;
+  const resolution = resolve(id, entry).finally(() => resolving.delete(id));
+  resolving.set(id, resolution);
+  return resolution;
 }
 
 /** The song of the UTC day `date` falls on, falling back along that day's rotation when LRCLIB fails for its pick. */

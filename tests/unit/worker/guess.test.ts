@@ -150,6 +150,26 @@ describe("GET /api/round", () => {
     expect(await songIdOf(second)).toBe(await songIdOf(first));
   });
 
+  // At UTC midnight every player asks for the new song at once, and a cold
+  // isolate used to search LRCLIB once per request rather than once in all.
+  it("searches LRCLIB once for requests that arrive together on a cold isolate", async () => {
+    const rounds = await Promise.all(Array.from({ length: 5 }, () => app.request("/api/round", {}, env)));
+
+    for (const res of rounds) expect(res.status).toBe(200);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+  });
+
+  it("searches LRCLIB again after a resolution that found nothing", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 500 })));
+    const emergency = await songIdOf(await getRound());
+    mockLrclibFetch();
+
+    // The emergency song stood in, but the day's pick isn't given up on for the isolate's lifetime.
+    const round = await getRound();
+    expect(vi.mocked(fetch)).toHaveBeenCalled();
+    expect(await songIdOf(round)).not.toBe(emergency);
+  });
+
   it("falls back to the next catalog entry when LRCLIB fails for the daily pick", async () => {
     let callCount = 0;
     vi.stubGlobal(
