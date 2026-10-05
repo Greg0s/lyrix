@@ -1053,6 +1053,22 @@ describe("a guess's broadcast", () => {
     for (const socket of [otherTab, guestSocket]) expect(socket.lastRound().latest).toBe("vent");
   });
 
+  it("spares the tab that moved the room to another day, whose answer carries the round", async () => {
+    const host = await createRoom("Camille");
+    const moving = await connectTab(host, TAB);
+    const otherTab = await connectTab(host, OTHER_TAB);
+    const before = moving.rounds().length;
+
+    const response = await post(`/api/rooms/${host.room.code}/day`, { token: host.token, day: "2026-09-20", tab: TAB });
+
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as { round: RoundView }).round.day).toBe("2026-09-20");
+    expect(moving.rounds()).toHaveLength(before);
+    expect(otherTab.lastRound().round.day).toBe("2026-09-20");
+    // The day itself is news for every tab, the mover's included.
+    expect(moving.last().room.day).toBe("2026-09-20");
+  });
+
   it("never spares another member's tab, whatever tab a guess names", async () => {
     const host = await createRoom("Camille");
     const hostSocket = await connectTab(host, TAB);

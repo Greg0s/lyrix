@@ -430,7 +430,7 @@ export class Room {
    * archives. Its round there is picked up where the room left it, or pinned
    * the first time, and everyone is sent it, with who moved the room.
    */
-  async #setDay({ token, day }: Record<string, unknown>): Promise<Response> {
+  async #setDay({ token, day, tab }: Record<string, unknown>): Promise<Response> {
     const room = await this.#load();
     const member = room && typeof token === "string" ? room.members.find((m) => m.token === token) : undefined;
     if (!room || !member) return json({ error: "not a member of a live room" }, 404);
@@ -449,7 +449,8 @@ export class Room {
     await this.#save(room);
     this.#broadcast(room, { kind: "day", member: publicMember(member), day });
     const message: RoomRoundMessage = { type: "round", ...current };
-    this.#send(JSON.stringify(message));
+    // Not to the tab that moved the room: this answer brings it the round (see #guess).
+    this.#send(JSON.stringify(message), (ws) => isTabOf(ws, member, tab));
     return json(current, 200);
   }
 

@@ -17,6 +17,7 @@ import {
   type SimilarityEnv,
   type SimilarityKv,
   type SimilarityTable,
+  TABLE_MEMO_TTL_MS,
 } from "../../../worker/src/similarity";
 import { encodeNear, type ReadableNear } from "./similarityTableFixture";
 
@@ -379,6 +380,27 @@ describe("proximityHint", () => {
       vi.useRealTimers();
     }
     expect(get).toHaveBeenCalledTimes(2);
+  });
+
+  // A table is parsed again only once its memo has expired: megabytes each
+  // time, for a table that changes when a song joins the catalog.
+  it("keeps a parsed table for half an hour, then reads it again", async () => {
+    const get = vi.fn(async () => table({ averse: 72 }));
+    const env: SimilarityEnv = { SIMILARITY: { get } };
+    vi.useFakeTimers();
+    try {
+      await proximityHint(env, song, "averse", new Set());
+      vi.advanceTimersByTime(TABLE_MEMO_TTL_MS - 1);
+      await proximityHint(env, song, "averse", new Set());
+      expect(get).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(1);
+      await proximityHint(env, song, "averse", new Set());
+      expect(get).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(TABLE_MEMO_TTL_MS).toBe(30 * 60 * 1000);
   });
 
   // The archives put several songs in play at once: two players on two days

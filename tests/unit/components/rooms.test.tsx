@@ -45,7 +45,9 @@ const submitGuess = vi.hoisted(() => vi.fn());
 vi.mock("../../../src/api/client", () => ({ fetchRound, resumeRound, submitGuess }));
 
 const { GameScreen } = await import("../../../src/components/GameScreen");
-const { KEEPALIVE_MS, RECONNECT_DELAYS_MS, SILENCE_TIMEOUT_MS } = await import("../../../src/hooks/useRoom");
+const { KEEPALIVE_MS, RECONNECT_DELAYS_MS, RECONNECT_JITTER, SILENCE_TIMEOUT_MS, reconnectDelay } = await import(
+  "../../../src/hooks/useRoom"
+);
 
 const SOCKET_OPEN = 1;
 const SOCKET_CLOSED = 3;
@@ -277,6 +279,56 @@ describe("a player arriving in the room", () => {
 });
 
 describe("the room's connection", () => {
+  // No jitter here: each wait is its whole step of the backoff (see reconnectDelay).
+  beforeEach(() => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+  });
+  afterEach(() => {
+    vi.mocked(Math.random).mockRestore();
+  });
+
+  // Every member's connection drops at once when the room's object restarts:
+  // without a spread, they all came back in the same instant, at every step.
+  it("spreads its retries, never past the backoff's step", () => {
+    for (let attempt = 0; attempt < RECONNECT_DELAYS_MS.length + 2; attempt += 1) {
+      const step = RECONNECT_DELAYS_MS[Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)];
+      expect(reconnectDelay(attempt, () => 0)).toBe(step);
+      expect(reconnectDelay(attempt, () => 1)).toBe(Math.round(step * (1 - RECONNECT_JITTER)));
+      expect(reconnectDelay(attempt, () => 0.5)).toBeLessThan(step);
+    }
+  });
+
+  it("is retried at once when the network comes back, or the tab to the front", async () => {
+    seedRoom();
+    await mountGame();
+    latestSocket().open();
+    vi.useFakeTimers();
+
+    latestSocket().drop(1006);
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(FakeWebSocket.instances).toHaveLength(2);
+
+    latestSocket().drop(1006);
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(FakeWebSocket.instances).toHaveLength(3);
+  });
+
+  it("is left alone by the network coming back while it is up", async () => {
+    seedRoom();
+    await mountGame();
+    latestSocket().open();
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
   it("is retried after a drop, a little later each time, and says so meanwhile", async () => {
     seedRoom();
     await mountGame();
@@ -1156,7 +1208,49 @@ describe("the day the room plays", () => {
     });
 
     await waitFor(() => expect(dayCalls()).toHaveLength(1));
-    expect(JSON.parse(String(dayCalls()[0]?.[1]?.body))).toEqual({ token: "token-m1", day: ARCHIVED });
+    expect(JSON.parse(String(dayCalls()[0]?.[1]?.body))).toEqual({
+      token: "token-m1",
+      day: ARCHIVED,
+      tab: expect.stringMatching(/^[0-9a-f]{32}$/),
+    });
+    window.history.replaceState(null, "", "/");
+  });
+
+  // The room spares this tab the broadcast of the round it moved to (its
+  // socket is named by the tab sent along): the answer carries it instead.
+  it("shows the room's round of the day it opened from the answer, with nothing on the socket", async () => {
+    answer(200, archivedMessage([roomGuess("jardin", leo, true)]));
+    seedRoom();
+    await mountGame();
+
+    await act(async () => {
+      window.history.pushState(null, "", `/archives/${ARCHIVED}`);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    // No round message comes over the socket here: only the answer can have brought it.
+    await waitFor(() => expect(lyricsText()).toContain("jardin"));
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("reconnects for the room as it stands when the move's answer is lost", async () => {
+    answer(500);
+    seedRoom();
+    await mountGame();
+    const socket = latestSocket();
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    await act(async () => {
+      window.history.pushState(null, "", `/archives/${ARCHIVED}`);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    await waitFor(() => expect(feedbackText()).toBe("Le salon n'a pas pu changer de jour."));
+    expect(socket.readyState).toBe(SOCKET_CLOSED);
+    act(() => vi.advanceTimersByTime(RECONNECT_DELAYS_MS[0]));
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    vi.mocked(Math.random).mockRestore();
     window.history.replaceState(null, "", "/");
   });
 

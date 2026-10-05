@@ -117,17 +117,22 @@ export async function continueAlone(
 
 /**
  * Takes the whole room to another day's song: today's, or a day of the
- * archives. Everyone, the player included, is then sent the room's round of
- * that day over the socket. Throws when the room couldn't be moved.
+ * archives. The room's round of that day is this answer's; every other tab
+ * and member is sent it over the socket. Throws when the room couldn't be
+ * moved, or the answer didn't come back in time.
  */
-export async function moveRoom(code: string, token: string, day: string): Promise<RoomRound> {
-  const response = await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/day`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, day }),
+export function moveRoom(code: string, token: string, day: string): Promise<RoomRound> {
+  return withTimeout(GUESS_TIMEOUT_MS, async (signal) => {
+    const response = await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/day`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // The tab: its socket is spared the broadcast this answer already carries.
+      body: JSON.stringify({ token, day, tab: TAB_ID }),
+      signal,
+    });
+    const body: unknown = await response.json().catch(() => null);
+    const round = response.ok ? parseRoomRoundAnswer(body) : null;
+    if (!round) throw new Error(`moving the room failed with status ${response.status}`);
+    return round;
   });
-  const body: unknown = await response.json().catch(() => null);
-  const round = response.ok ? parseRoomRoundAnswer(body) : null;
-  if (!round) throw new Error(`moving the room failed with status ${response.status}`);
-  return round;
 }
