@@ -58,6 +58,22 @@ export const KEEPALIVE_MS = 25_000;
  */
 export const SILENCE_TIMEOUT_MS = 10_000;
 
+/** The most a reconnection's wait is shortened by, at random: see reconnectDelay. */
+export const RECONNECT_JITTER = 0.3;
+
+/**
+ * How long to wait before the reconnection attempt numbered `attempt`: its
+ * step of RECONNECT_DELAYS_MS, shortened at random by up to RECONNECT_JITTER.
+ * When a room's object restarts, every member's connection drops at once:
+ * without the spread they would all come back in the same instant, at every
+ * step of the backoff. Never longer than the step, so the backoff's promise
+ * ("the last one repeats") still holds.
+ */
+export function reconnectDelay(attempt: number, random: () => number = Math.random): number {
+  const step = RECONNECT_DELAYS_MS[Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)];
+  return Math.round(step * (1 - RECONNECT_JITTER * random()));
+}
+
 /**
  * Rooms (issue #29), client side: creating, joining and leaving one, and the
  * WebSocket that keeps its member list live. The room is saved (roomStorage),
@@ -115,7 +131,10 @@ export function useRoom(
         window.clearTimeout(silenceTimer);
         silenceTimer = undefined;
         setLinkDown(true);
-        retryTimer = window.setTimeout(open, RECONNECT_DELAYS_MS[Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)]);
+        retryTimer = window.setTimeout(() => {
+          retryTimer = undefined;
+          open();
+        }, reconnectDelay(attempt));
         attempt += 1;
       };
       // Armed while the connection owes an answer, disarmed by anything it sends.
@@ -179,9 +198,23 @@ export function useRoom(
       });
     };
 
+    // Waiting out a backoff while the network comes back, or while the tab is
+    // brought back to the front (a phone's browser holds back timers in the
+    // background, and drops connections there): no reason to wait any longer.
+    const retryNow = () => {
+      if (disposed || retryTimer === undefined || document.visibilityState === "hidden") return;
+      window.clearTimeout(retryTimer);
+      retryTimer = undefined;
+      open();
+    };
+    window.addEventListener("online", retryNow);
+    document.addEventListener("visibilitychange", retryNow);
+
     open();
     return () => {
       disposed = true;
+      window.removeEventListener("online", retryNow);
+      document.removeEventListener("visibilitychange", retryNow);
       window.clearTimeout(retryTimer);
       window.clearInterval(keepaliveTimer);
       window.clearTimeout(silenceTimer);
