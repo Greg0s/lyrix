@@ -139,6 +139,28 @@ test("shades the rules' sample bars from cold to hot, as the lyrics shade close 
   await expect(page.getByText(/^Elles vont du rouge/)).toBeVisible();
 });
 
+test("puts the FAQ beside the rules on a wide screen, under them on a phone", async ({ page }) => {
+  const boxes = async () => {
+    const rules = await page.locator(".lyrix-help").boundingBox();
+    const faq = await page.locator(".lyrix-faq").boundingBox();
+    if (!rules || !faq) throw new Error("the rules page isn't shown");
+    return { rules, faq };
+  };
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/comment-jouer");
+  const wide = await boxes();
+  expect(wide.faq.x).toBeGreaterThan(wide.rules.x + wide.rules.width);
+  expect(wide.faq.y).toBe(wide.rules.y);
+  // Three fifths and two fifths.
+  expect(wide.faq.width / wide.rules.width).toBeCloseTo(2 / 3, 1);
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  const narrow = await boxes();
+  expect(narrow.faq.y).toBeGreaterThan(narrow.rules.y + narrow.rules.height);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test("follows Back from the rules to the round", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
