@@ -94,10 +94,16 @@ class FakeSocket implements RoomSocket {
 /** A Durable Object's state, in memory: storage (cloned in and out, like the real one), an alarm, and hibernatable sockets. */
 class FakeState implements RoomContext {
   readonly store = new Map<string, unknown>();
+  /** Every storage read, in order: a key, or the keys of one batched read. */
+  readonly reads: (string | string[])[] = [];
   alarm: number | null = null;
   readonly sockets: { ws: RoomSocket; tags: string[] }[] = [];
   readonly storage = {
-    get: async <T>(key: string): Promise<T | undefined> => structuredClone(this.store.get(key)) as T | undefined,
+    get: (async (keys: string | string[]) => {
+      this.reads.push(keys);
+      if (typeof keys === "string") return structuredClone(this.store.get(keys));
+      return new Map(keys.filter((key) => this.store.has(key)).map((key) => [key, structuredClone(this.store.get(key))]));
+    }) as RoomContext["storage"]["get"],
     put: async <T>(key: string, value: T): Promise<void> => {
       this.store.set(key, structuredClone(value));
     },
@@ -955,6 +961,44 @@ describe("the day a room plays", () => {
     await fresh.admit(freshSocket, host.token);
     expect(freshSocket.lastRound().guesses.map((guess) => guess.key)).toEqual(["vent"]);
     expect(freshSocket.lastRound().round.day).toBe(TODAY);
+  });
+
+  // The group's collection rides along with every guess: once the object woke
+  // from hibernation, each other day's round used to be read on its own, one
+  // await after the other, and read again on the next guess.
+  it("reads the other days' rounds in one storage call after a wake, and not again", async () => {
+    const host = await createRoom("Camille");
+    await connect(host);
+    await guessIn(host, "refuge");
+    await setDay(host, ARCHIVED);
+    await guessIn(host, "refuge");
+    await setDay(host, "2026-09-21");
+    await guessIn(host, "refuge");
+    await setDay(host, TODAY);
+
+    const state = rooms.state(host.room.code);
+    // A fresh object, as after hibernation: nothing in memory.
+    const room = new Room(state, env);
+    const guess = (word: string) =>
+      room.fetch(
+        new Request("https://room/guess", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token: host.token, word }),
+        })
+      );
+
+    state.reads.length = 0;
+    expect((await guess("vent")).status).toBe(200);
+    const roundReads = state.reads.filter((read) => Array.isArray(read) || read.startsWith("round"));
+    expect(roundReads).toEqual([`round:${TODAY}`, [`round:${ARCHIVED}`, "round:2026-09-21"]]);
+
+    state.reads.length = 0;
+    const second = await guess("porte");
+    expect(second.status).toBe(200);
+    expect(state.reads).toEqual([]);
+    const result = parseRoomGuessResult(await second.json());
+    expect(result?.days?.map((summary) => summary.day)).toEqual([TODAY, ARCHIVED, "2026-09-21"]);
   });
 });
 

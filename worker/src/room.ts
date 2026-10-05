@@ -104,6 +104,8 @@ export interface RoomSocket {
 export interface RoomContext {
   readonly storage: {
     get<T>(key: string): Promise<T | undefined>;
+    /** Several keys in one read (at most 128); a key with no value is missing from the map. */
+    get<T>(keys: string[]): Promise<Map<string, T>>;
     put<T>(key: string, value: T): Promise<void>;
     deleteAll(): Promise<void>;
     setAlarm(scheduledTime: number): Promise<void>;
@@ -499,14 +501,28 @@ export class Room {
     };
   }
 
-  /** Every day the room played, as the group's collection shows it. */
+  /**
+   * Every day the room played, as the group's collection shows it. Sent with
+   * every guess, so the rounds not in memory yet (all of them but the one in
+   * play, once the object has woken from hibernation) are read in a single
+   * storage call and kept: they used to be read one by one, one await each,
+   * and again on the next guess.
+   */
   async #summaries(room: RoomRecord): Promise<RoomDaySummary[]> {
-    const summaries: RoomDaySummary[] = [];
-    for (const day of room.days ?? []) {
-      const round = this.#rounds.get(day) ?? (await this.ctx.storage.get<RoundRecord>(roundKey(day)));
-      if (round?.summary) summaries.push(round.summary);
+    const days = room.days ?? [];
+    const missing = days.filter((day) => !this.#rounds.has(day)).map(roundKey);
+    if (missing.length > 0) {
+      const stored = await this.ctx.storage.get<RoundRecord>(missing);
+      for (const day of days) {
+        const round = stored.get(roundKey(day));
+        // Another request may have read or pinned it meanwhile: that one is kept.
+        if (round && !this.#rounds.has(day)) this.#rounds.set(day, round);
+      }
     }
-    return summaries;
+    return days.flatMap((day) => {
+      const summary = this.#rounds.get(day)?.summary;
+      return summary ? [summary] : [];
+    });
   }
 
   async #roundOf(room: RoomRecord, round: RoundRecord, song: Song, view?: RoundView): Promise<RoomRound> {
