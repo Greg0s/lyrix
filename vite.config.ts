@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { apiPreconnectPlugin } from "./scripts/lib/apiPreconnect";
 import { invitePagePlugin } from "./scripts/lib/invitePage";
 
 // Where the dev server forwards /api/*: by default the Worker `npm run dev:all`
@@ -9,8 +10,9 @@ import { invitePagePlugin } from "./scripts/lib/invitePage";
 const apiProxyTarget = process.env.API_PROXY_TARGET || "http://localhost:8787";
 
 export default defineConfig({
+  // apiPreconnectPlugin: index.html opens the connection to the API early, when it is on another origin.
   // invitePagePlugin: the page invite links (/salon/<code>) answer with, and its link preview.
-  plugins: [react(), invitePagePlugin()],
+  plugins: [react(), apiPreconnectPlugin(), invitePagePlugin()],
   server: {
     proxy: {
       // ws: rooms keep their members live over a WebSocket on /api/rooms/:code/ws.
