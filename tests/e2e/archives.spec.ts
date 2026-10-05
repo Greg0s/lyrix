@@ -51,7 +51,7 @@ test("plays a day of the archives from the collection, and adds it to it once wo
   await expect(page.getByRole("link", { name: new RegExp(`^${date} : .+, trouvée en \\d+ essais?$`) })).toBeVisible();
 });
 
-test("closes the archives from their header button, back to the day the player came from", async ({ page }) => {
+test("closes the archives from their header button to today's song, even from a day of them", async ({ page }) => {
   await page.goto(`/archives/${yesterday}`);
   const days = page.getByRole("navigation", { name: "Jours des archives" });
   await expect(days).toContainText(capitalize(longDayLabel(yesterday)));
@@ -62,8 +62,13 @@ test("closes the archives from their header button, back to the day the player c
   await expect(archives).toHaveAttribute("aria-current", "page");
 
   await archives.click();
-  await expect(page).toHaveURL(new RegExp(`/archives/${yesterday}$`));
-  await expect(days).toContainText(capitalize(longDayLabel(yesterday)));
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
+  await expect(days).toHaveCount(0);
+
+  // Back reopens the archives, as after any link.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/archives$/);
 });
 
 test("closes the archives to today's song when they were opened from a link", async ({ page }) => {

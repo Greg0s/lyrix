@@ -385,7 +385,6 @@ describe("the rules' page", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("button", { name: "Comment jouer" }).getAttribute("aria-current")).toBe("page");
 
-    // Closing is Back: the page's entry goes, the round's comes back.
     await toggleRules();
     await waitFor(() => expect(window.location.pathname).toBe("/"));
     expect(await screen.findByPlaceholderText("Propose un mot…")).toBeTruthy();
@@ -410,19 +409,20 @@ describe("the rules' page", () => {
     expect(window.location.pathname).toBe("/");
   });
 
-  it("closes to today's round when the player landed on it from a link", async () => {
+  it("closes to today's round when the player landed on it from a link, Back reopening it", async () => {
     window.history.replaceState(null, "", "/comment-jouer");
     await act(async () => {
       render(<GameScreen />);
     });
     expect(screen.getByRole("heading", { name: /^Comment on joue/ })).toBeTruthy();
-    const entries = window.history.length;
 
     await toggleRules();
     expect(await screen.findByPlaceholderText("Propose un mot…")).toBeTruthy();
     expect(window.location.pathname).toBe("/");
-    // In place of the page, not on top of it: Back doesn't bring the page back.
-    expect(window.history.length).toBe(entries);
+
+    await back();
+    expect(window.location.pathname).toBe("/comment-jouer");
+    expect(screen.getByRole("heading", { name: /^Comment on joue/ })).toBeTruthy();
   });
 
   it("keeps the round as it was, with no second round trip", async () => {
