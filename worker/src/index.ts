@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { dayStart, isDayKey, isPlayableDay, utcDay } from "../../src/game/daily";
 import type { GuessResult } from "../../src/game/types";
+import { freshRoundBody } from "./freshRound";
 import { buildRoundView, evaluateGuess, MAX_WORD_LENGTH, parseGuessWord, type RoundEnv } from "./round";
 import { roomRoutes, type RoomsEnv } from "./roomRoutes";
 import { getSongById, getSongOfDay } from "./songs";
@@ -53,7 +54,7 @@ app.get("/api/round", async (c) => {
   }
   const day = requested ?? utcDay();
   const song = await getSongOfDay(dayStart(day));
-  return c.json(await buildRoundView(song, [], c.env, day));
+  return c.body(await freshRoundBody(song, c.env, day), 200, { "Content-Type": "application/json" });
 });
 
 /** How many sealed states one resume may merge: a round's own, plus a room's (see POST /api/round/resume). */

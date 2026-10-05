@@ -135,6 +135,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
 /src
   main.tsx, App.tsx     # React entry point, top-level render of GameScreen
   routes.ts              # the screens' addresses: / (today), /archives, /archives/<day>, /comment-jouer
+  roundPrefetch.ts       # today's round, asked for by main.tsx before React renders (fresh loads only)
   roundStorage.ts        # localStorage, one round per day of the archives: state + tried words per day,
                           # today's view (instant reload), a summary index for the archives screen;
                           # deferred/idle writes, flushed on tab hide/close
@@ -215,6 +216,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   index.ts                  # Hono app: GET /api/round (?day= for an archived day), POST /api/round/resume
                             # (view from sealed states, merged), POST /api/guess, mounts /api/rooms; exports Room
   round.ts                    # checking a guess and building the masked view: shared by solo and rooms
+  freshRound.ts               # GET /api/round's body per song, day and config, built once per isolate
   room.ts, roomRoutes.ts      # the Room Durable Object (members, its day, a round per day, expiry alarm);
                               # /api/rooms routes
   catalog.ts                  # curated {id, artist, title} lists + dated schedule -> deterministic daily pick
@@ -233,7 +235,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   ensure-dev-vars.ts, check-catalog.ts, convert-embeddings.ts, build-similarity-table.ts,
   dev-debug.ts, inspect-similarity-table.ts, build-favicon.ts, graph-update.ts
   /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, debugMode.ts, devVars.ts, catalogAudit.ts,
-       favicon.ts, socialImage.ts, invitePage.ts (+ its Vite plugin), graphFixes.ts, graphSeed.ts
+       favicon.ts, socialImage.ts, invitePage.ts (+ its Vite plugin), apiPreconnect.ts (Vite plugin:
+       index.html preconnects to the API's origin in production), graphFixes.ts, graphSeed.ts
 /tests
   /unit/game, /unit/worker, /unit/scripts, /unit/storage, /unit/components, /unit/api, /unit/ci
   /e2e                        # Playwright; fixtures/similarity-table.json stands in for a built table

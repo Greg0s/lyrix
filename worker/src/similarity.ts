@@ -134,10 +134,14 @@ const KV_CACHE_TTL_SECONDS = 3600;
  * How long this isolate keeps a table it has already parsed. A production
  * table holds tens of thousands of entries, and JSON.parse of the whole thing
  * ran on *every* guess — by far the most expensive thing in the request path,
- * for a value that is the same for every player all day. Kept short enough
- * that re-uploading a table still takes effect the same session.
+ * for a value that is the same for every player all day. It was kept to five
+ * minutes so a re-uploaded table would show up quickly, but the KV read
+ * itself may be answered from the colo's cache for KV_CACHE_TTL_SECONDS (an
+ * hour) anyway: five minutes only meant re-parsing megabytes twelve times an
+ * hour per song and isolate, for a table that changes when a song joins the
+ * catalog, before anyone plays it.
  */
-const TABLE_MEMO_TTL_MS = 5 * 60 * 1000;
+export const TABLE_MEMO_TTL_MS = 30 * 60 * 1000;
 
 /**
  * A miss is remembered too, so a song with no table doesn't pay a KV read per
