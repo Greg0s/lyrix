@@ -394,3 +394,11 @@ Root cause: Chrome's scroll anchoring. Below 880px the card sits above the lyric
 ## 2026-10-03 — Header logo stayed tinted after a tap on a phone
 
 A tap leaves `:hover` on the tapped element until the next tap elsewhere. `global.css`'s `a:hover` (specificity 0,1,1) outranked `.lyrix-logo-link { color: inherit }` (0,1,0), so the wordmark kept the link-hover colour. Fixed by giving `.lyrix-logo-link:hover` the same `color: inherit`; pinned by `tests/unit/ci/logoLink.test.ts`. Any link meant to look like plain text needs its `:hover` overridden too (as `.lyrix-cover` does with two classes).
+
+## 2026-10-05 — A hung guess request froze the dock for good
+
+`submitGuess`/`submitRoomGuess` had no time limit, and `fetch` has none of its own: a request a phone's network leaves hanging never settles. `useGame` refuses a new guess while `submitting` is true, so the game silently stopped answering until a reload. Both now run under `withTimeout(GUESS_TIMEOUT_MS)` (`src/api/base.ts`, 10 s, the body read included), and a timeout lands as the dock's usual "Le mot n'a pas pu être envoyé" with the word kept. Regression tests: `tests/unit/api/timeout.test.ts` and "gives the dock back once the guess has timed out" (`tests/unit/components/gameScreen.test.tsx`).
+
+## 2026-10-05 — A per-isolate memo doesn't stop concurrent cold loads
+
+`getSongById` and `loadSimilarityTable` memoized their result, but only once it had landed: requests arriving together on a cold isolate (every player at UTC midnight) each ran the Cache API lookup and LRCLIB search, or the KV read and multi-megabyte `JSON.parse`, in parallel. Memoize the in-flight promise too, and drop it once settled so a failure is retried. Pinned by "searches LRCLIB once for requests that arrive together" (`guess.test.ts`) and "reads and parses the table once for guesses that arrive together" (`similarity.test.ts`).

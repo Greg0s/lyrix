@@ -8,7 +8,7 @@ import {
   type RoomRound,
 } from "../game/room";
 import type { RoundView } from "../game/types";
-import { apiUrl } from "./base";
+import { apiUrl, GUESS_TIMEOUT_MS, withTimeout } from "./base";
 
 /** Why creating or joining a room didn't work, as the player needs to hear it. */
 export type RoomFailure = "not-found" | "rate-limited" | "unavailable";
@@ -66,24 +66,23 @@ export function roomSocketUrl(code: string, token: string): string {
 
 /**
  * A guess for the whole room (issue #30). Throws, like submitGuess, when it
- * couldn't be checked: the dock says so and the player can try again.
+ * couldn't be checked, in time included: the dock says so and the player can
+ * try again.
  */
-export async function submitRoomGuess(
-  code: string,
-  token: string,
-  word: string,
-  day?: string
-): Promise<RoomGuessResult> {
-  const response = await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/guess`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    // The day it was typed for: the room may have moved on meanwhile (409).
-    body: JSON.stringify({ token, word, day }),
+export function submitRoomGuess(code: string, token: string, word: string, day?: string): Promise<RoomGuessResult> {
+  return withTimeout(GUESS_TIMEOUT_MS, async (signal) => {
+    const response = await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/guess`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // The day it was typed for: the room may have moved on meanwhile (409).
+      body: JSON.stringify({ token, word, day }),
+      signal,
+    });
+    const body: unknown = await response.json().catch(() => null);
+    const result = response.ok ? parseRoomGuessResult(body) : null;
+    if (!result) throw new Error(`room guess failed with status ${response.status}`);
+    return result;
   });
-  const body: unknown = await response.json().catch(() => null);
-  const result = response.ok ? parseRoomGuessResult(body) : null;
-  if (!result) throw new Error(`room guess failed with status ${response.status}`);
-  return result;
 }
 
 /**

@@ -9,3 +9,25 @@ export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 export function apiUrl(path: string): URL {
   return new URL(path, API_BASE || window.location.origin);
 }
+
+/**
+ * How long a guess may take before the player is told it couldn't be sent.
+ * A request a phone's flaky network leaves hanging never settles on its own,
+ * and the dock refuses a new guess while one is in flight: without a limit,
+ * the game would stop answering, without a word of why.
+ */
+export const GUESS_TIMEOUT_MS = 10_000;
+
+/**
+ * Runs `request` with a signal that aborts it after `ms`, reading its body
+ * included: the limit is lifted only once `request` has settled.
+ */
+export async function withTimeout<T>(ms: number, request: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new DOMException("request timed out", "TimeoutError")), ms);
+  try {
+    return await request(controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
