@@ -49,6 +49,14 @@ function roomEventText(change: RoomEvent, you: string): string {
 export const RECONNECT_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 15_000];
 /** Keeps an idle connection from being dropped along the way; answered without waking the room. */
 export const KEEPALIVE_MS = 25_000;
+/**
+ * How long a connection may stay silent when it owes an answer: the room's
+ * welcome after connecting (it always sends the room as it stands), or the
+ * pong to a keep-alive. A connection that died without closing (a phone
+ * changing networks, a laptop waking up) sends nothing and fires no close,
+ * and would otherwise pass for live while the room's news never arrives.
+ */
+export const SILENCE_TIMEOUT_MS = 10_000;
 
 /**
  * Rooms (issue #29), client side: creating, joining and leaving one, and the
@@ -84,6 +92,7 @@ export function useRoom(
     let socket: WebSocket | null = null;
     let retryTimer: number | undefined;
     let keepaliveTimer: number | undefined;
+    let silenceTimer: number | undefined;
     let attempt = 0;
     let disposed = false;
 
@@ -98,12 +107,44 @@ export function useRoom(
     const open = () => {
       const current = new WebSocket(roomSocketUrl(code, token));
       socket = current;
+      // Lost once, whichever noticed first: its close event, or the silence below.
+      let lost = false;
+
+      const retry = () => {
+        window.clearInterval(keepaliveTimer);
+        window.clearTimeout(silenceTimer);
+        silenceTimer = undefined;
+        setLinkDown(true);
+        retryTimer = window.setTimeout(open, RECONNECT_DELAYS_MS[Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)]);
+        attempt += 1;
+      };
+      // Armed while the connection owes an answer, disarmed by anything it sends.
+      const expectAnswer = () => {
+        if (silenceTimer !== undefined) return;
+        silenceTimer = window.setTimeout(() => {
+          silenceTimer = undefined;
+          if (lost || disposed) return;
+          lost = true;
+          // Its close event may never come, or only minutes later: not waited for.
+          current.close();
+          retry();
+        }, SILENCE_TIMEOUT_MS);
+      };
+      expectAnswer();
+
       current.addEventListener("open", () => {
         attempt = 0;
         setLinkDown(false);
-        keepaliveTimer = window.setInterval(() => current.send(ROOM_PING), KEEPALIVE_MS);
+        keepaliveTimer = window.setInterval(() => {
+          current.send(ROOM_PING);
+          expectAnswer();
+        }, KEEPALIVE_MS);
       });
       current.addEventListener("message", (event: MessageEvent<unknown>) => {
+        // A connection given up on has no say anymore, even if it wakes up.
+        if (lost) return;
+        window.clearTimeout(silenceTimer);
+        silenceTimer = undefined;
         if (disposed || typeof event.data !== "string" || event.data === ROOM_PONG) return;
         let data: unknown;
         try {
@@ -124,15 +165,17 @@ export function useRoom(
         if (change && change.member.id !== you) announce(roomEventText(change, you));
       });
       current.addEventListener("close", (event) => {
+        if (lost) return;
+        lost = true;
         window.clearInterval(keepaliveTimer);
+        window.clearTimeout(silenceTimer);
+        silenceTimer = undefined;
         if (disposed) return;
         if (event.code === ROOM_CLOSE_EXPIRED) return end("Le salon a expiré avec la chanson du jour.");
         if (event.code === ROOM_CLOSE_UNKNOWN) return end("Ce salon n’existe plus.");
         // Left from another tab: this one just follows.
         if (event.code === ROOM_CLOSE_LEFT) return end();
-        setLinkDown(true);
-        retryTimer = window.setTimeout(open, RECONNECT_DELAYS_MS[Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)]);
-        attempt += 1;
+        retry();
       });
     };
 
@@ -141,6 +184,7 @@ export function useRoom(
       disposed = true;
       window.clearTimeout(retryTimer);
       window.clearInterval(keepaliveTimer);
+      window.clearTimeout(silenceTimer);
       socket?.close(1000, "done");
     };
   }, [code, token, you, announce, onRound]);

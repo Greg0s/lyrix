@@ -242,6 +242,23 @@ describe("a day of the archives", () => {
     expect(fetchRound).toHaveBeenCalledWith(expect.anything(), DAY);
   });
 
+  // Starting afresh there would have overwritten the day's progress with the
+  // next guess: a state the Worker couldn't be asked about isn't a stale one.
+  it("offers to try again, its progress kept, when the Worker takes too long to resume it", async () => {
+    saveRound(answer(DAY, "vent", true, "saved-state"), [{ key: "vent", display: "vent", found: true, score: 100, near: [] }]);
+    resumeRound.mockRejectedValue(new DOMException("request timed out", "TimeoutError"));
+    await mount(`/archives/${DAY}`);
+
+    await screen.findByText("Impossible de charger la partie.");
+    expect(fetchRound).not.toHaveBeenCalledWith(expect.anything(), DAY);
+
+    resumeRound.mockResolvedValue(round(DAY, "resumed-state"));
+    fireEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+    await screen.findByPlaceholderText("Propose un mot…");
+    expect(resumeRound).toHaveBeenLastCalledWith(["saved-state"], DAY, expect.anything());
+    expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy();
+  });
+
   it("once won, says when it was and offers the next day still to find", async () => {
     await mount(`/archives/${DAY}`);
     submitGuess.mockResolvedValueOnce(won(DAY, "novembre"));

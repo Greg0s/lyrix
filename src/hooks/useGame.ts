@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isNetworkFailure } from "../api/base";
 import { fetchRound, resumeRound, submitGuess } from "../api/client";
 import { continueAlone, submitRoomGuess } from "../api/rooms";
 import { utcDay } from "../game/daily";
@@ -248,7 +249,9 @@ function isAbort(error: unknown): boolean {
  * A day's round and the words tried on it: from its saved state when it was
  * played before (the Worker rebuilds the view), fresh otherwise. A saved
  * state the Worker no longer opens starts the day afresh rather than lock
- * the player out of it.
+ * the player out of it. One it couldn't be asked about (offline, or too slow
+ * to answer) is a failed load instead, retried as is: starting afresh then
+ * would have overwritten the day's progress with the next guess.
  */
 async function fetchDay(day: string | null, signal: AbortSignal): Promise<{ round: RoundView; triedWords: TriedWord[] }> {
   const saved = loadSavedDay(day ?? utcDay());
@@ -256,7 +259,7 @@ async function fetchDay(day: string | null, signal: AbortSignal): Promise<{ roun
     try {
       return { round: await resumeRound([saved.state], day ?? utcDay(), signal), triedWords: saved.triedWords };
     } catch (error) {
-      if (isAbort(error)) throw error;
+      if (isAbort(error) || isNetworkFailure(error)) throw error;
     }
   }
   const round = await fetchRound(signal, day ?? undefined);
@@ -566,9 +569,9 @@ export function useGame(day: string | null = null) {
         try {
           merged = await resumeRound(own ? [own.state, snapshot.state] : [snapshot.state], snapshot.day);
         } catch (error) {
-          // Offline: tried again on the next visit. Refused (a state the
-          // Worker no longer opens): nothing to merge, ever.
-          if (!(error instanceof TypeError)) clearGroupSnapshot(snapshot);
+          // Offline or too slow: tried again on the next visit. Refused (a
+          // state the Worker no longer opens): nothing to merge, ever.
+          if (!isNetworkFailure(error)) clearGroupSnapshot(snapshot);
           continue;
         }
         const triedWords = withGroupFinds(own?.triedWords ?? [], snapshot.found);

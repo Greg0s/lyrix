@@ -6,6 +6,7 @@ import {
   ROOM_CLOSE_LEFT,
   ROOM_CLOSE_UNKNOWN,
   ROOM_PING,
+  ROOM_PONG,
   type RoomEntry,
   type RoomGuess,
   type RoomGuessResult,
@@ -43,7 +44,7 @@ const submitGuess = vi.hoisted(() => vi.fn());
 vi.mock("../../../src/api/client", () => ({ fetchRound, resumeRound, submitGuess }));
 
 const { GameScreen } = await import("../../../src/components/GameScreen");
-const { KEEPALIVE_MS, RECONNECT_DELAYS_MS } = await import("../../../src/hooks/useRoom");
+const { KEEPALIVE_MS, RECONNECT_DELAYS_MS, SILENCE_TIMEOUT_MS } = await import("../../../src/hooks/useRoom");
 
 const SOCKET_OPEN = 1;
 const SOCKET_CLOSED = 3;
@@ -309,6 +310,62 @@ describe("the room's connection", () => {
     act(() => vi.advanceTimersByTime(KEEPALIVE_MS));
 
     expect(latestSocket().sent).toEqual([ROOM_PING]);
+  });
+
+  // A connection that died without closing (a phone changing networks) fires
+  // no close event: it used to pass for live for good, the room's news lost.
+  it("is given up on and retried when a keep-alive goes unanswered", async () => {
+    seedRoom();
+    await mountGame();
+    vi.useFakeTimers();
+    latestSocket().open();
+
+    act(() => vi.advanceTimersByTime(KEEPALIVE_MS + SILENCE_TIMEOUT_MS - 1));
+    expect(latestSocket().readyState).toBe(SOCKET_OPEN);
+    expect(roomCard()?.textContent).not.toContain("Connexion au salon perdue");
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(latestSocket().readyState).toBe(SOCKET_CLOSED);
+    expect(roomCard()?.textContent).toContain("Connexion au salon perdue");
+    act(() => vi.advanceTimersByTime(RECONNECT_DELAYS_MS[0]));
+    expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
+  it("is kept while it answers its keep-alives", async () => {
+    seedRoom();
+    await mountGame();
+    vi.useFakeTimers();
+    const socket = latestSocket();
+    socket.open();
+
+    for (let ping = 0; ping < 3; ping += 1) {
+      act(() => vi.advanceTimersByTime(KEEPALIVE_MS));
+      act(() => {
+        socket.dispatchEvent(new MessageEvent("message", { data: ROOM_PONG }));
+      });
+    }
+    act(() => vi.advanceTimersByTime(SILENCE_TIMEOUT_MS));
+
+    expect(socket.sent).toEqual([ROOM_PING, ROOM_PING, ROOM_PING]);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(roomCard()?.textContent).not.toContain("Connexion au salon perdue");
+  });
+
+  it("tries again when a reconnection never gets an answer", async () => {
+    seedRoom();
+    await mountGame();
+    latestSocket().open();
+    vi.useFakeTimers();
+
+    latestSocket().drop(1006);
+    act(() => vi.advanceTimersByTime(RECONNECT_DELAYS_MS[0]));
+    expect(FakeWebSocket.instances).toHaveLength(2);
+
+    // Neither opened nor closed: a handshake lost on the way.
+    act(() => vi.advanceTimersByTime(SILENCE_TIMEOUT_MS));
+    expect(latestSocket().readyState).toBe(SOCKET_CLOSED);
+    act(() => vi.advanceTimersByTime(RECONNECT_DELAYS_MS[1]));
+    expect(FakeWebSocket.instances).toHaveLength(3);
   });
 
   it("ends the room for good once it has expired, and says so", async () => {
@@ -875,9 +932,12 @@ describe("the room's round (#30)", () => {
     expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy();
   });
 
-  it("keeps the group's progress for later when the Worker can't be reached", async () => {
+  it.each([
+    ["can't be reached", new TypeError("Failed to fetch")],
+    ["takes too long to answer", new DOMException("request timed out", "TimeoutError")],
+  ])("keeps the group's progress for later when the Worker %s", async (_case, failure) => {
     answer(204);
-    resumeRound.mockRejectedValue(new TypeError("Failed to fetch"));
+    resumeRound.mockRejectedValue(failure);
     seedRoom();
     await mountGame([roomGuess("vent", leo, true)]);
 
