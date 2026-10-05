@@ -282,6 +282,8 @@ interface PendingWrite {
 }
 
 const pendingWrites = new Map<string, PendingWrite>();
+/** Rooms' progress waiting to be written, by storage key: see saveGroupSnapshotSoon. */
+const pendingSnapshots = new Map<string, { snapshot: GroupSnapshot; storage: Storage }>();
 let cancelScheduled: (() => void) | null = null;
 let flushOnHideRegistered = false;
 
@@ -303,6 +305,13 @@ export function flushSavedRound(): void {
   const pending = [...pendingWrites.values()];
   pendingWrites.clear();
   for (const write of pending) saveRound(write.round, write.triedWords, write.storage);
+  writePendingSnapshots();
+}
+
+function writePendingSnapshots(): void {
+  const snapshots = [...pendingSnapshots.values()];
+  pendingSnapshots.clear();
+  for (const { snapshot, storage } of snapshots) saveGroupSnapshot(snapshot, storage);
 }
 
 function registerFlushOnHide(): void {
@@ -359,7 +368,6 @@ function parseGroupSnapshot(value: unknown): GroupSnapshot | null {
   return { day: candidate.day, code: candidate.code, state: candidate.state, found };
 }
 
-// Small (a state and a few words) and once per room event: written inline.
 export function saveGroupSnapshot(snapshot: GroupSnapshot, storage: Storage | undefined = globalThis.localStorage): void {
   try {
     storage?.setItem(groupKey(snapshot.day, snapshot.code), JSON.stringify(snapshot));
@@ -368,10 +376,28 @@ export function saveGroupSnapshot(snapshot: GroupSnapshot, storage: Storage | un
   }
 }
 
+/**
+ * Same as saveGroupSnapshot, off the critical path, like saveRoundSoon: it is
+ * written on every message of the room's (each guess of every member), right
+ * when that guess is being drawn. The newest call per day and room wins;
+ * flushSavedRound writes it early, and so does reading the snapshots back.
+ */
+export function saveGroupSnapshotSoon(
+  snapshot: GroupSnapshot,
+  storage: Storage | undefined = globalThis.localStorage
+): void {
+  if (!storage) return;
+  registerFlushOnHide();
+  pendingSnapshots.set(groupKey(snapshot.day, snapshot.code), { snapshot, storage });
+  cancelScheduled ??= schedule(flushSavedRound);
+}
+
 export function clearGroupSnapshot(
   snapshot: Pick<GroupSnapshot, "day" | "code">,
   storage: Storage | undefined = globalThis.localStorage
 ): void {
+  // A write still pending would bring it back.
+  pendingSnapshots.delete(groupKey(snapshot.day, snapshot.code));
   try {
     storage?.removeItem(groupKey(snapshot.day, snapshot.code));
   } catch {
@@ -385,6 +411,9 @@ export function loadGroupSnapshots(
   now: Date = new Date()
 ): GroupSnapshot[] {
   if (!storage) return [];
+  // A room's latest progress may still be waiting to be written. Only that:
+  // the rounds' own writes keep waiting for their turn.
+  writePendingSnapshots();
   try {
     tidyOnce(storage, now);
     const snapshots: GroupSnapshot[] = [];
