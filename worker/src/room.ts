@@ -21,6 +21,7 @@ import {
 } from "../../src/game/room";
 import { dayStart, isPlayableDay, utcDay } from "../../src/game/daily";
 import { buildTitleView, isVictory } from "../../src/game/mask";
+import { normalize } from "../../src/game/normalize";
 import { revealedPercent } from "../../src/game/progress";
 import type { RoundView, Song } from "../../src/game/types";
 import { buildRoundView, evaluateGuess, MAX_WORD_LENGTH, parseGuessWord, type RoundEnv } from "./round";
@@ -185,6 +186,10 @@ export class Room {
   #room: RoomRecord | null | undefined;
   // The rounds read or pinned so far, by day.
   readonly #rounds = new Map<string, RoundRecord>();
+  // The last view built of each round, and how many guesses it was built at:
+  // a duplicate guess, a (re)connection or a move to a day already played
+  // answers with it rather than mask the whole song and seal a state again.
+  readonly #views = new WeakMap<RoundRecord, { guesses: number; view: RoundView }>();
 
   constructor(
     private readonly ctx: RoomContext,
@@ -349,11 +354,18 @@ export class Room {
       return json({ error: "the song is unavailable, try again" }, 503);
     }
     const { round, song } = loaded;
+    // A word someone already proposed changes nothing: answered before any
+    // work on it, the similarity lookup included.
+    const proposed = round.guesses.find((guess) => guess.key === normalize(trimmed));
+    if (proposed) {
+      const result: RoomGuessResult = { ...(await this.#roundOf(room, round, song)), guess: proposed, duplicate: true };
+      return json(result, 200);
+    }
     const outcome = await evaluateGuess(this.env, song, foundKeys(round), trimmed);
 
-    // Checked only now, with nothing awaited between here and the write below:
-    // the song and the similarity table are awaited above, and another guess
-    // of the same word could have landed meanwhile.
+    // Checked again now, with nothing awaited between here and the write below:
+    // the similarity table is awaited above, and another guess of the same
+    // word could have landed meanwhile.
     const earlier = round.guesses.find((guess) => guess.key === outcome.key);
     if (earlier) {
       const result: RoomGuessResult = { ...(await this.#roundOf(room, round, song)), guess: earlier, duplicate: true };
@@ -364,7 +376,9 @@ export class Room {
     const wonBefore = isVictory(song, foundKeys(round));
     round.guesses.unshift(guess);
     if (!wonBefore && isVictory(song, foundKeys(round))) round.winningKey = guess.key;
+    const guesses = round.guesses.length;
     const view = await buildRoundView(song, foundKeys(round), this.env, roundDay(round));
+    this.#views.set(round, { guesses, view });
     this.#summarizeFrom(round, song, view);
     await this.ctx.storage.put(roundKey(roundDay(round)), round);
 
@@ -476,7 +490,18 @@ export class Room {
    * and none of them may cost a pass over its song each time.
    */
   async #summarize(round: RoundRecord, song: Song): Promise<void> {
-    this.#summarizeFrom(round, song, await buildRoundView(song, foundKeys(round), this.env, roundDay(round)));
+    this.#summarizeFrom(round, song, await this.#viewOf(round, song));
+  }
+
+  /** The room's view of a round as it stands, built again only once a guess has changed it. */
+  async #viewOf(round: RoundRecord, song: Song): Promise<RoundView> {
+    const last = this.#views.get(round);
+    const guesses = round.guesses.length;
+    if (last && last.guesses === guesses) return last.view;
+    // Counted before the await: a guess landing meanwhile makes this view stale, not current.
+    const view = await buildRoundView(song, foundKeys(round), this.env, roundDay(round));
+    this.#views.set(round, { guesses, view });
+    return view;
   }
 
   /** The same, from the round's view already built: a guess builds it once, for its answer and for this. */
@@ -527,7 +552,7 @@ export class Room {
 
   async #roundOf(room: RoomRecord, round: RoundRecord, song: Song, view?: RoundView): Promise<RoomRound> {
     return {
-      round: view ?? (await buildRoundView(song, foundKeys(round), this.env, roundDay(round))),
+      round: view ?? (await this.#viewOf(round, song)),
       guesses: round.guesses,
       ...(round.winningKey !== undefined ? { winningKey: round.winningKey } : {}),
       days: await this.#summaries(room),
