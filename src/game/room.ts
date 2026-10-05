@@ -220,6 +220,24 @@ export function generateRoomCode(randomBytes: (count: number) => Uint8Array = cr
 }
 
 /**
+ * Names one browser tab's connection to its room (issue #30's guesses): the
+ * tab sends it when it opens its socket and with each guess, and the room
+ * leaves that socket out of the guess's broadcast, since the guess's own
+ * answer already carries the very same round. Drawn once per page load, so
+ * it outlives a reconnection; random, so it can't be aimed at anyone else's
+ * tab (and only ever spares a socket of the member who sent it).
+ */
+export const TAB_ID_PATTERN = /^[0-9a-f]{32}$/;
+
+export function generateTabId(randomBytes: (count: number) => Uint8Array = cryptoBytes): string {
+  return Array.from(randomBytes(16), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export function isTabId(value: unknown): value is string {
+  return typeof value === "string" && TAB_ID_PATTERN.test(value);
+}
+
+/**
  * A pseudo as everyone else will see it: NFC, letters, digits, spaces and
  * `' ’ - _ .` only, runs of whitespace collapsed, at most PSEUDO_MAX_LENGTH
  * characters. Everything else goes, in particular control and invisible

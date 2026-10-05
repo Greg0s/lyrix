@@ -9,10 +9,10 @@ import { generateRoomCode, isRoomCode } from "../../src/game/room";
  *   POST /api/rooms                    create a room; the creator is its host -> RoomEntry
  *   POST /api/rooms/:code/members      join one                               -> RoomEntry
  *   POST /api/rooms/:code/leave        leave it (body: { token })             -> 204
- *   POST /api/rooms/:code/guess        guess for the room's day (body: { token, word, day? }) -> RoomGuessResult
+ *   POST /api/rooms/:code/guess        guess for the room's day (body: { token, word, day?, tab? }) -> RoomGuessResult
  *   POST /api/rooms/:code/alone        once the room has won, keep looking alone (body: { token, state?, day? }) -> RoundView
  *   POST /api/rooms/:code/day          take the whole room to another day's song (body: { token, day }) -> RoomRound
- *   GET  /api/rooms/:code/ws?token=    the member's live connection (WebSocket)
+ *   GET  /api/rooms/:code/ws?token=&tab=  the member's live connection (WebSocket)
  */
 
 /** The part of the Workers Rate Limiting binding used here. */
@@ -125,8 +125,8 @@ roomRoutes.post("/:code/leave", async (c) => {
 roomRoutes.post("/:code/guess", async (c) => {
   const code = c.req.param("code");
   if (!isRoomCode(code)) return c.json({ error: "not a member of a live room" }, 404);
-  const { token, word, day } = await readBody(c);
-  return roomStub(c.env, code).fetch(internalPost("/guess", { token, word, day }));
+  const { token, word, day, tab } = await readBody(c);
+  return roomStub(c.env, code).fetch(internalPost("/guess", { token, word, day, tab }));
 });
 
 // Takes the whole room to another day's song (#B). Same shape as /guess: a
@@ -155,9 +155,10 @@ roomRoutes.get("/:code/ws", async (c) => {
   }
   const code = c.req.param("code");
   if (!isRoomCode(code)) return c.json({ error: "no such room" }, 404);
-  const token = c.req.query("token") ?? "";
+  const connect = new URL("https://room/connect");
+  connect.searchParams.set("token", c.req.query("token") ?? "");
+  const tab = c.req.query("tab");
+  if (tab !== undefined) connect.searchParams.set("tab", tab);
   // The original request carries the upgrade headers the object needs.
-  return roomStub(c.env, code).fetch(
-    new Request(`https://room/connect?token=${encodeURIComponent(token)}`, c.req.raw)
-  );
+  return roomStub(c.env, code).fetch(new Request(connect, c.req.raw));
 });

@@ -94,10 +94,16 @@ class FakeSocket implements RoomSocket {
 /** A Durable Object's state, in memory: storage (cloned in and out, like the real one), an alarm, and hibernatable sockets. */
 class FakeState implements RoomContext {
   readonly store = new Map<string, unknown>();
+  /** Every storage read, in order: a key, or the keys of one batched read. */
+  readonly reads: (string | string[])[] = [];
   alarm: number | null = null;
   readonly sockets: { ws: RoomSocket; tags: string[] }[] = [];
   readonly storage = {
-    get: async <T>(key: string): Promise<T | undefined> => structuredClone(this.store.get(key)) as T | undefined,
+    get: (async (keys: string | string[]) => {
+      this.reads.push(keys);
+      if (typeof keys === "string") return structuredClone(this.store.get(keys));
+      return new Map(keys.filter((key) => this.store.has(key)).map((key) => [key, structuredClone(this.store.get(key))]));
+    }) as RoomContext["storage"]["get"],
     put: async <T>(key: string, value: T): Promise<void> => {
       this.store.set(key, structuredClone(value));
     },
@@ -955,5 +961,104 @@ describe("the day a room plays", () => {
     await fresh.admit(freshSocket, host.token);
     expect(freshSocket.lastRound().guesses.map((guess) => guess.key)).toEqual(["vent"]);
     expect(freshSocket.lastRound().round.day).toBe(TODAY);
+  });
+
+  // The group's collection rides along with every guess: once the object woke
+  // from hibernation, each other day's round used to be read on its own, one
+  // await after the other, and read again on the next guess.
+  it("reads the other days' rounds in one storage call after a wake, and not again", async () => {
+    const host = await createRoom("Camille");
+    await connect(host);
+    await guessIn(host, "refuge");
+    await setDay(host, ARCHIVED);
+    await guessIn(host, "refuge");
+    await setDay(host, "2026-09-21");
+    await guessIn(host, "refuge");
+    await setDay(host, TODAY);
+
+    const state = rooms.state(host.room.code);
+    // A fresh object, as after hibernation: nothing in memory.
+    const room = new Room(state, env);
+    const guess = (word: string) =>
+      room.fetch(
+        new Request("https://room/guess", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token: host.token, word }),
+        })
+      );
+
+    state.reads.length = 0;
+    expect((await guess("vent")).status).toBe(200);
+    const roundReads = state.reads.filter((read) => Array.isArray(read) || read.startsWith("round"));
+    expect(roundReads).toEqual([`round:${TODAY}`, [`round:${ARCHIVED}`, "round:2026-09-21"]]);
+
+    state.reads.length = 0;
+    const second = await guess("porte");
+    expect(second.status).toBe(200);
+    expect(state.reads).toEqual([]);
+    const result = parseRoomGuessResult(await second.json());
+    expect(result?.days?.map((summary) => summary.day)).toEqual([TODAY, ARCHIVED, "2026-09-21"]);
+  });
+});
+
+// A guess's answer and its broadcast carry the same round, the largest thing
+// a room sends: the tab that guessed used to receive it twice.
+describe("a guess's broadcast", () => {
+  const TAB = "a".repeat(32);
+  const OTHER_TAB = "b".repeat(32);
+
+  async function connectTab(entry: RoomEntry, tab: string): Promise<FakeSocket> {
+    const socket = new FakeSocket();
+    await rooms.room(entry.room.code).admit(socket, entry.token, tab);
+    return socket;
+  }
+
+  function guessFrom(entry: RoomEntry, word: string, tab: string): Promise<Response> {
+    return post(`/api/rooms/${entry.room.code}/guess`, { token: entry.token, word, tab });
+  }
+
+  it("spares the tab that guessed, whose answer carries the round, but not the member's other tabs", async () => {
+    const host = await createRoom("Camille");
+    const guessing = await connectTab(host, TAB);
+    const otherTab = await connectTab(host, OTHER_TAB);
+    const guest = await joinRoom(host.room.code, "Léo");
+    const guestSocket = await connect(guest);
+    const before = guessing.rounds().length;
+
+    const response = await guessFrom(host, "vent", TAB);
+
+    expect(response.status).toBe(200);
+    expect(revealed(parseRoomGuessResult(await response.json())?.round ?? ({} as RoundView))).toContain("vent");
+    expect(guessing.rounds()).toHaveLength(before);
+    for (const socket of [otherTab, guestSocket]) expect(socket.lastRound().latest).toBe("vent");
+  });
+
+  it("never spares another member's tab, whatever tab a guess names", async () => {
+    const host = await createRoom("Camille");
+    const hostSocket = await connectTab(host, TAB);
+    const guest = await joinRoom(host.room.code, "Léo");
+    await connectTab(guest, OTHER_TAB);
+
+    expect((await guessFrom(guest, "vent", TAB)).status).toBe(200);
+    expect(hostSocket.lastRound().latest).toBe("vent");
+  });
+
+  it("reaches every tab of a client that names none", async () => {
+    const host = await createRoom("Camille");
+    const socket = await connectTab(host, TAB);
+
+    await guessIn(host, "vent");
+    expect(socket.lastRound().latest).toBe("vent");
+  });
+
+  it("carries the tab through the Worker's socket route", async () => {
+    const host = await createRoom("Camille");
+    // The upgrade itself needs the Workers runtime (WebSocketPair): only what reaches the object counts here.
+    await Promise.resolve(
+      app.request(`/api/rooms/${host.room.code}/ws?token=t&tab=${TAB}`, { headers: { Upgrade: "websocket" } }, env)
+    ).catch(() => {});
+    const forwarded = rooms.requests.at(-1);
+    expect(forwarded && new URL(forwarded.url).searchParams.get("tab")).toBe(TAB);
   });
 });

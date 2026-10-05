@@ -1,4 +1,5 @@
 import {
+  generateTabId,
   isRoundView,
   parseRoomEntry,
   parseRoomGuessResult,
@@ -9,6 +10,9 @@ import {
 } from "../game/room";
 import type { RoundView } from "../game/types";
 import { apiUrl, GUESS_TIMEOUT_MS, ROOM_ENTRY_TIMEOUT_MS, withTimeout } from "./base";
+
+/** This page's tab, as its room tells its connections apart (see generateTabId). */
+const TAB_ID = generateTabId();
 
 /** Why creating or joining a room didn't work, as the player needs to hear it. */
 export type RoomFailure = "not-found" | "rate-limited" | "unavailable";
@@ -64,6 +68,7 @@ export function roomSocketUrl(code: string, token: string): string {
   const url = apiUrl(`/api/rooms/${encodeURIComponent(code)}/ws`);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.searchParams.set("token", token);
+  url.searchParams.set("tab", TAB_ID);
   return url.toString();
 }
 
@@ -78,7 +83,8 @@ export function submitRoomGuess(code: string, token: string, word: string, day?:
       method: "POST",
       headers: { "Content-Type": "application/json" },
       // The day it was typed for: the room may have moved on meanwhile (409).
-      body: JSON.stringify({ token, word, day }),
+      // The tab: its socket is spared the broadcast this answer already carries.
+      body: JSON.stringify({ token, word, day, tab: TAB_ID }),
       signal,
     });
     const body: unknown = await response.json().catch(() => null);
