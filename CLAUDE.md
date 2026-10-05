@@ -215,6 +215,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   index.ts                  # Hono app: GET /api/round (?day= for an archived day), POST /api/round/resume
                             # (view from sealed states, merged), POST /api/guess, mounts /api/rooms; exports Room
   round.ts                    # checking a guess and building the masked view: shared by solo and rooms
+  freshRound.ts               # GET /api/round's body per song, day and config, built once per isolate
   room.ts, roomRoutes.ts      # the Room Durable Object (members, its day, a round per day, expiry alarm);
                               # /api/rooms routes
   catalog.ts                  # curated {id, artist, title} lists + dated schedule -> deterministic daily pick

@@ -5,6 +5,7 @@ import { tokenize } from "../../../src/game/tokenize";
 import type { DisplayToken, GuessResult, RoundView, Song } from "../../../src/game/types";
 import { ARCHIVE_DAYS, archiveDays } from "../../../src/game/daily";
 import { pickDailyEntry } from "../../../worker/src/catalog";
+import { resetFreshRoundMemo } from "../../../worker/src/freshRound";
 import app from "../../../worker/src/index";
 import { resetSimilarityMemo, SIMILARITY_TABLE_VERSION, type SimilarityKv } from "../../../worker/src/similarity";
 import { getSongById, resetSongMemo } from "../../../worker/src/songs";
@@ -77,6 +78,7 @@ beforeEach(() => {
   // song and count none.
   resetSongMemo();
   resetSimilarityMemo();
+  resetFreshRoundMemo();
 });
 
 afterEach(() => {
@@ -148,6 +150,33 @@ describe("GET /api/round", () => {
     const first = await getRound();
     const second = await getRound();
     expect(await songIdOf(second)).toBe(await songIdOf(first));
+  });
+
+  // Every first visit of the day used to mask the whole song and seal a state
+  // again, for a round that is the same for every player.
+  it("builds the day's fresh round once, then serves it as is", async () => {
+    const first = await getRound();
+    const sealed = vi.spyOn(crypto.subtle, "encrypt");
+
+    const again = await getRound();
+
+    expect(sealed).not.toHaveBeenCalled();
+    expect(again).toEqual(first);
+    // Still a state the Worker opens, for a round with nothing found.
+    expect((await openState(again.state, env.STATE_SECRET))?.foundKeys).toEqual([]);
+    sealed.mockRestore();
+  });
+
+  it("keeps the fresh round of each configuration apart", async () => {
+    const withHints = await app.request("/api/round", {}, { ...env, DEV_REVEAL_LYRICS: "1" });
+    const plain = await getRound();
+    const otherSecret = await app.request("/api/round", {}, { STATE_SECRET: "another-secret" });
+
+    expect(JSON.stringify(await withHints.json())).toContain("devHint");
+    expect(JSON.stringify(plain)).not.toContain("devHint");
+    const { state } = (await otherSecret.json()) as RoundView;
+    expect(await openState(state, "another-secret")).not.toBeNull();
+    expect(await openState(state, env.STATE_SECRET)).toBeNull();
   });
 
   // At UTC midnight every player asks for the new song at once, and a cold
