@@ -172,9 +172,19 @@ const MAX_MEMOIZED_TABLES = 8;
 /** By song id, least recently used first (a Map iterates in insertion order, and a hit is re-inserted). */
 const memoized = new Map<string, MemoizedTable>();
 
+/**
+ * Tables being read and parsed right now, by song and configuration. Guesses
+ * arriving together on a cold isolate (or just after a table's memo expired)
+ * used to each read the whole table from KV and JSON.parse it - megabytes,
+ * the most expensive step there is - all for the same result. They now wait
+ * for the first one's.
+ */
+const reading = new Map<string, Promise<SimilarityTable | null>>();
+
 /** Drops the isolate's parsed tables, and what it has already said about them. For tests; production relies on the TTLs above. */
 export function resetSimilarityMemo(): void {
   memoized.clear();
+  reading.clear();
   announcedTables.clear();
 }
 
@@ -244,15 +254,26 @@ export async function loadSimilarityTable(env: SimilarityEnv, song: Song): Promi
   const hit = memoizedFor(env, song, now);
   if (hit) return hit.table;
 
-  const table = await readTable(env, song);
-  remember({
-    bound: env.SIMILARITY !== undefined,
-    sample: env.SIMILARITY_SAMPLE === "1",
-    songId: song.id,
-    table,
-    expiresAt: now + (table ? TABLE_MEMO_TTL_MS : MISS_MEMO_TTL_MS),
+  const bound = env.SIMILARITY !== undefined;
+  const sample = env.SIMILARITY_SAMPLE === "1";
+  const readingKey = `${song.id}|${bound}|${sample}`;
+  const pending = reading.get(readingKey);
+  if (pending) return pending;
+
+  // readTable never throws, so neither does this.
+  const read = readTable(env, song).then((table) => {
+    remember({
+      bound,
+      sample,
+      songId: song.id,
+      table,
+      expiresAt: now + (table ? TABLE_MEMO_TTL_MS : MISS_MEMO_TTL_MS),
+    });
+    return table;
   });
-  return table;
+  const shared = read.finally(() => reading.delete(readingKey));
+  reading.set(readingKey, shared);
+  return shared;
 }
 
 /** `null` for a word the table doesn't cover, so the UI can tell "far away" from "unknown word". */
