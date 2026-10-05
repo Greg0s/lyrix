@@ -161,6 +161,30 @@ describe("the archives screen", () => {
     expect(await screen.findByRole("heading", { name: "Les 30 derniers jours" })).toBeTruthy();
   });
 
+  it("closes from the header's button, back to the round the player came from", async () => {
+    await mount(`/archives/${DAY}`);
+    await screen.findByText("Samedi 26 septembre");
+    await openArchives();
+
+    await act(async () => {
+      const popped = new Promise((resolve) => window.addEventListener("popstate", resolve, { once: true }));
+      fireEvent.click(screen.getByRole("button", { name: "Archives" }));
+      await popped;
+    });
+    expect(window.location.pathname).toBe(`/archives/${DAY}`);
+    expect(await screen.findByText("Samedi 26 septembre")).toBeTruthy();
+  });
+
+  it("closes to today's song when the player landed on it from a link", async () => {
+    await mount("/archives");
+    await screen.findByRole("heading", { name: "Les 30 derniers jours" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Archives" }));
+    });
+    expect(window.location.pathname).toBe("/");
+    expect(await screen.findByPlaceholderText("Propose un mot…")).toBeTruthy();
+  });
+
   it("turns an address it doesn't serve into the archives", async () => {
     await mount("/archives/2026-09-11");
     expect(await screen.findByRole("heading", { name: "Les 30 derniers jours" })).toBeTruthy();

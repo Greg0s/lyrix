@@ -359,18 +359,96 @@ describe("the Valider button", () => {
   });
 });
 
-describe("the dialogs (v3 header)", () => {
-  it("opens the rules without re-rendering a single lyrics token, and gives the input back on Escape", async () => {
-    const input = await mountGame();
+describe("the rules' page", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Comment jouer" }));
-    expect(screen.getByRole("dialog", { name: "Comment on joue ?" })).toBeTruthy();
-    expect(wordTokenRenders.count).toBe(0);
+  async function toggleRules(): Promise<void> {
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Comment jouer" }));
+    });
+  }
+
+  async function back(): Promise<void> {
+    await act(async () => {
+      const popped = new Promise((resolve) => window.addEventListener("popstate", resolve, { once: true }));
+      window.history.back();
+      await popped;
+    });
+  }
+
+  it("opens at its own address from the header, which says so, and closes from the same button", async () => {
+    await mountGame();
+
+    await toggleRules();
+    expect(window.location.pathname).toBe("/comment-jouer");
+    expect(screen.getByRole("heading", { name: /^Comment on joue/ })).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "Comment jouer" }).getAttribute("aria-current")).toBe("page");
+
+    // Closing is Back: the page's entry goes, the round's comes back.
+    await toggleRules();
+    await waitFor(() => expect(window.location.pathname).toBe("/"));
+    expect(await screen.findByPlaceholderText("Propose un mot…")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Comment jouer" }).getAttribute("aria-current")).toBeNull();
+  });
+
+  it("closes from its own button too", async () => {
+    await mountGame();
+    await toggleRules();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "C'est parti" }));
+    });
+    expect(await screen.findByPlaceholderText("Propose un mot…")).toBeTruthy();
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("follows the browser's Back to the round", async () => {
+    await mountGame();
+    await toggleRules();
+    await back();
+    expect(await screen.findByPlaceholderText("Propose un mot…")).toBeTruthy();
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("closes to today's round when the player landed on it from a link", async () => {
+    window.history.replaceState(null, "", "/comment-jouer");
+    await act(async () => {
+      render(<GameScreen />);
+    });
+    expect(screen.getByRole("heading", { name: /^Comment on joue/ })).toBeTruthy();
+    const entries = window.history.length;
+
+    await toggleRules();
+    expect(await screen.findByPlaceholderText("Propose un mot…")).toBeTruthy();
+    expect(window.location.pathname).toBe("/");
+    // In place of the page, not on top of it: Back doesn't bring the page back.
+    expect(window.history.length).toBe(entries);
+  });
+
+  it("keeps the round as it was, with no second round trip", async () => {
+    submitGuess.mockResolvedValue({ ...round("state-1"), found: false, key: "vent", score: 12, near: [] });
+    const input = await mountGame();
+    fireEvent.change(input, { target: { value: "vent" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy());
+
+    await toggleRules();
+    await toggleRules();
+
+    expect(await screen.findByText("vent", { selector: ".lyrix-chip" })).toBeTruthy();
+    expect(fetchRound).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the dialogs (v3 header)", () => {
+  it("gives the input back on Escape", async () => {
+    const input = await mountGame();
+    fireEvent.click(screen.getByRole("button", { name: "Jouer à plusieurs" }));
+    expect(screen.getByRole("dialog", { name: "Jouer à plusieurs" })).toBeTruthy();
 
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(document.activeElement).toBe(input);
-    expect(wordTokenRenders.count).toBe(0);
   });
 
   // Regression: closing a dialog always focused the guess input, which on a
@@ -386,29 +464,19 @@ describe("the dialogs (v3 header)", () => {
     });
     afterEach(() => vi.unstubAllGlobals());
 
-    it.each([
-      ["Comment jouer", "Comment on joue ?"],
-      ["Jouer à plusieurs", "Jouer à plusieurs"],
-    ])("gives focus back to %s, not to the input (which would open the keyboard)", async (buttonName, dialogName) => {
+    it("gives focus back to the multiplayer button, not to the input (which would open the keyboard)", async () => {
       const input = await mountGame();
-      const opener = screen.getByRole("button", { name: buttonName });
+      const opener = screen.getByRole("button", { name: "Jouer à plusieurs" });
 
       opener.focus();
       fireEvent.click(opener);
-      expect(screen.getByRole("dialog", { name: dialogName })).toBeTruthy();
+      expect(screen.getByRole("dialog", { name: "Jouer à plusieurs" })).toBeTruthy();
 
       fireEvent.click(screen.getByRole("button", { name: "Fermer" }));
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
       expect(document.activeElement).not.toBe(input);
       expect(document.activeElement).toBe(opener);
     });
-  });
-
-  it("closes the rules from their own button too", async () => {
-    await mountGame();
-    fireEvent.click(screen.getByRole("button", { name: "Comment jouer" }));
-    fireEvent.click(screen.getByRole("button", { name: "C'est parti" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   // Rooms themselves are covered in rooms.test.tsx; this is about getting to them.

@@ -97,6 +97,9 @@ describe("rich snippets", () => {
     expect(robots).toMatch(/^User-agent: \*$/m);
     expect(robots).not.toMatch(/^Disallow: \/\s*$/m);
     expect(robots).toContain(`Sitemap: ${SITE}sitemap.xml`);
-    expect(read("public/sitemap.xml").toString("utf8")).toContain(`<loc>${SITE}</loc>`);
+    const sitemap = read("public/sitemap.xml").toString("utf8");
+    expect(sitemap).toContain(`<loc>${SITE}</loc>`);
+    // The rules are a page of their own (src/routes.ts), worth finding from a search.
+    expect(sitemap).toContain(`<loc>${SITE}comment-jouer</loc>`);
   });
 });

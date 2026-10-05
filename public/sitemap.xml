@@ -4,4 +4,8 @@
     <loc>https://lyrix-eyg.pages.dev/</loc>
     <changefreq>daily</changefreq>
   </url>
+  <url>
+    <loc>https://lyrix-eyg.pages.dev/comment-jouer</loc>
+    <changefreq>monthly</changefreq>
+  </url>
 </urlset>

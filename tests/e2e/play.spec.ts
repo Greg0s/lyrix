@@ -107,33 +107,44 @@ test("agrees in number between found and tried counts in the progress card", asy
   await expect(page.locator('[data-stat="tried"]')).toHaveText("2 essais");
 });
 
-test("opens the rules from the header and closes them with Escape", async ({ page }) => {
+test("opens the rules as a page from the header, and closes them from the same button", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Comment jouer" }).click();
-  await expect(page.getByRole("dialog", { name: "Comment on joue ?" })).toBeVisible();
+  const input = page.getByPlaceholder("Propose un mot…");
+  await input.fill("xylophone");
+  await input.press("Enter");
+  await expect(page.locator('[data-stat="tried"]')).toHaveText("1 essai");
 
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByPlaceholder("Propose un mot…")).toBeFocused();
+  const rules = page.getByRole("button", { name: "Comment jouer" });
+  await rules.click();
+  await expect(page).toHaveURL(/\/comment-jouer$/);
+  await expect(page.getByRole("heading", { name: /^Comment on joue/ })).toBeVisible();
+  await expect(rules).toHaveAttribute("aria-current", "page");
+
+  await rules.click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(rules).not.toHaveAttribute("aria-current");
+  // The round as it was left.
+  await expect(page.locator('[data-stat="tried"]')).toHaveText("1 essai");
 });
 
-test("opens the rules as wide as the multiplayer dialog", async ({ page }) => {
+test("follows Back from the rules to the round", async ({ page }) => {
   await page.goto("/");
-  const widthOf = async (button: string, dialog: string) => {
-    await page.getByRole("button", { name: button }).click();
-    // offsetWidth, not boundingBox: the entry animation scales the dialog.
-    const width = await page
-      .getByRole("dialog", { name: dialog })
-      .evaluate((element) => (element as HTMLElement).offsetWidth);
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog")).toHaveCount(0);
-    return width;
-  };
+  await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
+  await page.getByRole("button", { name: "Comment jouer" }).click();
+  await expect(page).toHaveURL(/\/comment-jouer$/);
 
-  const rules = await widthOf("Comment jouer", "Comment on joue ?");
-  const multiplayer = await widthOf("Jouer à plusieurs", "Jouer à plusieurs");
-  expect(rules).toBeGreaterThan(0);
-  expect(rules).toBe(multiplayer);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
+});
+
+test("closes the rules to today's song when they were opened from a link", async ({ page }) => {
+  await page.goto("/comment-jouer");
+  await expect(page.getByRole("heading", { name: /^Comment on joue/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "C'est parti" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
 });
 
 test("shows an error message when a guess fails to submit, and recovers on the next one", async ({ page }) => {
