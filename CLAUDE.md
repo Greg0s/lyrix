@@ -135,6 +135,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
 /src
   main.tsx, App.tsx     # React entry point, top-level render of GameScreen
   routes.ts              # the screens' addresses: / (today), /archives, /archives/<day>
+  roundPrefetch.ts       # today's round, asked for by main.tsx before React renders (fresh loads only)
   roundStorage.ts        # localStorage, one round per day of the archives: state + tried words per day,
                           # today's view (instant reload), a summary index for the archives screen;
                           # deferred/idle writes, flushed on tab hide/close

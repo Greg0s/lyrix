@@ -15,6 +15,7 @@ import {
 import { parseNearSlots } from "../game/slots";
 import type { NearSlot, RoundView } from "../game/types";
 import { isAnswerRevealed, loadSavedRoom, saveAnswerRevealed } from "../roomStorage";
+import { takePrefetchedRound } from "../roundPrefetch";
 import {
   clearGroupSnapshot,
   flushSavedRound,
@@ -262,7 +263,9 @@ async function fetchDay(day: string | null, signal: AbortSignal): Promise<{ roun
       if (isAbort(error) || isNetworkFailure(error)) throw error;
     }
   }
-  const round = await fetchRound(signal, day ?? undefined);
+  // Today's, asked for before the app even rendered when there is one (roundPrefetch.ts).
+  const prefetched = day === null ? takePrefetchedRound() : null;
+  const round = await (prefetched ?? fetchRound(signal, day ?? undefined));
   // Deferred too: the freshly loaded round is the largest thing we ever
   // serialize, and it sits right before the game's first paint. Today's
   // only: a day of the archives joins them once the player tries a word.

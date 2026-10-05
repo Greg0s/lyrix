@@ -30,6 +30,7 @@ const submitGuess = vi.hoisted(() => vi.fn());
 vi.mock("../../../src/api/client", () => ({ fetchRound, submitGuess }));
 
 const { GameScreen } = await import("../../../src/components/GameScreen");
+const { prefetchTodayRound, takePrefetchedRound } = await import("../../../src/roundPrefetch");
 const { PEEK_FADE_MS, PEEK_SHOW_MS } = await import("../../../src/components/WordToken");
 
 function tokens(text: string, revealed = false) {
@@ -82,6 +83,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  takePrefetchedRound();
   cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -105,6 +107,31 @@ describe("typing a guess", () => {
 
     expect(screen.getByText("Couplet 1")).toBeTruthy();
     expect(screen.getAllByText("_______").length).toBeGreaterThan(0);
+  });
+});
+
+// On a first visit, today's round used to be asked for only once the whole
+// app had rendered and useGame's effect had run: main.tsx now asks first.
+describe("today's round, asked for before the app rendered", () => {
+  it("is the one the game shows, without asking a second time", async () => {
+    fetchRound.mockResolvedValue(round("prefetched"));
+    prefetchTodayRound("/");
+    expect(fetchRound).toHaveBeenCalledTimes(1);
+
+    await mountGame();
+    expect(fetchRound).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Couplet 1")).toBeTruthy();
+  });
+
+  it("is not asked for when today's round is saved, nor for a day of the archives", () => {
+    saveRound(round(), []);
+    prefetchTodayRound("/");
+    window.localStorage.clear();
+    // Yesterday: always a day of the archives, whenever the suite runs.
+    prefetchTodayRound(`/archives/${utcDay(new Date(Date.now() - 86_400_000))}`);
+
+    expect(fetchRound).not.toHaveBeenCalled();
+    expect(takePrefetchedRound()).toBeNull();
   });
 });
 
