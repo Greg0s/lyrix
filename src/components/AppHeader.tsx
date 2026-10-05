@@ -11,10 +11,12 @@ interface AppHeaderProps {
   /** How many players are connected to the player's room; null outside a room. */
   roomPlayers: number | null;
   onOpenMultiplayer: () => void;
-  /** The archives screen is the one shown: the button says so (aria-current). */
+  /** The archives screen is the one shown: the button says so (aria-current), and closes it. */
   archivesOpen: boolean;
-  onOpenArchives: () => void;
-  onOpenHelp: () => void;
+  onToggleArchives: () => void;
+  /** Same for the rules' page. */
+  helpOpen: boolean;
+  onToggleHelp: () => void;
   /** Changes screen in place: the logo goes to today's song. */
   onNavigate: (to: Route) => void;
 }
@@ -24,8 +26,9 @@ export const AppHeader = memo(function AppHeader({
   roomPlayers,
   onOpenMultiplayer,
   archivesOpen,
-  onOpenArchives,
-  onOpenHelp,
+  onToggleArchives,
+  helpOpen,
+  onToggleHelp,
   onNavigate,
 }: AppHeaderProps) {
   const inRoom = roomPlayers !== null;
@@ -65,14 +68,20 @@ export const AppHeader = memo(function AppHeader({
           <button
             type="button"
             className={`lyrix-pill is-outline${archivesOpen ? " is-current" : ""}`}
-            onClick={onOpenArchives}
+            onClick={onToggleArchives}
             aria-label="Archives"
             aria-current={archivesOpen ? "page" : undefined}
           >
             <CalendarIcon />
             <span className="lyrix-pill-label is-archives">Archives</span>
           </button>
-          <button type="button" className="lyrix-pill is-outline" onClick={onOpenHelp} aria-label="Comment jouer">
+          <button
+            type="button"
+            className={`lyrix-pill is-outline${helpOpen ? " is-current" : ""}`}
+            onClick={onToggleHelp}
+            aria-label="Comment jouer"
+            aria-current={helpOpen ? "page" : undefined}
+          >
             <span className="lyrix-help-dot" aria-hidden="true">
               ?
             </span>

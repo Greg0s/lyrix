@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isArchivesPath, parseRoute, routePath, sameRoute, type Route } from "../routes";
+import { isArchivesPath, isPageRoute, parseRoute, routePath, sameRoute, TODAY, type Route } from "../routes";
 
 interface Shown {
   route: Route;
   /**
    * The round the game plays: null for today's song, or a day of the
-   * archives. Kept while the archives screen is shown, so the round left
-   * stays loaded and coming back to it is instant.
+   * archives. Kept while a page (the archives, the rules) is shown, so the
+   * round left stays loaded and coming back to it is instant.
    */
   gameDay: string | null;
 }
@@ -18,12 +18,31 @@ function show(route: Route, previous: string | null): Shown {
 }
 
 /**
+ * Marks the history entries `navigate` pushed: the entry before one of them
+ * is a screen of the game, so going back to it is closing a page. An entry
+ * the player landed on from outside (a link, a typed address) has no mark.
+ */
+const PUSHED = { lyrix: true } as const;
+
+function pushedByTheGame(): boolean {
+  const state: unknown = window.history.state;
+  return typeof state === "object" && state !== null && "lyrix" in state && state.lyrix === true;
+}
+
+/**
  * The screen shown, kept in step with the address bar through the History
  * API: `navigate` pushes an entry, so Back returns to the previous screen,
- * and Back itself (popstate) is followed. No router library: three screens
- * don't need one.
+ * and Back itself (popstate) is followed. No router library: four screens
+ * don't need one. `closePage` leaves a page (the archives, the rules) for
+ * where the player was: Back, when the game brought them there, or today's
+ * round when they arrived on the page from a link.
  */
-export function useRoute(): { route: Route; gameDay: string | null; navigate: (to: Route) => void } {
+export function useRoute(): {
+  route: Route;
+  gameDay: string | null;
+  navigate: (to: Route) => void;
+  closePage: () => void;
+} {
   const [shown, setShown] = useState(() => show(parseRoute(window.location.pathname), null));
   // What is on screen, for navigate to compare against without a state updater
   // (React may run one twice, which would push the address twice).
@@ -51,11 +70,26 @@ export function useRoute(): { route: Route; gameDay: string | null; navigate: (t
   const navigate = useCallback((to: Route) => {
     if (sameRoute(current.current, to)) return;
     current.current = to;
-    window.history.pushState(null, "", routePath(to));
+    window.history.pushState(PUSHED, "", routePath(to));
     // A new screen starts at its top, as a page would.
     document.documentElement.scrollTop = 0;
     setShown((previous) => show(to, previous.gameDay));
   }, []);
 
-  return { route: shown.route, gameDay: shown.gameDay, navigate };
+  const closePage = useCallback(() => {
+    if (!isPageRoute(current.current)) return;
+    // popstate brings the screen left back, as the browser's Back would.
+    if (pushedByTheGame()) {
+      window.history.back();
+      return;
+    }
+    current.current = TODAY;
+    // In place of the page: Back from today's round leaves the game, as it
+    // would have from the page.
+    window.history.replaceState(null, "", routePath(TODAY));
+    document.documentElement.scrollTop = 0;
+    setShown((previous) => show(TODAY, previous.gameDay));
+  }, []);
+
+  return { route: shown.route, gameDay: shown.gameDay, navigate, closePage };
 }

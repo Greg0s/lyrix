@@ -51,6 +51,30 @@ test("plays a day of the archives from the collection, and adds it to it once wo
   await expect(page.getByRole("link", { name: new RegExp(`^${date} : .+, trouvée en \\d+ essais?$`) })).toBeVisible();
 });
 
+test("closes the archives from their header button, back to the day the player came from", async ({ page }) => {
+  await page.goto(`/archives/${yesterday}`);
+  const days = page.getByRole("navigation", { name: "Jours des archives" });
+  await expect(days).toContainText(capitalize(longDayLabel(yesterday)));
+
+  const archives = page.getByRole("button", { name: "Archives" });
+  await archives.click();
+  await expect(page).toHaveURL(/\/archives$/);
+  await expect(archives).toHaveAttribute("aria-current", "page");
+
+  await archives.click();
+  await expect(page).toHaveURL(new RegExp(`/archives/${yesterday}$`));
+  await expect(days).toContainText(capitalize(longDayLabel(yesterday)));
+});
+
+test("closes the archives to today's song when they were opened from a link", async ({ page }) => {
+  await page.goto("/archives");
+  await expect(page.getByRole("heading", { name: "Les 30 derniers jours" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Archives" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
+});
+
 test("resumes a day of the archives after a reload, through its saved state", async ({ page }) => {
   const roundPromise = roundOf(page, yesterday);
   await page.goto(`/archives/${yesterday}`);

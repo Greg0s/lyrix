@@ -9,7 +9,7 @@ import { useRoute } from "../hooks/useRoute";
 import { isAnswerRevealed } from "../roomStorage";
 import { loadArchive } from "../roundStorage";
 import { utcDay } from "../game/daily";
-import { ARCHIVES, TODAY } from "../routes";
+import { ARCHIVES, HELP, isPageRoute, TODAY } from "../routes";
 import { AppHeader } from "./AppHeader";
 import { ArchivesScreen } from "./ArchivesScreen";
 import { DayBar } from "./DayBar";
@@ -34,7 +34,7 @@ function feedbackMessage({ word, found, duplicate, nearCount }: Feedback): strin
   return `« ${word} » n’y est pas, mais il est proche ${where}.`;
 }
 
-type Dialog = "help" | "multiplayer" | null;
+type Dialog = "multiplayer" | null;
 
 /** A phone or tablet: its primary pointer is a finger, and focusing a text input opens its keyboard. */
 function isTouchScreen(): boolean {
@@ -43,36 +43,36 @@ function isTouchScreen(): boolean {
 
 export function GameScreen() {
   // `day`: the round played, null for today's song (see useRoute's gameDay).
-  const { route, gameDay: day, navigate } = useRoute();
+  const { route, gameDay: day, navigate, closePage } = useRoute();
   const game = useGame(day);
   // Room events ("X a rejoint le salon.", a teammate's guess) go to the guess
   // dock's feedback line; the room's round replaces the solo one (#30).
   const room = useRoom(game.announce, game.receiveRoomRound, game.setRoomSession);
 
   // A room plays one day's song at a time, and everyone in it follows (#B).
-  // When the room's day changes, the screen goes there; a player browsing the
-  // archives when the room first says where it is stays where they are.
+  // When the room's day changes, the screen goes there; a player on a page
+  // (the archives, the rules) when the room first says where it is stays there.
   const { roomDay } = game;
   const lastRoomDay = useRef<string | null>(null);
   useEffect(() => {
     const previous = lastRoomDay.current;
     lastRoomDay.current = roomDay;
     if (roomDay === null || previous === roomDay) return;
-    if (route.name === "archives" ? previous === null : (day ?? utcDay()) === roomDay) return;
+    if (isPageRoute(route) ? previous === null : (day ?? utcDay()) === roomDay) return;
     navigate(roomDay === utcDay() ? TODAY : { name: "day", day: roomDay });
-  }, [roomDay, route.name, day, navigate]);
+  }, [roomDay, route, day, navigate]);
   // And when the player goes to another day themselves (a cover, the day
-  // bar, "Jouer", Back), the whole room goes with them.
+  // bar, "Jouer", Back), the whole room goes with them. Browsing a page moves nothing.
   const { moveTo } = room;
   const inRoom = room.view !== null;
   const lastDay = useRef(day);
   useEffect(() => {
     const moved = lastDay.current !== day;
     lastDay.current = day;
-    if (!moved || !inRoom || roomDay === null || route.name === "archives") return;
+    if (!moved || !inRoom || roomDay === null || isPageRoute(route)) return;
     const target = day ?? utcDay();
     if (target !== roomDay) moveTo(target);
-  }, [day, inRoom, roomDay, route.name, moveTo]);
+  }, [day, inRoom, roomDay, route, moveTo]);
   const inputRef = useRef<HTMLInputElement>(null);
   // An invite link (/salon/<code>) opens the dialog on that room, unless the
   // player is in it already. It is only offered once: closing the dialog drops it.
@@ -90,6 +90,14 @@ export function GameScreen() {
   const [revealedDay, setRevealedDay] = useState<string | null | undefined>(undefined);
   const revealAllLyrics = revealedDay !== undefined && revealedDay === day;
   const openArchives = useCallback(() => navigate(ARCHIVES), [navigate]);
+  // The header's page buttons toggle: pressed on their own page, they close it.
+  const onArchivesPage = route.name === "archives";
+  const onHelpPage = route.name === "help";
+  const toggleArchives = useCallback(
+    () => (onArchivesPage ? closePage() : navigate(ARCHIVES)),
+    [onArchivesPage, closePage, navigate]
+  );
+  const toggleHelp = useCallback(() => (onHelpPage ? closePage() : navigate(HELP)), [onHelpPage, closePage, navigate]);
   const playDay = useCallback((target: string) => navigate({ name: "day", day: target }), [navigate]);
   // What had focus when a dialog opened (its button), to hand it back on a touch screen.
   const openerRef = useRef<HTMLElement | null>(null);
@@ -97,7 +105,6 @@ export function GameScreen() {
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setDialog(which);
   }, []);
-  const openHelp = useCallback(() => openDialog("help"), [openDialog]);
   const openMultiplayer = useCallback(() => openDialog("multiplayer"), [openDialog]);
   // Once a dialog is gone, the player is back to guessing: give them the input.
   // Not on a touch screen, where focusing the input pops the on-screen keyboard
@@ -160,15 +167,15 @@ export function GameScreen() {
     <AppHeader
       roomPlayers={room.view ? room.view.members.length : null}
       onOpenMultiplayer={openMultiplayer}
-      archivesOpen={route.name === "archives"}
-      onOpenArchives={openArchives}
-      onOpenHelp={openHelp}
+      archivesOpen={onArchivesPage}
+      onToggleArchives={toggleArchives}
+      helpOpen={onHelpPage}
+      onToggleHelp={toggleHelp}
       onNavigate={navigate}
     />
   );
   const dialogs = (
     <>
-      {dialog === "help" ? <HowToPlay onClosed={closeDialog} /> : null}
       {dialog === "multiplayer" ? (
         <MultiplayerModal
           room={room.view}
@@ -189,6 +196,7 @@ export function GameScreen() {
   );
 
   if (route.name === "archives") return shell(<ArchivesScreen onNavigate={navigate} group={groupDays} />);
+  if (route.name === "help") return shell(<HowToPlay onClose={closePage} />);
 
   if (game.error && !round) {
     return shell(
