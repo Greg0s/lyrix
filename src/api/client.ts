@@ -1,5 +1,5 @@
 import type { GuessResult, RoundView } from "../game/types";
-import { API_BASE, apiUrl, GUESS_TIMEOUT_MS, withTimeout } from "./base";
+import { API_BASE, apiUrl, GUESS_TIMEOUT_MS, ROUND_LOAD_TIMEOUT_MS, withTimeout } from "./base";
 
 interface ErrorBody {
   error: string;
@@ -17,26 +17,35 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-/** Today's round, or with `day` (YYYY-MM-DD) the round of a day the archives hold. */
-export async function fetchRound(signal?: AbortSignal, day?: string): Promise<RoundView> {
+/** Today's round, or with `day` (YYYY-MM-DD) the round of a day the archives hold. Gives up after ROUND_LOAD_TIMEOUT_MS. */
+export function fetchRound(signal?: AbortSignal, day?: string): Promise<RoundView> {
   const path = day === undefined ? "/api/round" : `/api/round?day=${encodeURIComponent(day)}`;
-  const response = await fetch(apiUrl(path), { signal });
-  return parseJsonResponse<RoundView>(response);
+  return withTimeout(
+    ROUND_LOAD_TIMEOUT_MS,
+    async (timed) => parseJsonResponse<RoundView>(await fetch(apiUrl(path), { signal: timed })),
+    signal
+  );
 }
 
 /**
  * A round's view rebuilt from sealed states of it: one to resume a saved day,
  * several to merge them. `day` names the round of a state sealed before the
- * archives, which doesn't carry one.
+ * archives, which doesn't carry one. Gives up after ROUND_LOAD_TIMEOUT_MS.
  */
-export async function resumeRound(states: readonly string[], day: string, signal?: AbortSignal): Promise<RoundView> {
-  const response = await fetch(`${API_BASE}/api/round/resume`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ states, day }),
-    signal,
-  });
-  return parseJsonResponse<RoundView>(response);
+export function resumeRound(states: readonly string[], day: string, signal?: AbortSignal): Promise<RoundView> {
+  return withTimeout(
+    ROUND_LOAD_TIMEOUT_MS,
+    async (timed) => {
+      const response = await fetch(`${API_BASE}/api/round/resume`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ states, day }),
+        signal: timed,
+      });
+      return parseJsonResponse<RoundView>(response);
+    },
+    signal
+  );
 }
 
 /** Throws when the guess couldn't be checked, a network that never answers included (GUESS_TIMEOUT_MS). */

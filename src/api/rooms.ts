@@ -8,7 +8,7 @@ import {
   type RoomRound,
 } from "../game/room";
 import type { RoundView } from "../game/types";
-import { apiUrl, GUESS_TIMEOUT_MS, withTimeout } from "./base";
+import { apiUrl, GUESS_TIMEOUT_MS, ROOM_ENTRY_TIMEOUT_MS, withTimeout } from "./base";
 
 /** Why creating or joining a room didn't work, as the player needs to hear it. */
 export type RoomFailure = "not-found" | "rate-limited" | "unavailable";
@@ -19,22 +19,25 @@ function failure(reason: RoomFailure): RoomResult {
   return { ok: false, failure: reason };
 }
 
+// Never throws: a network that fails or never answers (ROOM_ENTRY_TIMEOUT_MS) is "unavailable".
 async function enter(path: string, pseudo: string): Promise<RoomResult> {
-  let response: Response;
   try {
-    response = await fetch(apiUrl(path), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pseudo }),
+    return await withTimeout(ROOM_ENTRY_TIMEOUT_MS, async (signal) => {
+      const response = await fetch(apiUrl(path), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pseudo }),
+        signal,
+      });
+      if (response.status === 404) return failure("not-found");
+      if (response.status === 429) return failure("rate-limited");
+      if (!response.ok) return failure("unavailable");
+      const entry = parseRoomEntry(await response.json().catch(() => null));
+      return entry ? { ok: true, entry } : failure("unavailable");
     });
   } catch {
     return failure("unavailable");
   }
-  if (response.status === 404) return failure("not-found");
-  if (response.status === 429) return failure("rate-limited");
-  if (!response.ok) return failure("unavailable");
-  const entry = parseRoomEntry(await response.json().catch(() => null));
-  return entry ? { ok: true, entry } : failure("unavailable");
 }
 
 /** Creates a room; the player becomes its host. */

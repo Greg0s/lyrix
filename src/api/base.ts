@@ -19,15 +19,44 @@ export function apiUrl(path: string): URL {
 export const GUESS_TIMEOUT_MS = 10_000;
 
 /**
- * Runs `request` with a signal that aborts it after `ms`, reading its body
- * included: the limit is lifted only once `request` has settled.
+ * How long loading a round may take: longer than a guess, since a cold
+ * Worker may have to try LRCLIB for several catalog songs in a row before
+ * one answers (worker/src/songs.ts). Past it, the retry screen shows.
  */
-export async function withTimeout<T>(ms: number, request: (signal: AbortSignal) => Promise<T>): Promise<T> {
+export const ROUND_LOAD_TIMEOUT_MS = 20_000;
+
+/** How long creating or joining a room may take before the dialog says the rooms are unavailable. */
+export const ROOM_ENTRY_TIMEOUT_MS = 10_000;
+
+/**
+ * Runs `request` with a signal that aborts it after `ms`, reading its body
+ * included: the limit is lifted only once `request` has settled. An `outer`
+ * signal still aborts it too, with its own reason (an AbortError), so a
+ * superseded request stays told apart from one that timed out.
+ */
+export async function withTimeout<T>(
+  ms: number,
+  request: (signal: AbortSignal) => Promise<T>,
+  outer?: AbortSignal
+): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new DOMException("request timed out", "TimeoutError")), ms);
+  const abort = () => controller.abort(outer?.reason);
+  if (outer?.aborted) abort();
+  outer?.addEventListener("abort", abort);
   try {
     return await request(controller.signal);
   } finally {
     clearTimeout(timer);
+    outer?.removeEventListener("abort", abort);
   }
+}
+
+/**
+ * The request never got a usable answer from the Worker: the network failed
+ * (fetch's TypeError) or it took too long. Unlike an error the Worker sent,
+ * it says nothing about what was asked, so it is worth trying again as is.
+ */
+export function isNetworkFailure(error: unknown): boolean {
+  return error instanceof TypeError || (error instanceof DOMException && error.name === "TimeoutError");
 }

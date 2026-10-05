@@ -932,9 +932,12 @@ describe("the room's round (#30)", () => {
     expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy();
   });
 
-  it("keeps the group's progress for later when the Worker can't be reached", async () => {
+  it.each([
+    ["can't be reached", new TypeError("Failed to fetch")],
+    ["takes too long to answer", new DOMException("request timed out", "TimeoutError")],
+  ])("keeps the group's progress for later when the Worker %s", async (_case, failure) => {
     answer(204);
-    resumeRound.mockRejectedValue(new TypeError("Failed to fetch"));
+    resumeRound.mockRejectedValue(failure);
     seedRoom();
     await mountGame([roomGuess("vent", leo, true)]);
 
