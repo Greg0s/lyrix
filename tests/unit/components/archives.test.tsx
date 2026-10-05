@@ -161,18 +161,27 @@ describe("the archives screen", () => {
     expect(await screen.findByRole("heading", { name: "Les 30 derniers jours" })).toBeTruthy();
   });
 
-  it("closes from the header's button, back to the round the player came from", async () => {
+  // Regression: closing went back to the screen before (here a day of the
+  // archives); the header's button always goes to today's song.
+  it("closes from the header's button to today's song, even from a day of the archives, and Back reopens it", async () => {
     await mount(`/archives/${DAY}`);
     await screen.findByText("Samedi 26 septembre");
     await openArchives();
 
     await act(async () => {
-      const popped = new Promise((resolve) => window.addEventListener("popstate", resolve, { once: true }));
       fireEvent.click(screen.getByRole("button", { name: "Archives" }));
+    });
+    expect(window.location.pathname).toBe("/");
+    expect(await screen.findByPlaceholderText("Propose un mot…")).toBeTruthy();
+    expect(screen.queryByText("Samedi 26 septembre")).toBeNull();
+
+    await act(async () => {
+      const popped = new Promise((resolve) => window.addEventListener("popstate", resolve, { once: true }));
+      window.history.back();
       await popped;
     });
-    expect(window.location.pathname).toBe(`/archives/${DAY}`);
-    expect(await screen.findByText("Samedi 26 septembre")).toBeTruthy();
+    expect(window.location.pathname).toBe("/archives");
+    expect(await screen.findByRole("heading", { name: "Les 30 derniers jours" })).toBeTruthy();
   });
 
   it("closes to today's song when the player landed on it from a link", async () => {
