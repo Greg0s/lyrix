@@ -351,6 +351,36 @@ describe("proximityHint", () => {
     expect(second.score).toBe(40);
   });
 
+  // Guesses landing together on a cold isolate used to each read and parse the
+  // whole table: megabytes, the most expensive step of a guess, done N times.
+  it("reads and parses the table once for guesses that arrive together", async () => {
+    const get = vi.fn(async () => table({ averse: 72, orage: 40 }));
+    const env: SimilarityEnv = { SIMILARITY: { get } };
+
+    const hints = await Promise.all(
+      ["averse", "orage", "averse", "orage"].map((word) => proximityHint(env, song, word, new Set()))
+    );
+
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(hints.map((hint) => hint.score)).toEqual([72, 40, 72, 40]);
+  });
+
+  it("reads the table again once a shared read has settled, if it found nothing", async () => {
+    const get = vi.fn(async () => null);
+    const env: SimilarityEnv = { SIMILARITY: { get } };
+
+    await Promise.all([loadSimilarityTable(env, song), loadSimilarityTable(env, song)]);
+    expect(get).toHaveBeenCalledTimes(1);
+
+    vi.useFakeTimers({ now: Date.now() + 61_000 });
+    try {
+      await loadSimilarityTable(env, song);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
   // The archives put several songs in play at once: two players on two days
   // used to evict each other's table, one KV read and parse per guess.
   it("keeps the tables of several songs played at once, each read once", async () => {

@@ -1,5 +1,5 @@
 import type { GuessResult, RoundView } from "../game/types";
-import { API_BASE, apiUrl } from "./base";
+import { API_BASE, apiUrl, GUESS_TIMEOUT_MS, withTimeout } from "./base";
 
 interface ErrorBody {
   error: string;
@@ -39,11 +39,15 @@ export async function resumeRound(states: readonly string[], day: string, signal
   return parseJsonResponse<RoundView>(response);
 }
 
-export async function submitGuess(state: string, word: string): Promise<GuessResult> {
-  const response = await fetch(`${API_BASE}/api/guess`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ state, word }),
+/** Throws when the guess couldn't be checked, a network that never answers included (GUESS_TIMEOUT_MS). */
+export function submitGuess(state: string, word: string): Promise<GuessResult> {
+  return withTimeout(GUESS_TIMEOUT_MS, async (signal) => {
+    const response = await fetch(`${API_BASE}/api/guess`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state, word }),
+      signal,
+    });
+    return parseJsonResponse<GuessResult>(response);
   });
-  return parseJsonResponse<GuessResult>(response);
 }
