@@ -17,6 +17,7 @@ import {
 } from "../../../src/game/room";
 import { utcDay } from "../../../src/game/daily";
 import type { RoundView } from "../../../src/game/types";
+import { flushSavedRound } from "../../../src/roundStorage";
 
 /**
  * Rooms (issue #29) as the player meets them: the dialog, the Salon card, the
@@ -910,6 +911,8 @@ describe("the room's round (#30)", () => {
     latestSocket().receive(roundMessage([roomGuess("jardin", leo, true), roomGuess("vent", leo, true)], "jardin"));
 
     expect(resumeRound).not.toHaveBeenCalled();
+    // Written off the critical path (saveGroupSnapshotSoon): as soon as the page is idle, or hidden.
+    flushSavedRound();
     const kept = JSON.parse(window.localStorage.getItem(`lyrix:group:${utcDay()}:ABC234`) ?? "null") as {
       state: string;
       found: { key: string }[];

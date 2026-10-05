@@ -21,7 +21,7 @@ import {
   loadGroupSnapshots,
   loadSavedDay,
   loadSavedRound,
-  saveGroupSnapshot,
+  saveGroupSnapshotSoon,
   saveRound,
   saveRoundSoon,
 } from "../roundStorage";
@@ -538,7 +538,7 @@ export function useGame(day: string | null = null) {
   const sharedNow = state.shared;
   useEffect(() => {
     if (!sharedNow?.round || lookingAlone(sharedNow)) return;
-    saveGroupSnapshot({
+    saveGroupSnapshotSoon({
       day: sharedNow.round.day ?? utcDay(),
       code: sharedNow.code,
       state: sharedNow.round.state,

@@ -232,7 +232,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   ensure-dev-vars.ts, check-catalog.ts, convert-embeddings.ts, build-similarity-table.ts,
   dev-debug.ts, inspect-similarity-table.ts, build-favicon.ts, graph-update.ts
   /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, debugMode.ts, devVars.ts, catalogAudit.ts,
-       favicon.ts, socialImage.ts, invitePage.ts (+ its Vite plugin), graphFixes.ts, graphSeed.ts
+       favicon.ts, socialImage.ts, invitePage.ts (+ its Vite plugin), apiPreconnect.ts (Vite plugin:
+       index.html preconnects to the API's origin in production), graphFixes.ts, graphSeed.ts
 /tests
   /unit/game, /unit/worker, /unit/scripts, /unit/storage, /unit/components, /unit/api, /unit/ci
   /e2e                        # Playwright; fixtures/similarity-table.json stands in for a built table

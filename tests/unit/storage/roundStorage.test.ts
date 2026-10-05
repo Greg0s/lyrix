@@ -9,6 +9,7 @@ import {
   loadSavedDay,
   loadSavedRound,
   saveGroupSnapshot,
+  saveGroupSnapshotSoon,
   saveRound,
   saveRoundSoon,
 } from "../../../src/roundStorage";
@@ -335,6 +336,50 @@ describe("a room's progress", () => {
     const storage = fakeStorage({ [`lyrix:group:${TODAY}:ABC234`]: JSON.stringify({ state: 1 }) });
     expect(loadGroupSnapshots(storage, NOW)).toEqual([]);
     expect(storage.length).toBe(0);
+  });
+});
+
+// Written on every message of the room's, right when a guess is being drawn:
+// it used to be a synchronous localStorage write each time.
+describe("saveGroupSnapshotSoon", () => {
+  const snapshot = { day: TODAY, code: "ABC234", state: "room-2", found: triedWords.slice(0, 1) };
+
+  afterEach(() => {
+    flushSavedRound();
+    vi.useRealTimers();
+  });
+
+  it("writes nothing straight away, then the latest of a burst, once", () => {
+    vi.useFakeTimers({ now: NOW });
+    const storage = fakeStorage();
+    const setItem = vi.spyOn(storage, "setItem");
+
+    saveGroupSnapshotSoon({ ...snapshot, state: "room-1" }, storage);
+    saveGroupSnapshotSoon(snapshot, storage);
+    expect(setItem).not.toHaveBeenCalled();
+
+    vi.runAllTimers();
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(loadGroupSnapshots(storage, NOW).map((kept) => kept.state)).toEqual(["room-2"]);
+  });
+
+  it("is read back before its write has run", () => {
+    vi.useFakeTimers({ now: NOW });
+    const storage = fakeStorage();
+
+    saveGroupSnapshotSoon(snapshot, storage);
+    expect(loadGroupSnapshots(storage, NOW).map((kept) => kept.state)).toEqual(["room-2"]);
+  });
+
+  it("is not brought back by a pending write once cleared", () => {
+    vi.useFakeTimers({ now: NOW });
+    const storage = fakeStorage();
+
+    saveGroupSnapshotSoon(snapshot, storage);
+    clearGroupSnapshot(snapshot, storage);
+    vi.runAllTimers();
+
+    expect(loadGroupSnapshots(storage, NOW)).toEqual([]);
   });
 });
 

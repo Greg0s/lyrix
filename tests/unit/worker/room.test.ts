@@ -20,6 +20,7 @@ import type { DisplayToken, RoundView } from "../../../src/game/types";
 import app from "../../../worker/src/index";
 import { Room, type RoomContext, type RoomSocket } from "../../../worker/src/room";
 import type { RateLimiter, RoomNamespace } from "../../../worker/src/roomRoutes";
+import { resetSimilarityMemo } from "../../../worker/src/similarity";
 import { getSongById, resetSongMemo } from "../../../worker/src/songs";
 import { sealState, openState } from "../../../worker/src/state";
 import { titleLeaks } from "./titleLeak";
@@ -966,6 +967,24 @@ describe("the day a room plays", () => {
   // The group's collection rides along with every guess: once the object woke
   // from hibernation, each other day's round used to be read on its own, one
   // await after the other, and read again on the next guess.
+  // The day was summarized in memory only until someone guessed on it: once
+  // the object woke from hibernation, it was gone from the group's collection.
+  it("keeps a day the room opened without guessing in the group's collection, after a wake", async () => {
+    const host = await createRoom("Camille");
+    await connect(host);
+    await setDay(host, ARCHIVED);
+    await setDay(host, TODAY);
+
+    // A fresh object, as after hibernation: nothing in memory.
+    const fresh = new Room(rooms.state(host.room.code), env);
+    const socket = new FakeSocket();
+    await fresh.admit(socket, host.token);
+
+    const days = socket.lastRound().days ?? [];
+    expect(days.map((summary) => summary.day)).toEqual([TODAY, ARCHIVED]);
+    expect(days.find((summary) => summary.day === ARCHIVED)?.guesses).toBe(0);
+  });
+
   it("reads the other days' rounds in one storage call after a wake, and not again", async () => {
     const host = await createRoom("Camille");
     await connect(host);
@@ -1060,5 +1079,40 @@ describe("a guess's broadcast", () => {
     ).catch(() => {});
     const forwarded = rooms.requests.at(-1);
     expect(forwarded && new URL(forwarded.url).searchParams.get("tab")).toBe(TAB);
+  });
+});
+
+// A word someone already proposed changes nothing: it used to be looked up in
+// the similarity table all the same, and the whole song masked and a state
+// sealed again, to answer with the round as it already stood.
+describe("a word already proposed in a room", () => {
+  it("is answered without a similarity lookup, nor a new view of the round", async () => {
+    const host = await createRoom("Camille");
+    const get = vi.fn(async () => null);
+    const room = new Room(rooms.state(host.room.code), { ...env, SIMILARITY: { get } });
+    const guess = async (word: string) => {
+      const response = await room.fetch(
+        new Request("https://room/guess", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token: host.token, word }),
+        })
+      );
+      const result = parseRoomGuessResult(await response.json());
+      if (!result) throw new Error("malformed guess result");
+      return result;
+    };
+    const first = await guess("xylophone");
+
+    resetSimilarityMemo();
+    get.mockClear();
+    const sealed = vi.spyOn(crypto.subtle, "encrypt");
+    const again = await guess("Xylophone");
+
+    expect(again.duplicate).toBe(true);
+    expect(again.guess).toEqual(first.guess);
+    expect(again.round).toEqual(first.round);
+    expect(get).not.toHaveBeenCalled();
+    expect(sealed).not.toHaveBeenCalled();
   });
 });
