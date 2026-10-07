@@ -3,6 +3,7 @@ import { isNetworkFailure } from "../api/base";
 import { fetchRound, resumeRound, submitGuess } from "../api/client";
 import { continueAlone, submitRoomGuess } from "../api/rooms";
 import { utcDay } from "../game/daily";
+import { applyReveal, isGuessDelta, revealedWords } from "../game/delta";
 import { normalize } from "../game/normalize";
 import {
   memberName,
@@ -355,6 +356,26 @@ export function useGame(day: string | null = null) {
     setState((prev) => ({ ...prev, inputValue: value }));
   }, []);
 
+  /**
+   * Replaces the solo round with the view `sealed` stands for, rebuilt by the
+   * Worker: what a delta that didn't add up comes to. Only while that state is
+   * still the round's: a later guess has moved it on, and brought its own.
+   * Failing, the round stays as it was shown: the next guess sends the right state anyway.
+   */
+  const resyncRound = useCallback(async (sealed: string, roundDay: string, playedDay: string | null) => {
+    let view: RoundView;
+    try {
+      view = await resumeRound([sealed], roundDay);
+    } catch {
+      return;
+    }
+    setState((prev) => {
+      if (prev.day !== playedDay || prev.round?.state !== sealed) return prev;
+      saveRoundSoon(view, prev.triedWords);
+      return { ...prev, round: view };
+    });
+  }, []);
+
   const submit = useCallback(async () => {
     const { inputValue, submitting } = state;
     // Looking alone after the group won, or on a day of the archives: the player's guesses are their own.
@@ -412,6 +433,9 @@ export function useGame(day: string | null = null) {
       }
 
       const result = await submitGuess(round.state, raw);
+      // What the guess changed, applied to the round it was made on (the one
+      // whose state was sent); a full view (a win, or an older Worker) as is.
+      const next = isGuessDelta(result) ? applyReveal(round, result.reveal, result.state) : result;
       // Parsed rather than trusted: a Worker deployed before close words were
       // placed in the lyrics sends no `near` at all.
       const near = parseNearSlots(result.near);
@@ -421,14 +445,19 @@ export function useGame(day: string | null = null) {
       ];
       // Deferred: serializing the whole masked round is the one heavy thing
       // between the answer arriving and the player seeing it (see roundStorage).
-      saveRoundSoon(result, newTriedWords);
+      saveRoundSoon(next, newTriedWords);
       // This very guess completed the title: the one moment the win is celebrated.
-      const won = result.victory && !round.victory;
+      const won = next.victory && !round.victory;
       // Saved all the same, but not shown over the day the player moved on to.
       const playedDay = state.day;
+      // The round on screen no longer agrees with the Worker's count of what is
+      // revealed: shown as it is, then replaced by the view the state stands for.
+      if (isGuessDelta(result) && revealedWords(next) !== result.revealed) {
+        void resyncRound(result.state, next.day, playedDay);
+      }
       setState((prev) => prev.day !== playedDay ? { ...prev, submitting: false } : ({
         ...prev,
-        round: result,
+        round: next,
         // The input stays editable while a guess is in flight (disabling it
         // would close a phone's keyboard): keep whatever was typed meanwhile.
         inputValue: prev.inputValue === inputValue ? "" : prev.inputValue,
@@ -454,7 +483,7 @@ export function useGame(day: string | null = null) {
         error: error instanceof Error ? error.message : "Impossible de vérifier ce mot.",
       }));
     }
-  }, [state]);
+  }, [state, resyncRound]);
 
   const announce = useCallback((text: string) => {
     setState((prev) => ({ ...prev, notice: { text, seq: (prev.notice?.seq ?? 0) + 1 } }));

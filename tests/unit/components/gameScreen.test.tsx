@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CELEBRATION_MS } from "../../../src/components/confetti";
 import { utcDay } from "../../../src/game/daily";
-import type { GuessResult, RoundView } from "../../../src/game/types";
+import type { GuessDelta, GuessResult, RoundView } from "../../../src/game/types";
 import { saveRound } from "../../../src/roundStorage";
 
 /**
@@ -27,7 +27,8 @@ vi.mock("../../../src/components/WordToken", async (importOriginal) => {
 
 const fetchRound = vi.hoisted(() => vi.fn());
 const submitGuess = vi.hoisted(() => vi.fn());
-vi.mock("../../../src/api/client", () => ({ fetchRound, submitGuess }));
+const resumeRound = vi.hoisted(() => vi.fn());
+vi.mock("../../../src/api/client", () => ({ fetchRound, submitGuess, resumeRound }));
 
 const { GameScreen } = await import("../../../src/components/GameScreen");
 const { prefetchTodayRound, takePrefetchedRound } = await import("../../../src/roundPrefetch");
@@ -80,6 +81,7 @@ beforeEach(() => {
   window.localStorage.clear();
   fetchRound.mockReset().mockResolvedValue(round());
   submitGuess.mockReset();
+  resumeRound.mockReset();
 });
 
 afterEach(() => {
@@ -269,6 +271,66 @@ describe("submitting a guess", () => {
 
     await waitFor(() => expect(input.value).toBe(""));
     expect(submitGuess).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a guess answered with what it changed", () => {
+  // "vent": the title's four words, then "Le", then it.
+  function ventFound(revealed = 1): GuessDelta {
+    return {
+      kind: "delta",
+      state: "state-1",
+      day: utcDay(),
+      key: "vent",
+      found: true,
+      score: 100,
+      near: [],
+      reveal: [{ position: 5, text: "vent" }],
+      revealed,
+    };
+  }
+
+  it("reveals the word in place, without asking for the round again", async () => {
+    submitGuess.mockResolvedValue(ventFound());
+
+    const input = await mountGame();
+    fireEvent.change(input, { target: { value: "vent" } });
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(screen.getByText("vent", { selector: ".token-word-found" })).toBeTruthy());
+    expect(screen.getByText("Couplet 1")).toBeTruthy();
+    expect(resumeRound).not.toHaveBeenCalled();
+  });
+
+  it("carries on from the state it brought", async () => {
+    submitGuess
+      .mockResolvedValueOnce(ventFound())
+      .mockResolvedValueOnce({ ...ventFound(), state: "state-2", key: "pluie", found: false, reveal: [] });
+
+    const input = await mountGame();
+    fireEvent.change(input, { target: { value: "vent" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(screen.getByText("vent", { selector: ".token-word-found" })).toBeTruthy());
+    fireEvent.change(input, { target: { value: "pluie" } });
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(screen.getByText("pluie", { selector: ".lyrix-chip" })).toBeTruthy());
+    expect(submitGuess).toHaveBeenLastCalledWith("state-1", "pluie");
+    expect(resumeRound).not.toHaveBeenCalled();
+  });
+
+  it("replaces the round with the Worker's own view when the counts disagree", async () => {
+    submitGuess.mockResolvedValue(ventFound(3));
+    const resumed = round("state-1");
+    resumed.sections[1] = { label: "Refrain", lines: [{ tokens: tokens("On est bien on est la", true) }] };
+    resumeRound.mockResolvedValue(resumed);
+
+    const input = await mountGame();
+    fireEvent.change(input, { target: { value: "vent" } });
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(screen.getByText("bien", { selector: ".token-word-found" })).toBeTruthy());
+    expect(resumeRound).toHaveBeenCalledWith(["state-1"], utcDay());
   });
 });
 
