@@ -440,3 +440,7 @@ CI failed "flags a code that is too short…" (`rooms.test.tsx`) once: its round
 ## 2026-10-07 — Measuring the rules' cards mid-rise
 
 "puts the FAQ beside the rules on a wide screen" (`tests/e2e/play.spec.ts`) failed in CI with the FAQ 1 px above the rules: every `.lyrix-card` rises in with a transform (`lyrix-rise`), and the test read the two boxes one after the other while it ran. It now waits for `document.getAnimations()` to finish first, as `triedWords.spec.ts` does. Second time a layout check measured the cards mid-rise: any e2e test comparing boxes must wait for the animations first.
+
+## 2026-10-07 — A test reading a stylesheet can't run under jsdom
+
+The header logo's entrance (mockup 1b, `Logo.tsx`) is CSS animations, so a click replays it by remounting the logo (`AppHeader`'s `key`). Its stylesheet check first sat in the jsdom component test: `readFileSync(new URL("…", import.meta.url))` threw "The URL must be of scheme file", since `import.meta.url` isn't a `file:` URL under the jsdom environment. Stylesheet checks belong in `tests/unit/ci` (node environment), and `\n` in a regex over a checked-in file needs `\r?\n` on a Windows checkout.
