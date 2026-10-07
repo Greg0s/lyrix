@@ -10,6 +10,7 @@
     "dev:all": "concurrently -k -s first -n web,api \"npm:dev\" \"npm:dev:worker\"",
     "dev:debug": "tsx scripts/dev-debug.ts",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json --noEmit && tsc -p src/serviceWorker/tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "npm run lint && npm run typecheck && vitest run",
