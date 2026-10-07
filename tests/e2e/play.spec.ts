@@ -149,6 +149,10 @@ test("puts the FAQ beside the rules on a wide screen, under them on a phone", as
 
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/comment-jouer");
+  // Both cards rise in with a transform: measured mid-rise, one box at a time,
+  // they sat a pixel apart. Measure once they have landed.
+  await expect(page.locator(".lyrix-faq")).toBeVisible();
+  await page.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished)));
   const wide = await boxes();
   expect(wide.faq.x).toBeGreaterThan(wide.rules.x + wide.rules.width);
   expect(wide.faq.y).toBe(wide.rules.y);
