@@ -157,6 +157,82 @@
   transform: translateX(-50%);
 }
 
+.lyrix-wordmark-letter {
+  display: inline-block;
+}
+
+/*
+ * The logo coming in (Logo.tsx, mockup 1b, 1.6s): the mark, its lines in
+ * reading order (the two masked words drawn as words, then turned into
+ * bars), the letters one by one, the dot dropping onto the ı.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .lyrix-logo-mark {
+    animation: lyrix-logo-mark-in 320ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  }
+
+  .lyrix-logo-row > span {
+    transform-origin: 0 50%;
+  }
+
+  .lyrix-logo-row .is-word {
+    animation: lyrix-logo-grow 180ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  }
+
+  .lyrix-logo-row .is-bar {
+    animation: lyrix-logo-mask 420ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  }
+
+  .lyrix-logo-row:nth-child(1) .is-word {
+    animation-delay: 200ms;
+  }
+
+  .lyrix-logo-row:nth-child(1) .is-bar {
+    animation-delay: 290ms;
+  }
+
+  .lyrix-logo-row:nth-child(2) .is-bar {
+    animation-delay: 380ms;
+  }
+
+  .lyrix-logo-row:nth-child(2) .is-word {
+    animation-delay: 470ms;
+  }
+
+  .lyrix-logo-row:nth-child(3) .is-word {
+    animation-delay: 560ms;
+  }
+
+  .lyrix-wordmark-letter {
+    animation: lyrix-logo-letter 440ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+  }
+
+  .lyrix-wordmark-letter:nth-child(1) {
+    animation-delay: 640ms;
+  }
+
+  .lyrix-wordmark-letter:nth-child(2) {
+    animation-delay: 695ms;
+  }
+
+  .lyrix-wordmark-letter:nth-child(3) {
+    animation-delay: 750ms;
+  }
+
+  .lyrix-wordmark-letter:nth-child(4) {
+    animation-delay: 805ms;
+  }
+
+  .lyrix-wordmark-letter:nth-child(5) {
+    animation-delay: 860ms;
+  }
+
+  .lyrix-wordmark-dot {
+    transform-origin: 50% 100%;
+    animation: lyrix-logo-dot-drop 560ms linear 1000ms both;
+  }
+}
+
 .lyrix-slogan {
   margin-left: 6px;
   padding-left: 14px;

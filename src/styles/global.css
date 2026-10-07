@@ -208,6 +208,73 @@ input::placeholder {
   }
 }
 
+/* The header's logo coming in (Logo.tsx): its mark, a line's word, a word masked into an accent bar. */
+@keyframes lyrix-logo-mark-in {
+  from {
+    opacity: 0;
+    transform: translateY(2.4px) scale(0.92);
+  }
+}
+
+@keyframes lyrix-logo-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes lyrix-logo-mask {
+  0% {
+    transform: scaleX(0);
+    background: var(--color-on-ink);
+  }
+  45% {
+    transform: scaleX(1);
+    background: var(--color-on-ink);
+  }
+  70% {
+    background: var(--color-on-ink);
+  }
+  100% {
+    transform: scaleX(1);
+    background: var(--accent-solid);
+  }
+}
+
+/* A wordmark letter rising in, then the ı's dot dropping and squashing as it lands. */
+@keyframes lyrix-logo-letter {
+  from {
+    opacity: 0;
+    transform: translateY(0.32em);
+  }
+}
+
+@keyframes lyrix-logo-dot-drop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -1.5em);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  12% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-50%, 0) scale(1.18, 0.6);
+    animation-timing-function: cubic-bezier(0, 0.55, 0.45, 1);
+  }
+  68% {
+    transform: translate(-50%, -0.14em) scale(0.94, 1.1);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  82% {
+    transform: translate(-50%, 0) scale(1.06, 0.9);
+    animation-timing-function: cubic-bezier(0, 0.55, 0.45, 1);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
 /* The victory panel and its "Bravo": run on an overshooting curve, they bounce as they settle. */
 @keyframes lyrix-victory-in {
   from {

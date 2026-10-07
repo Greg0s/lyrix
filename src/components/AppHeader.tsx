@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useCallback, useState } from "react";
 import { playerCountLabel } from "../game/room";
 import { TODAY, type Route } from "../routes";
 import { CalendarIcon } from "./CalendarIcon";
@@ -31,14 +31,23 @@ export const AppHeader = memo(function AppHeader({
   onToggleHelp,
   onNavigate,
 }: AppHeaderProps) {
+  // Each click on the logo plays its entrance again: a new key remounts it.
+  const [logoPlays, setLogoPlays] = useState(0);
+  const onLogoClick = useCallback(
+    (to: Route) => {
+      setLogoPlays((plays) => plays + 1);
+      onNavigate(to);
+    },
+    [onNavigate],
+  );
   const inRoom = roomPlayers !== null;
   const roomLabel = inRoom ? `Salon · ${playerCountLabel(roomPlayers)}` : "";
   return (
     <header className="lyrix-topbar">
       <div className="lyrix-topbar-inner">
         <div className="lyrix-brand">
-          <RouteLink to={TODAY} onNavigate={onNavigate} className="lyrix-logo-link" aria-label="Lyrix, chanson du jour">
-            <Logo />
+          <RouteLink to={TODAY} onNavigate={onLogoClick} className="lyrix-logo-link" aria-label="Lyrix, chanson du jour">
+            <Logo key={logoPlays} />
           </RouteLink>
           <span className="lyrix-slogan">Découvre la chanson&nbsp;!</span>
         </div>
