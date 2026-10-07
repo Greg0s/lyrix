@@ -1,6 +1,14 @@
 import { SERVICE_WORKER_PATH } from "./serviceWorker/routes";
 
 /**
+ * Said wherever the game would otherwise just fail with no network
+ * (GameScreen): in place of a round that couldn't load, and in the dock
+ * while one is shown (an installed Lyrix opens offline, on today's round
+ * restored from storage).
+ */
+export const OFFLINE_MESSAGE = "Hors ligne — reconnecte-toi pour jouer.";
+
+/**
  * Registers the service worker (src/serviceWorker/sw.ts, #79), which keeps
  * the app shell so an installed Lyrix opens without the network, once the
  * page has loaded: its first install downloads the shell again, and the
