@@ -9,6 +9,12 @@ const WORKER_PORT = 18787;
 const WORKER_INSPECTOR_PORT = 19229;
 const SIMILARITY_WORKER_PORT = 18788;
 const SIMILARITY_WORKER_INSPECTOR_PORT = 19230;
+// `vite preview`'s own 4173, + 10000 likewise.
+const PREVIEW_PORT = 14173;
+
+// Where the e2e run builds the app for `vite preview`: never dist/, which
+// holds whatever a developer built to deploy, against the production API.
+export const PREVIEW_OUT_DIR = "dist-e2e";
 
 // Local state (cached songs, and KV for the Worker that has a namespace bound)
 // for each Worker the suite starts. Each gets its own, and neither gets
@@ -29,6 +35,8 @@ const webUrl = `http://localhost:${WEB_PORT}`;
 export const workerUrl = `http://localhost:${WORKER_PORT}`;
 /** The Worker serving a real table out of a local KV namespace, as `npm run dev:debug` does. */
 export const similarityWorkerUrl = `http://localhost:${SIMILARITY_WORKER_PORT}`;
+/** The production build, as `vite preview` serves it: the only frontend that registers the service worker (#79). */
+export const previewUrl = `http://localhost:${PREVIEW_PORT}`;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -79,6 +87,22 @@ export default defineConfig({
       url: `${similarityWorkerUrl}/api/round`,
       reuseExistingServer: false,
       timeout: 60_000,
+    },
+    {
+      // The app as it is deployed: built, then served from the build. The
+      // dev server registers no service worker (src/pwa.ts), so an installed
+      // Lyrix can only be tested here (tests/e2e/pwa.spec.ts). Its /api goes
+      // to the Worker above, through the same proxy as the dev server's.
+      command:
+        `npm run build -- --outDir ${PREVIEW_OUT_DIR}` +
+        ` && npm run preview -- --outDir ${PREVIEW_OUT_DIR} --port ${PREVIEW_PORT} --strictPort`,
+      url: previewUrl,
+      // Read by vite.config.ts as for the dev server; and an API base a
+      // developer's .env sets for deploying would send the build's calls to
+      // production instead.
+      env: { API_PROXY_TARGET: workerUrl, VITE_API_BASE_URL: "" },
+      reuseExistingServer: false,
+      timeout: 120_000,
     },
   ],
   use: {

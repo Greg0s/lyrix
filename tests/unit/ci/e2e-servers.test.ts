@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { PlaywrightTestConfig } from "@playwright/test";
 import type { UserConfig } from "vite";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { similarityTableFixture } from "../../../playwright.config";
+import { PREVIEW_OUT_DIR, previewUrl, similarityTableFixture } from "../../../playwright.config";
 import { DEBUG_PERSIST_DIR } from "../../../scripts/lib/debugMode";
 
 // Regression test for e2e runs passing against another checkout's code. The
@@ -17,6 +17,8 @@ const DEV_WEB_PORT = 5173; // Vite's default, which .claude/launch.json expects
 const DEV_WORKER_PORT = 8787; // wrangler dev's default, which vite.config.ts proxies to
 const DEV_WORKER_INSPECTOR_PORT = 9229; // wrangler dev's default inspector port
 const DEV_PORTS = [DEV_WEB_PORT, DEV_WORKER_PORT, DEV_WORKER_INSPECTOR_PORT];
+// What `npm run preview` binds by default, for a developer looking at their own build.
+const DEV_PREVIEW_PORT = 4173;
 
 // Where wrangler keeps local state when it isn't told otherwise: the cached
 // songs of every `npm run dev:all` in this checkout, and the tables
@@ -92,6 +94,19 @@ function readinessUrl(server: WebServer): URL {
   return new URL(server.url);
 }
 
+/**
+ * The production build's server: built, then served, in one command
+ * (`npm run build -- … && npm run preview -- …`). Each step's own arguments.
+ */
+function previewServer(config: PlaywrightTestConfig): { server: WebServer; build: string; preview: string } {
+  const server = serverStartedBy(config, "build");
+  const steps = server.command.split("&&").map((step) => step.trim());
+  if (steps.length !== 2 || !steps[1].startsWith("npm run preview ")) {
+    throw new Error(`expected \`npm run build -- … && npm run preview -- …\`, got \`${server.command}\``);
+  }
+  return { server, build: steps[0], preview: steps[1] };
+}
+
 function apiProxy(config: UserConfig): { target: string; ws: boolean } {
   const proxy = config.server?.proxy?.["/api"];
   if (typeof proxy === "string") return { target: proxy, ws: false };
@@ -126,7 +141,10 @@ describe("Playwright e2e web servers", () => {
       requestedPort(similarity.command, "--inspector-port", DEV_WORKER_INSPECTOR_PORT),
     ];
 
-    for (const port of e2ePorts) expect(DEV_PORTS).not.toContain(port);
+    const { preview } = previewServer(config);
+    e2ePorts.push(requestedPort(preview, "--port", DEV_PREVIEW_PORT));
+
+    for (const port of e2ePorts) expect([...DEV_PORTS, DEV_PREVIEW_PORT]).not.toContain(port);
     expect(new Set(e2ePorts).size).toBe(e2ePorts.length);
   });
 
@@ -143,6 +161,10 @@ describe("Playwright e2e web servers", () => {
       const server = serverStartedBy(config, script);
       expect(requestedPort(server.command, "--port", DEV_WORKER_PORT), script).toBe(Number(readinessUrl(server).port));
     }
+    const { server, preview } = previewServer(config);
+    expect(requestedPort(preview, "--port", DEV_PREVIEW_PORT)).toBe(Number(readinessUrl(server).port));
+    expect(forwardedArgs(preview)).toContain("--strictPort");
+    expect(readinessUrl(server).origin).toBe(previewUrl);
   });
 
   it("proxy the e2e frontend's /api calls to the e2e Worker", async () => {
@@ -153,6 +175,30 @@ describe("Playwright e2e web servers", () => {
     const viteConfig = await loadViteConfig(web.env ?? {});
 
     expect(new URL(apiProxyTarget(viteConfig)).origin).toBe(readinessUrl(worker).origin);
+  });
+
+  // `vite preview` proxies like the dev server (preview.proxy defaults to server.proxy).
+  it("proxy the production build's /api calls to the e2e Worker too, never to production", async () => {
+    const config = await loadPlaywrightConfig();
+    const { server } = previewServer(config);
+    const worker = serverStartedBy(config, "dev:worker");
+
+    const viteConfig = await loadViteConfig(server.env ?? {});
+
+    expect(new URL(apiProxyTarget(viteConfig)).origin).toBe(readinessUrl(worker).origin);
+    expect(viteConfig.preview?.proxy).toBeUndefined();
+    // Set to nothing over whatever a developer's .env says, so the build calls its own origin's /api.
+    expect(server.env?.VITE_API_BASE_URL).toBe("");
+  });
+
+  it("serve a build of their own, never the dist/ a developer deploys", async () => {
+    const { build, preview } = previewServer(await loadPlaywrightConfig());
+
+    expect(forwardedFlag(build, "--outDir")).toBe(PREVIEW_OUT_DIR);
+    expect(forwardedFlag(preview, "--outDir")).toBe(PREVIEW_OUT_DIR);
+    expect(PREVIEW_OUT_DIR).not.toBe("dist");
+    const ignored = readFileSync(new URL("../../../.gitignore", import.meta.url), "utf-8").split("\n");
+    expect(ignored).toContain(PREVIEW_OUT_DIR);
   });
 });
 

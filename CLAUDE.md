@@ -23,6 +23,7 @@ The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header
 - **Database**: none. Cloudflare D1 is reserved for a later phase (accounts, leaderboard) — do not add it now. Workers KV holds only the precomputed similarity tables (see below), not application data.
 - **Rooms** ("salons", #29): one SQLite-backed Durable Object per room code (`worker/src/room.ts`), members kept live over hibernatable WebSockets, everything deleted at the next UTC midnight. Creating and joining are rate-limited per client with the Workers Rate Limiting binding (`worker/src/roomRoutes.ts`). Each room also plays a round together (#30): today's song, or a day of the archives any member takes the room to; its object holds the room's guesses, one round per day, and sends every member the same masked view.
 - **Semantic proximity scoring**: French word embeddings, precomputed offline into a per-song score table — see `docs/SIMILARITY.md`.
+- **Installable (PWA, #79)**: `public/manifest.webmanifest` and a hand-written service worker (`src/serviceWorker/sw.ts`, about 2 kB), bundled on its own into `/sw.js` by a Vite plugin (`scripts/lib/serviceWorker.ts`) that writes the build's file list in. No `vite-plugin-pwa`/Workbox.
 - **Planned, not yet in scope**: `@react-three/fiber`/`@react-three/drei` for in-game 3D; word-usage counter.
 
 ## Working on this project
@@ -33,7 +34,7 @@ The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header
 - Debug mode — play against real proximity scores instead of the dev placeholder: `npm run dev:debug`
 - Knowledge graph refresh after code changes: `npm run graph:update` (see "graphify" below)
 - There is no Prettier config or dependency: never run `npx prettier --write` here — its defaults reformat every file it touches. Match the surrounding style by hand.
-- In a cloud session, the pre-installed Chromium is not the build the pinned `@playwright/test` expects, so every e2e test fails at launch ("Executable doesn't exist"). Run the suite through a throwaway, uncommitted config that re-exports `playwright.config.ts` with `use.launchOptions.executablePath: "/opt/pw-browsers/chromium"`. LRCLIB is unreachable there too, so the Worker serves its emergency song — which is why e2e specs read the day's title off the round's dev hints (`tests/e2e/titleWords.ts`), never from `catalog`: the round doesn't name its song (#40).
+- In a cloud session, the pre-installed Chromium is not the build the pinned `@playwright/test` expects, so every e2e test fails at launch ("Executable doesn't exist"). Run the suite through a throwaway, uncommitted config that re-exports `playwright.config.ts` with `use.launchOptions.executablePath: "/opt/pw-browsers/chromium"` — kept in the scratchpad, it must be a `.mts` file and set each `webServer`'s `cwd` to the repository (see `docs/LEARNINGS.md`, 2026-10-07). LRCLIB is unreachable there too, so the Worker serves its emergency song — which is why e2e specs read the day's title off the round's dev hints (`tests/e2e/titleWords.ts`), never from `catalog`: the round doesn't name its song (#40).
 
 ## TypeScript Rules
 
@@ -72,7 +73,7 @@ Never test manually when it can be scripted instead — this applies to the deve
 
 - **Unit tests** (Vitest): game logic (word masking, matching, French text normalization) and Worker request handlers, decoupled from any rendering concern.
 - **Component tests** (Vitest + jsdom + Testing Library, `tests/unit/components`): what a React change does to the player's experience — above all how much of the page a keystroke re-renders. Assert on counted work (renders, reads, writes), never timings.
-- **End-to-end tests** (Playwright): the real player flow. Assert against the DOM/game state, not visual output. `npm run test:e2e` starts its own Vite/Worker instances on dedicated ports and never reuses a server already running — see `tests/unit/ci/e2e-servers.test.ts` if a run fails with "already in use".
+- **End-to-end tests** (Playwright): the real player flow. Assert against the DOM/game state, not visual output. `npm run test:e2e` starts its own Vite/Worker instances on dedicated ports and never reuses a server already running — see `tests/unit/ci/e2e-servers.test.ts` if a run fails with "already in use". It also builds the app into `dist-e2e/` and serves it with `npm run preview`: the service worker only exists in a production build, so its specs (`tests/e2e/pwa.spec.ts`) run there.
 - Before marking a task done, run the relevant test script(s) yourself and report the result. If a check isn't yet scripted, write that script first.
 - Every bug fix adds a regression test that would have caught it, in the same commit as the fix.
 - CI (`.github/workflows/ci.yml`) runs the full suite on every push/PR, and deploys on merge to `main`.
@@ -101,10 +102,11 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 - **The win is celebrated once, live** (#42): the title's words pop in turn, the victory panel comes in after them, and confetti (`Celebration.tsx`) bursts from the title — only when the answer to a guess of the player's own completes the title of the round on screen (`useGame`'s `celebration`). Never for a round that comes back won (storage, a room's round on connection), a teammate's win, or "Afficher la réponse". The confetti is portalled into `<body>` (the song card keeps a transform, and `position: fixed` inside it would be fixed to the card), lets every click through, is `aria-hidden`, and isn't rendered at all under reduced motion.
 - **French text matching**: normalize both the guess and the stored lyrics before comparing (case/accent-insensitive, œ/æ spelled out) and account for elisions ("j'aime" vs "je aime", "qu'il", "l'amour"). `LETTER_CLASS` (`src/game/tokenize.ts`) must cover every letter French lyrics use. A run of digits is a word too.
 - **Search and link previews**: `index.html` carries the description, canonical URL, Open Graph/Twitter tags and schema.org JSON-LD (`WebSite` + `VideoGame`), all as absolute `https://lyrix-eyg.pages.dev/` URLs, in step with `public/robots.txt` and `public/sitemap.xml` (`tests/unit/ci/richSnippets.test.ts`). Never add a rating or review to the JSON-LD that no real player gave. If the production domain changes, change every one of them together.
-- **Theming**: light and dark palettes, both in `src/styles/tokens.css` (dark under `:root[data-theme="dark"]`). Components use tokens only, never a raw colour, and a text token is never a surface: dark fills use `--color-solid*` and stay dark in both themes (text on them is `--color-on-ink*`), bright fills take `--color-on-bright` text. The theme follows the system until the player picks one with the header's toggle (`src/theme.ts`, stored in localStorage); `index.html`'s inline script applies it before first paint and must stay in step with `initialTheme()` (`tests/unit/theme.test.ts`).
+- **Theming**: light and dark palettes, both in `src/styles/tokens.css` (dark under `:root[data-theme="dark"]`). The manifest's `theme_color` and `background_color` are the light `--color-page-bg`, like index.html's `theme-color` (`tests/unit/ci/manifest.test.ts`). Components use tokens only, never a raw colour, and a text token is never a surface: dark fills use `--color-solid*` and stay dark in both themes (text on them is `--color-on-ink*`), bright fills take `--color-on-bright` text. The theme follows the system until the player picks one with the header's toggle (`src/theme.ts`, stored in localStorage); `index.html`'s inline script applies it before first paint and must stay in step with `initialTheme()` (`tests/unit/theme.test.ts`).
 - **Rooms** (#29): a room knows its code, its members, and its round. Its wire contract, codes (`ABCDEFGHJKMNPQRSTUVWXYZ23456789`, 6 characters) and pseudo sanitizing live in `src/game/room.ts`, shared by both sides. Two rules keep codes from being enumerated: every join attempt is rate-limited, and no other route may answer differently for a live code than for a dead one (an unknown token and an unknown room close the socket the same way, and get the same 404 from `/guess`; leave always answers 204). A pseudo is personal data: stored only in its room's Durable Object, deleted with the room, never logged.
 - **Invite links** (`/salon/<code>`, `src/game/room.ts`): opening one offers to join that room with the code typed in, through the same rate-limited join as a typed code — the link itself asks the server nothing. It is answered with the invite page, index.html under an invitation's link preview (`scripts/lib/invitePage.ts`, emitted by the build as `dist/salon/index.html`, served by `public/_redirects`; the dev server does it on the fly). That preview is the same for every code: never look the room up for it, nor show its host's pseudo.
 - **A room's round lives in its Durable Object** (#30), never on a client: a member sends a word (`POST /api/rooms/:code/guess`), the object checks it with the same code as the solo route (`worker/src/round.ts`), keeps it, and sends every member the room's masked view plus its guess list — over the socket on (re)connection and after each guess. The song is pinned the first time the room needs it. Victory, and with it `revealHint`, is the room's, but only the member who completed the title (`RoomRound.winningKey`) sees it straight away: everyone else keeps looking alone, on a solo round the room signs for them (`POST /api/rooms/:code/alone`: the group's finds but the winning word, plus their own verified solo state), until they win it or press "Afficher la réponse" (remembered per room, `roomStorage`). While they look alone, the room's later finds are never announced to them. A teammate's close guesses are placed in everyone's lyrics. While in a room, the solo round (`roundStorage`) is set aside untouched; the room's round is never saved locally, only its sealed state and found words as a `GroupSnapshot` (per day and room). Once out of every room (left, expired, or on a later visit, after the day's round has loaded), each snapshot joins the player's own round of its day through `POST /api/round/resume`: the union of both, so nothing found alone or together is lost. No snapshot is kept while the player looks alone: their solo round already holds everything but the winning word, which they never get from the room (decided with the developer). An answer and a broadcast can cross: a view only replaces one with fewer guesses.
+- **The service worker never answers the API or an invite link** (#79, `src/serviceWorker/routes.ts`): rounds, guesses and rooms always come from the Worker, `/salon/*` from Pages' invite page, and neither is ever cached. A page's address goes to the network first — the app shell kept at install answers only when the network fails or hangs past `NAVIGATION_TIMEOUT_MS` — so a deploy reaches players at their next visit; a new worker takes over at once (`skipWaiting`, `claim`) and deletes every other version's caches. It is registered by production builds only (`src/pwa.ts`), served `no-cache` (`public/_headers`), and stays a classic script with no `import` (`tests/unit/ci/serviceWorker.test.ts`). Offline, the game says `OFFLINE_MESSAGE` ("Hors ligne — reconnecte-toi pour jouer.") instead of failing, keeps a round restored from storage readable, and reloads a round that failed once the network is back (`useOnline`). The page reaches under a notch and a home indicator (`viewport-fit=cover`): whatever sticks to a screen edge keeps its content within `env(safe-area-inset-*)` (`tests/unit/ci/safeArea.test.ts`).
 - **LRCLIB data isn't guaranteed clean**: `plainLyrics`/`syncedLyrics` are LRC-format text, not prose. Everything unsung is dropped before masking (`cleanLyrics`) — a player must never be asked to guess `[Refrain]`, `♪`, or the artist out of an `[ar:…]` tag — and a result too thin to be a puzzle is refused (`MIN_LYRIC_WORDS`) so the day's pick falls through to the next catalog entry. The catalog is only as good as LRCLIB's copy of it and the suite mocks the network on purpose, so run `npm run catalog:check` after editing `worker/src/catalog.ts`, and whenever a day's round looks wrong.
 - **A day's song never changes once played** (archives replay the last 30 days): `worker/src/catalog.ts`'s `schedule` is a list of dated segments, each playing one list in order. New songs go in a new segment starting on a day not yet played — never into a list already playing, which would shift every later day — and an id that has been played is never changed or removed. The days already played are pinned in `tests/unit/worker/catalog.test.ts` (only ever add rows), which also checks that no day the archives hold is tomorrow's song. No song before `FIRST_SONG_DAY` (2026-09-12): the archives show those days as unavailable.
 - **Archived days are played through the same round, keyed by day**: `GET /api/round?day=YYYY-MM-DD` serves any day `isPlayableDay` allows (the last `ARCHIVE_DAYS`, from `FIRST_SONG_DAY`, never one to come: tomorrow's song stays secret), on the song that day had. The day is sealed in the state and comes back as `RoundView.day` on every view, guesses and rooms included. With players spread over 30 songs, the Worker keeps that many songs and several similarity tables memoized (least recently used out): never back to one slot.
@@ -122,20 +124,26 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
 
 - Any 3D code or dependency (`three`, `@react-three/fiber`, `@react-three/drei`).
 - Word-usage counter (V2).
+- Push notifications ("la chanson du jour est là"): left out of #79, an issue of their own.
 - User accounts, authentication, leaderboard, Cloudflare D1 (V3).
 - Monetization of any kind.
 
 ## Project Structure
 
 ```
-/public                  # favicon.svg, favicon-48.png, apple-touch-icon.png, og-image.png and
-                          # og-invite.png (link previews) — generated from the logo mark + tokens.css
-                          # by `npm run favicon:build`, never edited by hand; robots.txt, sitemap.xml;
-                          # _redirects (Pages: invite links -> the invite page)
+/public                  # favicon.svg, favicon-48.png, apple-touch-icon.png, icon-192.png, icon-512.png,
+                          # icon-maskable-512.png (the installed app's), og-image.png and og-invite.png
+                          # (link previews) — generated from the logo mark + tokens.css by
+                          # `npm run favicon:build`, never edited by hand, each PNG icon signed with its
+                          # source (favicon.test.ts); manifest.webmanifest; robots.txt, sitemap.xml;
+                          # _redirects (Pages: invite links -> the invite page); _headers (sw.js no-cache)
 /src
   main.tsx, App.tsx     # React entry point, top-level render of GameScreen
   routes.ts              # the screens' addresses: / (today), /archives, /archives/<day>, /comment-jouer
   roundPrefetch.ts       # today's round, asked for by main.tsx before React renders (fresh loads only)
+  pwa.ts                 # registers the service worker (production builds only); OFFLINE_MESSAGE
+  /serviceWorker         # routes.ts: what the worker answers and how (shared with the build); sw.ts: the
+                          # worker itself, type-checked by its own tsconfig.json (WebWorker lib)
   roundStorage.ts        # localStorage, one round per day of the archives: state + tried words per day,
                           # today's view (instant reload), a summary index for the archives screen;
                           # deferred/idle writes, flushed on tab hide/close
@@ -192,6 +200,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                             # `celebration`: a guess of the player's own just completed the title (#42)
     useRovingBlanks.ts       # one tab stop per title/lyrics, arrow keys move between bars (#33)
     useRoute.ts               # the screen shown, in step with the address bar (History API, no router)
+    useOnline.ts              # whether the device is offline (only navigator.onLine === false is)
     useRoom.ts                # room state, its WebSocket (reconnect with backoff, keep-alive); room
                               # events reach the dock's feedback line through useGame's announce(),
                               # round messages go to useGame's receiveRoomRound()
@@ -236,10 +245,14 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   dev-debug.ts, inspect-similarity-table.ts, build-favicon.ts, graph-update.ts
   /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, debugMode.ts, devVars.ts, catalogAudit.ts,
        favicon.ts, socialImage.ts, invitePage.ts (+ its Vite plugin), apiPreconnect.ts (Vite plugin:
-       index.html preconnects to the API's origin in production), graphFixes.ts, graphSeed.ts
+       index.html preconnects to the API's origin in production), serviceWorker.ts (Vite plugin:
+       /sw.js, bundled on its own as a classic script, with the build's file list), graphFixes.ts,
+       graphSeed.ts
 /tests
-  /unit/game, /unit/worker, /unit/scripts, /unit/storage, /unit/components, /unit/api, /unit/ci
-  /e2e                        # Playwright; fixtures/similarity-table.json stands in for a built table
+  /unit/game, /unit/worker, /unit/scripts, /unit/storage, /unit/components, /unit/api, /unit/ci,
+  /unit/serviceWorker         # the worker's routes and handlers, against a fake scope (its tsconfig)
+  /e2e                        # Playwright; fixtures/similarity-table.json stands in for a built table;
+                              # pwa.spec.ts runs on the production build (`npm run preview`)
 /docs
   LEARNINGS.md, SIMILARITY.md
 ```

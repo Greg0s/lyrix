@@ -4,8 +4,10 @@ import { revealedPercent } from "../game/progress";
 import { parseInvitePath } from "../game/room";
 import { closestGuessBySlot, placeNearGuesses } from "../game/slots";
 import { useGame, type Feedback } from "../hooks/useGame";
+import { useOnline } from "../hooks/useOnline";
 import { useRoom } from "../hooks/useRoom";
 import { useRoute } from "../hooks/useRoute";
+import { OFFLINE_MESSAGE } from "../pwa";
 import { isAnswerRevealed } from "../roomStorage";
 import { loadArchive } from "../roundStorage";
 import { utcDay } from "../game/daily";
@@ -128,6 +130,18 @@ export function GameScreen() {
   const { submit } = game;
   const onSubmit = useCallback(() => void submit(), [submit]);
 
+  // A round that couldn't load for want of a network loads by itself once
+  // the network is back: the player was told to reconnect, not to retry.
+  const online = useOnline();
+  const wasOnline = useRef(online);
+  const { loadRound } = game;
+  const loadFailed = game.error !== null && game.round === null;
+  useEffect(() => {
+    const back = online && !wasOnline.current;
+    wasOnline.current = online;
+    if (back && loadFailed) void loadRound();
+  }, [online, loadFailed, loadRound]);
+
   // Derived above the early returns below, so the hooks run on every render.
   // Each walks the whole round or the whole guess list, and each is memoized
   // on what it reads rather than recomputed per render: that is what keeps a
@@ -205,7 +219,7 @@ export function GameScreen() {
     return shell(
       <main className="lyrix-main is-message">
         <div className="lyrix-card lyrix-message">
-          <p role="alert">Impossible de charger la partie.</p>
+          <p role="alert">{online ? "Impossible de charger la partie." : OFFLINE_MESSAGE}</p>
           <button type="button" className="lyrix-button" onClick={() => void game.loadRound()}>
             Réessayer
           </button>
@@ -231,10 +245,15 @@ export function GameScreen() {
   // A teammate's find is highlighted like the player's own, while it is the latest news.
   const lastFoundKey = notice ? (notice.foundKey ?? null) : feedback?.found ? feedback.key : null;
   let guessFeedback: GuessFeedback | null = null;
-  // Whatever happened last: a notice is cleared by the next guess's outcome
-  // (useGame), so while there is one, it is the newest thing to say. Only the
-  // player's own misses shake the input: a teammate's is just news.
-  if (notice) {
+  // No network: nothing the player sends can be checked, and nothing a room
+  // sends arrives, so that is what the line says until it comes back.
+  // Otherwise, whatever happened last: a notice is cleared by the next
+  // guess's outcome (useGame), so while there is one, it is the newest thing
+  // to say. Only the player's own misses shake the input: a teammate's is
+  // just news.
+  if (!online) {
+    guessFeedback = { text: OFFLINE_MESSAGE, tone: "offline", seq: 0, shake: false };
+  } else if (notice) {
     guessFeedback = {
       text: notice.text,
       tone: notice.outcome ?? "info",
