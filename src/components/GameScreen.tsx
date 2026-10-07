@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { daysToFind, groupEntry, nextDayToFind, type ArchiveEntry } from "../game/archive";
 import { revealedPercent } from "../game/progress";
 import { parseInvitePath } from "../game/room";
-import { closestGuessBySlot, placeNearGuesses } from "../game/slots";
+import { closestGuessBySlot, createNearPlacer } from "../game/slots";
 import { useGame, type Feedback } from "../hooks/useGame";
 import { useRoom } from "../hooks/useRoom";
 import { useRoute } from "../hooks/useRoute";
@@ -135,9 +135,12 @@ export function GameScreen() {
   // word being typed.
   const { round, triedWords } = game;
   // Every hidden word shows the closest miss so far; a revealed word always shows itself.
+  // Handed the previous placement, so every line a guess didn't touch comes
+  // back as the same array and its TokenRun skips rendering.
+  const [placeNear] = useState(createNearPlacer);
   const slots = useMemo(
-    () => (round ? placeNearGuesses(round, closestGuessBySlot(triedWords)) : null),
-    [round, triedWords]
+    () => (round ? placeNear(round, closestGuessBySlot(triedWords)) : null),
+    [placeNear, round, triedWords]
   );
   const percent = useMemo(() => (round ? revealedPercent(round) : 0), [round]);
   const foundCount = useMemo(() => triedWords.filter((word) => word.found).length, [triedWords]);

@@ -319,6 +319,45 @@ describe("a guess answered with what it changed", () => {
     expect(resumeRound).not.toHaveBeenCalled();
   });
 
+  // The fixture's lines, in words: the title 4, the first verse line 7, the second 6, the chorus 6.
+  it("re-renders only the line the word was found on", async () => {
+    submitGuess.mockResolvedValue(ventFound());
+
+    const input = await mountGame();
+    fireEvent.change(input, { target: { value: "vent" } });
+    wordTokenRenders.count = 0;
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(screen.getByText("vent", { selector: ".token-word-found" })).toBeTruthy());
+    expect(wordTokenRenders.count).toBe(7);
+  });
+
+  it("re-renders, for a miss, only the lines its close guess lands on and the one losing its highlight", async () => {
+    submitGuess
+      .mockResolvedValueOnce(ventFound())
+      .mockResolvedValueOnce({
+        ...ventFound(),
+        state: "state-2",
+        key: "brise",
+        found: false,
+        score: 60,
+        // "bien", in the chorus: the title's 4 words, then the verse's 7 and 6, then "On" "est".
+        near: [{ position: 19, score: 60 }],
+        reveal: [],
+      });
+
+    const input = await mountGame();
+    fireEvent.change(input, { target: { value: "vent" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(screen.getByText("vent", { selector: ".token-word-found" })).toBeTruthy());
+    fireEvent.change(input, { target: { value: "brise" } });
+    wordTokenRenders.count = 0;
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(screen.getByText("brise", { selector: ".token-near-guess" })).toBeTruthy());
+    expect(wordTokenRenders.count).toBe(7 + 6);
+  });
+
   it("replaces the round with the Worker's own view when the counts disagree", async () => {
     submitGuess.mockResolvedValue(ventFound(3));
     const resumed = round("state-1");
