@@ -74,8 +74,8 @@ export const TriedWords = memo(function TriedWords({ triedWords, group }: TriedW
       <div className="lyrix-words-body" id={bodyId}>
         {anyScored ? (
           <p className="lyrix-legend">
-            Plus le score est élevé, plus le mot est proche d'un mot caché&nbsp;: à 40, il fait partie de ses 1&nbsp;000
-            plus proches voisins, à 60 des 100, à 80 des 10.
+            Plus le score est élevé, plus le mot est proche d'un mot caché, du rouge (loin) au vert (tout
+            proche)&nbsp;: à 40, il fait partie de ses 1&nbsp;000 plus proches voisins, à 60 des 100, à 80 des 10.
           </p>
         ) : null}
         <div className="lyrix-tried-list">
