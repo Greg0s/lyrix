@@ -31,6 +31,7 @@ const resumeRound = vi.hoisted(() => vi.fn());
 vi.mock("../../../src/api/client", () => ({ fetchRound, submitGuess, resumeRound }));
 
 const { GameScreen } = await import("../../../src/components/GameScreen");
+const { OFFLINE_MESSAGE } = await import("../../../src/pwa");
 const { prefetchTodayRound, takePrefetchedRound } = await import("../../../src/roundPrefetch");
 const { PEEK_FADE_MS, PEEK_SHOW_MS } = await import("../../../src/components/WordToken");
 
@@ -451,6 +452,83 @@ describe("a guess in flight", () => {
   });
 });
 
+// An installed Lyrix opens without a network (#79): what the player sees then.
+describe("with no network", () => {
+  function goOffline() {
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+    window.dispatchEvent(new Event("offline"));
+  }
+
+  function backOnline() {
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(true);
+    window.dispatchEvent(new Event("online"));
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("says so in place of a round that couldn't load, and loads it once the network is back", async () => {
+    goOffline();
+    fetchRound.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await act(async () => {
+      render(<GameScreen />);
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toBe(OFFLINE_MESSAGE);
+    expect(screen.queryByText("Impossible de charger la partie.")).toBeNull();
+
+    await act(async () => backOnline());
+
+    await waitFor(() => expect(screen.getByPlaceholderText("Propose un mot…")).toBeTruthy());
+    expect(fetchRound).toHaveBeenCalledTimes(2);
+  });
+
+  it("still says the round couldn't load when the network is there, and waits for the player to retry", async () => {
+    fetchRound.mockRejectedValueOnce(new Error("request failed with status 500"));
+    await act(async () => {
+      render(<GameScreen />);
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Impossible de charger la partie.");
+    await act(async () => backOnline());
+    expect(fetchRound).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes a browser that doesn't say whether it is online for online", async () => {
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(undefined as unknown as boolean);
+    await mountGame();
+
+    expect(screen.queryByText(OFFLINE_MESSAGE)).toBeNull();
+  });
+
+  it("keeps today's saved round readable, the dock saying no word can be checked until the network is back", async () => {
+    saveRound(round(), []);
+    goOffline();
+    const input = await mountGame();
+
+    expect(screen.getByText("Couplet 1")).toBeTruthy();
+    expect(fetchRound).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toBe(OFFLINE_MESSAGE);
+
+    // A word sent anyway fails like any request with no network, and the line says why.
+    submitGuess.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    fireEvent.change(input, { target: { value: "vent" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(submitGuess).toHaveBeenCalledOnce());
+    expect(screen.getByRole("alert").textContent).toBe(OFFLINE_MESSAGE);
+    expect(input.value).toBe("vent");
+
+    wordTokenRenders.count = 0;
+    await act(async () => backOnline());
+
+    expect(screen.queryByText(OFFLINE_MESSAGE)).toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe("Le mot n'a pas pu être envoyé, réessaie.");
+    // Only the dock's line changed.
+    expect(wordTokenRenders.count).toBe(0);
+  });
+});
+
 describe("the Valider button", () => {
   it("cancels the mousedown a tap starts, so the input keeps focus (and a phone its keyboard)", async () => {
     await mountGame();
@@ -490,6 +568,28 @@ describe("the rules' page", () => {
     await waitFor(() => expect(window.location.pathname).toBe("/"));
     expect(await screen.findByPlaceholderText("Propose un mot…")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Comment jouer" }).getAttribute("aria-current")).toBeNull();
+  });
+
+  it("shows close guesses as the lyrics do, from cold to hot, and answers the rest in a FAQ", async () => {
+    await mountGame();
+    await toggleRules();
+
+    // Shaded along the close-guess ramp (--heat), not faded: the coldest sample
+    // sits at the red end, the hottest at the green one.
+    const heats = Array.from(document.querySelectorAll<HTMLElement>(".lyrix-help-sample")).map((bar) =>
+      Number(bar.style.getPropertyValue("--heat"))
+    );
+    expect(heats).toHaveLength(3);
+    expect(heats[0]).toBeLessThan(0.25);
+    expect(heats[2]).toBeGreaterThan(0.75);
+    expect([...heats].sort()).toEqual(heats);
+
+    expect(screen.getByRole("heading", { name: "Questions fréquentes" })).toBeTruthy();
+    const questions = document.querySelectorAll("details.lyrix-faq-item");
+    expect(questions.length).toBeGreaterThan(3);
+    // Short page first: every answer starts folded.
+    for (const question of questions) expect((question as HTMLDetailsElement).open).toBe(false);
+    expect(screen.getByText(/^Que veulent dire les couleurs/)).toBeTruthy();
   });
 
   it("closes from its own button too", async () => {

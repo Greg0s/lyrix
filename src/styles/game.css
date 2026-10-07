@@ -5,8 +5,14 @@
  * query, so no JavaScript reads the viewport.
  */
 
+/*
+ * index.html lets the page reach under a phone's notch and home indicator
+ * (viewport-fit=cover), as an installed app's window does: the safe-area
+ * insets keep everything readable out of them. They are 0 everywhere else.
+ */
 .lyrix-app {
   min-height: 100vh;
+  padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   background: var(--color-page-bg);
   font-family: var(--font-ui);
   color: var(--color-ink);
@@ -23,6 +29,8 @@
   position: sticky;
   top: 0;
   z-index: 20;
+  /* Its glass goes up under a status bar the page reaches under; its content doesn't. */
+  padding-top: env(safe-area-inset-top, 0px);
   background: var(--color-page-bg-glass);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--color-border);
@@ -887,7 +895,8 @@
 
 .lyrix-dock {
   position: sticky;
-  bottom: clamp(12px, 3vw, 24px);
+  /* Floats above a phone's home indicator too. */
+  bottom: calc(clamp(12px, 3vw, 24px) + env(safe-area-inset-bottom, 0px));
   z-index: 10;
   animation: lyrix-rise 0.55s var(--ease-out) 0.15s both;
 }
@@ -982,7 +991,8 @@
   color: var(--color-on-ink);
 }
 
-.lyrix-feedback.is-error {
+.lyrix-feedback.is-error,
+.lyrix-feedback.is-offline {
   font-weight: 600;
   color: var(--color-on-ink-error);
 }
@@ -1289,7 +1299,7 @@
 /*
  * Every score its own shade: --heat (0 to 1, set inline from the score by
  * proximityHeat in src/game/similarity.ts, or proximityNearHeat on a close
- * guess's bar) slides along the cold -> warm -> hot tokens, so a 41 and a 58
+ * guess's bar and the rules' sample bars) slides along the cold -> warm -> hot tokens, so a 41 and a 58
  * no longer look alike. Guarded, because a colour built from custom
  * properties that the browser can't mix would fall back to nothing rather
  * than to the tier colours above.
@@ -1298,7 +1308,8 @@
   .lyrix-chip.tier-hot,
   .lyrix-chip.tier-warm,
   .lyrix-chip.tier-cold,
-  .token-blank.token-word-near {
+  .token-blank.token-word-near,
+  .lyrix-help-sample {
     --to-warm: clamp(0%, calc(var(--heat, 0.5) * 200%), 100%);
     --to-hot: clamp(0%, calc((var(--heat, 0.5) - 0.5) * 200%), 100%);
     --heat-bg: color-mix(
@@ -1468,7 +1479,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px))
+    max(20px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
   animation: lyrix-fade-in 0.22s ease;
 }
 
@@ -1542,11 +1554,30 @@
 
 /* ---------- The rules: a page of their own (HowToPlay.tsx, /comment-jouer) ---------- */
 
+/*
+ * Stacked on a phone, the summary first; from the game screen's breakpoint,
+ * two blocks side by side like it: the rules on three fifths, the FAQ on the
+ * other two, wide enough that its questions rarely wrap.
+ */
 .lyrix-help-page {
   width: 100%;
-  max-width: 640px;
+  max-width: 680px;
   margin: 0 auto;
   padding: 20px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (min-width: 880px) {
+  .lyrix-help-page {
+    max-width: 1160px;
+    padding: 40px 32px 48px;
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(340px, 2fr);
+    gap: 32px;
+    align-items: start;
+  }
 }
 
 .lyrix-help {
@@ -1580,7 +1611,7 @@
 
 .lyrix-help-example {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 12px;
   padding: 14px 16px;
   background: var(--color-sunken);
@@ -1594,27 +1625,82 @@
   color: var(--color-ink-soft);
 }
 
-.lyrix-help-sample {
-  position: relative;
-  display: inline-block;
-  flex-shrink: 0;
-  font-family: var(--font-display);
-  font-size: 1.3rem;
-  font-weight: 800;
-  padding: 0 0.18em 0 0.34em;
-  border-radius: 0.2em;
-  background: var(--accent-solid);
-  color: transparent;
+.lyrix-help-samples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.lyrix-help-sample-guess {
-  position: absolute;
-  inset: 0;
+/*
+ * A close guess's bar, as the lyrics show one (.token-word-near): shaded
+ * along the cold -> hot ramp by --heat (nearStyle), mixed further up with the
+ * chips'. Declared after that mix, so the warm tier's colours, for a browser
+ * that can't mix them, are fallbacks rather than --heat-* values of its own.
+ */
+.lyrix-help-sample {
+  padding: 0.1em 0.45em;
+  border-radius: 0.2em;
+  background: var(--heat-bg, var(--proximity-warm-bg));
+  box-shadow: inset 0 0 0 1.5px var(--heat-border, var(--proximity-warm-border));
+  color: var(--heat-ink, var(--proximity-warm-ink));
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+/* ---------- The rules' FAQ (HowToPlay.tsx): native disclosures, one per question ---------- */
+
+.lyrix-faq {
+  gap: 0;
+  padding: 22px 28px;
+}
+
+.lyrix-faq-title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.lyrix-faq-item {
+  border-top: 1px solid var(--color-border);
+}
+
+.lyrix-faq-item summary {
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: var(--color-on-bright);
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
   font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  list-style: none;
+}
+
+.lyrix-faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.lyrix-faq-chevron {
+  flex-shrink: 0;
+  color: var(--color-ink-muted);
+  transition: transform 0.2s ease;
+}
+
+.lyrix-faq-item[open] .lyrix-faq-chevron {
+  transform: rotate(180deg);
+}
+
+.lyrix-faq-item p {
+  margin: 0 0 16px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--color-ink-soft);
 }
 
 /* ---------- Rooms (MultiplayerModal.tsx, RoomCard.tsx) ---------- */

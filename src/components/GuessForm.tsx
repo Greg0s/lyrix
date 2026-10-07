@@ -2,8 +2,11 @@ import type { CSSProperties, FormEvent, MouseEvent, RefObject } from "react";
 
 export interface GuessFeedback {
   text: string;
-  /** "info": something from outside the round, e.g. a player joining the room. */
-  tone: "found" | "missed" | "error" | "info";
+  /**
+   * "info": something from outside the round, e.g. a player joining the room.
+   * "offline": the device has no network, so no guess can be checked.
+   */
+  tone: "found" | "missed" | "error" | "info" | "offline";
   /** Bumped on every new guess: a new message is a new element, so its entrance replays, and the shake alternates. */
   seq: number;
   /** A guess of the player's own that missed: the input row shakes. */
@@ -73,7 +76,7 @@ export function GuessForm({ value, onChange, onSubmit, submitting, feedback, inp
           <p
             key={`${feedback.tone}-${feedback.seq}`}
             className={`lyrix-feedback is-${feedback.tone}`}
-            role={feedback.tone === "error" ? "alert" : "status"}
+            role={feedback.tone === "error" || feedback.tone === "offline" ? "alert" : "status"}
           >
             {feedback.color ? (
               <span className="lyrix-player-dot" style={{ "--player": feedback.color } as CSSProperties} aria-hidden="true" />
