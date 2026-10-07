@@ -1,7 +1,9 @@
+import { analyzeSong } from "../../src/game/analyze";
 import { buildSectionsView, buildTitleView, isVictory, songWordKeys } from "../../src/game/mask";
 import { normalize } from "../../src/game/normalize";
 import { MAX_PROXIMITY_SCORE } from "../../src/game/similarity";
-import type { NearSlot, RoundView, Song } from "../../src/game/types";
+import { wordPositions } from "../../src/game/slots";
+import type { GuessDelta, NearSlot, RevealedSlot, RoundView, Song } from "../../src/game/types";
 import { proximityHint, type SimilarityEnv } from "./similarity";
 import { sealState } from "./state";
 
@@ -82,6 +84,37 @@ export interface GuessOutcome {
   found: boolean;
   score: number | null;
   near: NearSlot[];
+}
+
+/** How many word occurrences `foundKeys` reveal: what a delta's `revealed` says, in O(found words). */
+export function revealedCount(song: Song, foundKeys: Iterable<string>): number {
+  const positions = wordPositions(song);
+  let count = 0;
+  for (const key of new Set(foundKeys)) count += positions.get(key)?.length ?? 0;
+  return count;
+}
+
+/**
+ * What a guess changed, short of a win, for a client that asked for it
+ * (GuessDelta): the sealed state, plus every occurrence of a found word.
+ * Nothing in it scales with the song's length. A hidden word's text is only
+ * read once its guess has been checked: `reveal` is empty on a miss.
+ * `foundKeys` are the words found once the guess is counted.
+ */
+export async function buildGuessDelta(
+  song: Song,
+  foundKeys: Iterable<string>,
+  outcome: GuessOutcome,
+  env: RoundEnv,
+  day: string
+): Promise<GuessDelta> {
+  const foundSet = new Set(foundKeys);
+  const state = await sealState({ songId: song.id, foundKeys: [...foundSet], day }, env.STATE_SECRET);
+  const { wordTexts } = analyzeSong(song);
+  const reveal: RevealedSlot[] = outcome.found
+    ? (wordPositions(song).get(outcome.key) ?? []).map((position) => ({ position, text: wordTexts[position] ?? "" }))
+    : [];
+  return { kind: "delta", state, day, ...outcome, reveal, revealed: revealedCount(song, foundSet) };
 }
 
 /** Checks one (already trimmed) guess against the song, given the words found before it. */

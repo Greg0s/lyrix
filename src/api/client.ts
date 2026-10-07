@@ -1,4 +1,4 @@
-import type { GuessResult, RoundView } from "../game/types";
+import type { GuessAnswer, RoundView } from "../game/types";
 import { API_BASE, apiUrl, GUESS_TIMEOUT_MS, ROUND_LOAD_TIMEOUT_MS, withTimeout } from "./base";
 
 interface ErrorBody {
@@ -48,15 +48,20 @@ export function resumeRound(states: readonly string[], day: string, signal?: Abo
   );
 }
 
-/** Throws when the guess couldn't be checked, a network that never answers included (GUESS_TIMEOUT_MS). */
-export function submitGuess(state: string, word: string): Promise<GuessResult> {
+/**
+ * Asks for what the guess changed (a GuessDelta, see src/game/delta.ts); a full
+ * view comes back instead on a win, or from a Worker deployed before deltas.
+ * Throws when the guess couldn't be checked, a network that never answers
+ * included (GUESS_TIMEOUT_MS).
+ */
+export function submitGuess(state: string, word: string): Promise<GuessAnswer> {
   return withTimeout(GUESS_TIMEOUT_MS, async (signal) => {
     const response = await fetch(`${API_BASE}/api/guess`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ state, word }),
+      body: JSON.stringify({ state, word, delta: true }),
       signal,
     });
-    return parseJsonResponse<GuessResult>(response);
+    return parseJsonResponse<GuessAnswer>(response);
   });
 }

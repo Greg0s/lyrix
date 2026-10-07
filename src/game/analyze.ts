@@ -55,6 +55,12 @@ export interface SongAnalysis {
    */
   positions: ReadonlyMap<string, readonly number[]>;
   /**
+   * Every word's text as the song writes it, by position: what a found word
+   * reveals at each of its occurrences (buildGuessDelta, worker/src/round.ts),
+   * each with its own case and accents. Its length is the song's word count.
+   */
+  wordTexts: readonly string[];
+  /**
    * The song's numbers ("2015"), each once, in reading order. A similarity
    * table has no entry for a number, so the Worker compares a guessed number
    * with these by value instead (see numberHint in worker/src/similarity.ts).
@@ -76,6 +82,7 @@ function analyze(song: Song): SongAnalysis {
   const wordKeys = new Set<string>();
   const positions = new Map<string, number[]>();
   const numberKeys: string[] = [];
+  const wordTexts: string[] = [];
   let position = 0;
 
   const visit = (text: string): AnalyzedToken[] => {
@@ -90,6 +97,7 @@ function analyze(song: Song): SongAnalysis {
         positions.set(token.key, [position]);
         if (isNumberWord(token.key)) numberKeys.push(token.key);
       }
+      wordTexts.push(token.text);
       position += 1;
     }
     return tokens;
@@ -108,6 +116,7 @@ function analyze(song: Song): SongAnalysis {
     titleKeys: title.filter((token) => token.isWord).map((token) => token.key),
     wordKeys,
     positions,
+    wordTexts,
     numberKeys,
   };
 }
