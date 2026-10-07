@@ -469,6 +469,28 @@ describe("the rules' page", () => {
     expect(screen.getByRole("button", { name: "Comment jouer" }).getAttribute("aria-current")).toBeNull();
   });
 
+  it("shows close guesses as the lyrics do, from cold to hot, and answers the rest in a FAQ", async () => {
+    await mountGame();
+    await toggleRules();
+
+    // Shaded along the close-guess ramp (--heat), not faded: the coldest sample
+    // sits at the red end, the hottest at the green one.
+    const heats = Array.from(document.querySelectorAll<HTMLElement>(".lyrix-help-sample")).map((bar) =>
+      Number(bar.style.getPropertyValue("--heat"))
+    );
+    expect(heats).toHaveLength(3);
+    expect(heats[0]).toBeLessThan(0.25);
+    expect(heats[2]).toBeGreaterThan(0.75);
+    expect([...heats].sort()).toEqual(heats);
+
+    expect(screen.getByRole("heading", { name: "Questions fréquentes" })).toBeTruthy();
+    const questions = document.querySelectorAll("details.lyrix-faq-item");
+    expect(questions.length).toBeGreaterThan(3);
+    // Short page first: every answer starts folded.
+    for (const question of questions) expect((question as HTMLDetailsElement).open).toBe(false);
+    expect(screen.getByText(/^Que veulent dire les couleurs/)).toBeTruthy();
+  });
+
   it("closes from its own button too", async () => {
     await mountGame();
     await toggleRules();
