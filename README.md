@@ -11,6 +11,7 @@ Currently in **MVP** phase: plain, functional UI, no 3D or animations yet.
 - **Lyrics source**: [LRCLIB](https://lrclib.net)
 - **Proximity hints**: French word embeddings, precomputed offline into a per-song word → score table stored in Cloudflare Workers KV
 - **Rooms**: one Cloudflare Durable Object per room, members kept live over WebSockets
+- **Installable**: a web app manifest and a small hand-written service worker that keeps the app shell (never the API)
 
 ## Requirements
 
@@ -44,7 +45,7 @@ npm run dev:worker  # API only (wrangler dev)
 
 ## Testing
 
-Neither command needs anything running first. `npm run test:e2e` starts its own frontend and Worker on dedicated ports (15173 and 18787, inspector 19229) and never reuses a server that's already running, so it always tests this clone's code, even with `npm run dev:all` up here or in another clone. If a run stops with "… is already used", something still holds one of those ports — most likely an interrupted e2e run.
+Neither command needs anything running first. `npm run test:e2e` starts its own frontend and Worker on dedicated ports (15173 and 18787, inspector 19229) and never reuses a server that's already running, so it always tests this clone's code, even with `npm run dev:all` up here or in another clone. It also builds the app into `dist-e2e/` (never `dist/`) and serves that build on 14173 with `npm run preview`: the service worker only runs in a production build. If a run stops with "… is already used", something still holds one of those ports — most likely an interrupted e2e run.
 
 ```bash
 npm test        # lint + typecheck + unit and component tests (Vitest)
@@ -93,6 +94,12 @@ Without a model it says so, names where it looked, and stops; `npm run dev:all` 
 "Jouer à plusieurs" creates a room ("salon") with a 6-character code and an invite link (`/salon/<code>`) to share, or joins one with its code. Opening an invite link offers to join that room, the code already typed in; the link previews in chat apps as an invitation (`public/og-invite.png`), the same for every room. Everyone in a room sees who else is there, live; sharing the round's found words across the room comes next ([#30](https://github.com/Greg0s/lyrix/issues/30)).
 
 Nothing to set up, locally or in production. Each room is a Cloudflare Durable Object (`worker/src/room.ts`), declared in `worker/wrangler.toml` together with two rate limits on creating and joining rooms, and deployed with the Worker: `npm run dev:all` runs all of it locally, WebSockets included. A room lasts until the next UTC midnight, when the day's song changes, and then it is deleted with everything in it — pseudos are kept nowhere else.
+
+## Installing the game
+
+Lyrix is a Progressive Web App: Chrome, Edge and Android offer to install it, and on an iPhone "Sur l'écran d'accueil" in Safari's share menu adds it to the home screen. It then opens in a window of its own, straight from the app shell its service worker keeps (`src/serviceWorker/sw.ts`). Playing still needs the network — only the Worker can check a word — so offline, the game says so and keeps today's round readable.
+
+The worker is built and registered by production builds only: `npm run dev` has none, so nothing it kept can get in the way of what you are working on. To try it locally, `npm run build && npm run preview` (with `npm run dev:worker` running for the API), then open [http://localhost:4173](http://localhost:4173). The manifest's icons are drawn with the favicon by `npm run favicon:build`.
 
 ## Project Structure
 

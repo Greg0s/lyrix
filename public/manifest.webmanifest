@@ -1,0 +1,31 @@
+{
+  "id": "/",
+  "name": "Lyrix",
+  "short_name": "Lyrix",
+  "description": "Jeu gratuit : une chanson par jour, la même pour tout le monde. Propose des mots pour dévoiler ses paroles cachées et retrouve son titre, seul ou à plusieurs.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f1e7",
+  "theme_color": "#f7f1e7",
+  "categories": ["games", "music"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Archives",
+      "description": "Les chansons des 30 derniers jours",
+      "url": "/archives"
+    },
+    {
+      "name": "Comment jouer",
+      "description": "Les règles du jeu",
+      "url": "/comment-jouer"
+    }
+  ]
+}

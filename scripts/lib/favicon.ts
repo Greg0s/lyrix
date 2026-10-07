@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { crc32 } from "node:zlib";
+
 /**
  * The favicon, redrawn in SVG from the CSS logo mark (`.lyrix-logo-mark` in
  * src/styles/game.css, markup in src/components/Logo.tsx).
@@ -24,6 +27,14 @@ const PIECE_GAP = 2.4;
 const WORD_RADIUS = 2.1;
 const BAR_RADIUS = 1;
 const CORNER_RADIUS = 9;
+/**
+ * A maskable icon (the web app manifest's `purpose: "maskable"`) is cut to
+ * the platform's own shape, a circle at worst: everything that matters must
+ * lie within 40% of the icon's size from its centre (the W3C "safe zone").
+ * At full size the mark's corners reach 40.7%; at 0.8 they stay under 33%.
+ */
+export const MASKABLE_SAFE_RADIUS = 0.4;
+const MASKABLE_SCALE = 0.8;
 
 type Piece = { kind: "word" | "bar"; width: number | "fill" };
 
@@ -42,9 +53,11 @@ const ROWS: Piece[][] = [
 
 const round = (n: number): string => String(Math.round(n * 100) / 100);
 
-function rowRects(colors: FaviconColors): string[] {
+/** The rows' pieces, drawn `scale` times their size around the icon's centre. */
+function rowRects(colors: FaviconColors, scale: number): string[] {
   const inner = SIZE - 2 * PAD;
   const top = (SIZE - (ROWS.length * ROW_HEIGHT + (ROWS.length - 1) * ROW_GAP)) / 2;
+  const scaled = (n: number) => SIZE / 2 + (n - SIZE / 2) * scale;
   const rects: string[] = [];
   ROWS.forEach((row, i) => {
     const fixed = row.reduce((sum, p) => sum + (p.width === "fill" ? 0 : p.width), 0);
@@ -56,7 +69,7 @@ function rowRects(colors: FaviconColors): string[] {
       const radius = piece.kind === "word" ? WORD_RADIUS : BAR_RADIUS;
       const color = piece.kind === "word" ? colors.onInk : colors.accent;
       rects.push(
-        `<rect x="${round(x)}" y="${round(y)}" width="${round(width)}" height="${round(ROW_HEIGHT)}" rx="${round(radius)}" fill="${color}"/>`
+        `<rect x="${round(scaled(x))}" y="${round(scaled(y))}" width="${round(width * scale)}" height="${round(ROW_HEIGHT * scale)}" rx="${round(radius * scale)}" fill="${color}"/>`
       );
       x += width + PIECE_GAP;
     }
@@ -64,17 +77,23 @@ function rowRects(colors: FaviconColors): string[] {
   return rects;
 }
 
-/**
- * `rounded`: the tab icon keeps the mark's rounded corners. The home-screen
- * icon is full-bleed instead, because iOS masks it to its own shape and would
- * paint transparent corners black.
- */
-export function faviconSvg(colors: FaviconColors, { rounded }: { rounded: boolean }): string {
+export interface IconShape {
+  /**
+   * The tab icon keeps the mark's rounded corners. The home-screen icon is
+   * full-bleed instead, because iOS masks it to its own shape and would
+   * paint transparent corners black.
+   */
+  rounded: boolean;
+  /** Full-bleed too, with the mark shrunk into the safe zone (MASKABLE_SAFE_RADIUS). */
+  maskable?: boolean;
+}
+
+export function faviconSvg(colors: FaviconColors, { rounded, maskable = false }: IconShape): string {
   const radius = rounded ? ` rx="${CORNER_RADIUS}"` : "";
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}">`,
     `  <rect width="${SIZE}" height="${SIZE}"${radius} fill="${colors.ink}"/>`,
-    ...rowRects(colors).map((r) => `  ${r}`),
+    ...rowRects(colors, maskable ? MASKABLE_SCALE : 1).map((r) => `  ${r}`),
     `</svg>`,
     ``,
   ].join("\n");
@@ -129,8 +148,67 @@ export function faviconColors(tokensCss: string): FaviconColors {
   };
 }
 
-/** The PNG fallbacks: [file in public/, pixel size, rounded corners]. */
-export const PNG_ICONS = [
+export interface PngIcon extends IconShape {
+  /** In public/. */
+  file: string;
+  /** Width and height, in pixels. */
+  size: number;
+}
+
+/**
+ * The PNG icons: the favicon's fallback, iOS's home-screen icon, and the
+ * installed app's (public/manifest.webmanifest), one of them maskable.
+ */
+export const PNG_ICONS: readonly PngIcon[] = [
   { file: "favicon-48.png", size: 48, rounded: true },
   { file: "apple-touch-icon.png", size: 180, rounded: false },
-] as const;
+  { file: "icon-192.png", size: 192, rounded: true },
+  { file: "icon-512.png", size: 512, rounded: true },
+  { file: "icon-maskable-512.png", size: 512, rounded: false, maskable: true },
+];
+
+/** The SVG a PNG icon is rasterized from: the favicon's, at the icon's size in pixels. */
+export function pngIconSvg(colors: FaviconColors, icon: PngIcon): string {
+  return faviconSvg(colors, icon).replace("<svg ", `<svg width="${icon.size}" height="${icon.size}" `);
+}
+
+/**
+ * What a PNG icon was drawn from, recorded in the file itself (a tEXt chunk
+ * under PNG_SOURCE_KEYWORD): a PNG can't be compared with its source like the
+ * SVG can, but this can, so tests/unit/ci/favicon.test.ts sees a stale one.
+ */
+export const PNG_SOURCE_KEYWORD = "lyrix:source";
+
+export function pngIconFingerprint(colors: FaviconColors, icon: PngIcon): string {
+  return createHash("sha256").update(pngIconSvg(colors, icon)).digest("hex");
+}
+
+const PNG_SIGNATURE_LENGTH = 8;
+/** Length, type, CRC: everything in a chunk but its data. */
+const CHUNK_OVERHEAD = 12;
+
+/** `png` with a tEXt chunk holding `text` under `keyword`, just before its IEND chunk. */
+export function withPngText(png: Buffer, keyword: string, text: string): Buffer {
+  const iend = png.length - CHUNK_OVERHEAD;
+  if (png.toString("latin1", iend + 4, iend + 8) !== "IEND") throw new Error("not a PNG: no IEND chunk at its end");
+  const body = Buffer.from(`tEXt${keyword}\0${text}`, "latin1");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(body.length - 4);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([png.subarray(0, iend), length, body, crc, png.subarray(iend)]);
+}
+
+/** The text a PNG's tEXt chunk holds under `keyword`, if it has one. */
+export function pngText(png: Buffer, keyword: string): string | undefined {
+  for (let offset = PNG_SIGNATURE_LENGTH; offset + CHUNK_OVERHEAD <= png.length; ) {
+    const length = png.readUInt32BE(offset);
+    if (png.toString("latin1", offset + 4, offset + 8) === "tEXt") {
+      const data = png.toString("latin1", offset + 8, offset + 8 + length);
+      const separator = data.indexOf("\0");
+      if (data.slice(0, separator) === keyword) return data.slice(separator + 1);
+    }
+    offset += CHUNK_OVERHEAD + length;
+  }
+  return undefined;
+}

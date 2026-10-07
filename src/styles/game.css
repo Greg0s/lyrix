@@ -5,8 +5,14 @@
  * query, so no JavaScript reads the viewport.
  */
 
+/*
+ * index.html lets the page reach under a phone's notch and home indicator
+ * (viewport-fit=cover), as an installed app's window does: the safe-area
+ * insets keep everything readable out of them. They are 0 everywhere else.
+ */
 .lyrix-app {
   min-height: 100vh;
+  padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   background: var(--color-page-bg);
   font-family: var(--font-ui);
   color: var(--color-ink);
@@ -23,6 +29,8 @@
   position: sticky;
   top: 0;
   z-index: 20;
+  /* Its glass goes up under a status bar the page reaches under; its content doesn't. */
+  padding-top: env(safe-area-inset-top, 0px);
   background: var(--color-page-bg-glass);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--color-border);
@@ -887,7 +895,8 @@
 
 .lyrix-dock {
   position: sticky;
-  bottom: clamp(12px, 3vw, 24px);
+  /* Floats above a phone's home indicator too. */
+  bottom: calc(clamp(12px, 3vw, 24px) + env(safe-area-inset-bottom, 0px));
   z-index: 10;
   animation: lyrix-rise 0.55s var(--ease-out) 0.15s both;
 }
@@ -982,7 +991,8 @@
   color: var(--color-on-ink);
 }
 
-.lyrix-feedback.is-error {
+.lyrix-feedback.is-error,
+.lyrix-feedback.is-offline {
   font-weight: 600;
   color: var(--color-on-ink-error);
 }
@@ -1469,7 +1479,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px))
+    max(20px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
   animation: lyrix-fade-in 0.22s ease;
 }
 

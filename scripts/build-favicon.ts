@@ -1,11 +1,20 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
-import { PNG_ICONS, faviconColors, faviconSvg } from "./lib/favicon";
+import {
+  PNG_ICONS,
+  PNG_SOURCE_KEYWORD,
+  faviconColors,
+  faviconSvg,
+  pngIconFingerprint,
+  pngIconSvg,
+  withPngText,
+} from "./lib/favicon";
 import { INVITE_IMAGE, SOCIAL_IMAGE, SOCIAL_IMAGE_FONTS, socialImageHtml } from "./lib/socialImage";
 
 /**
- * Regenerates public/favicon.svg, its PNG fallbacks and the link-preview images
+ * Regenerates public/favicon.svg, the PNG icons (its fallback, iOS's and the
+ * installed app's, see public/manifest.webmanifest) and the link-preview images
  * (public/og-image.png, public/og-invite.png) from the logo mark's geometry and the palette in
  * tokens.css. Run after changing either;
  * tests/unit/ci/favicon.test.ts fails while the committed files are stale.
@@ -49,17 +58,17 @@ const browser = await chromium.launch({
 try {
   for (const icon of PNG_ICONS) {
     const page = await browser.newPage({ viewport: { width: icon.size, height: icon.size } });
-    const svg = faviconSvg(colors, { rounded: icon.rounded }).replace(
-      "<svg ",
-      `<svg width="${icon.size}" height="${icon.size}" `
-    );
-    await page.setContent(`<html><body style="margin:0;background:transparent">${svg}</body></html>`);
-    await page.screenshot({
-      path: fileURLToPath(new URL(`public/${icon.file}`, root)),
+    await page.setContent(`<html><body style="margin:0;background:transparent">${pngIconSvg(colors, icon)}</body></html>`);
+    const png = await page.screenshot({
       omitBackground: true,
       clip: { x: 0, y: 0, width: icon.size, height: icon.size },
     });
     await page.close();
+    // Signed with its source, so the favicon test can tell a stale one.
+    writeFileSync(
+      new URL(`public/${icon.file}`, root),
+      withPngText(png, PNG_SOURCE_KEYWORD, pngIconFingerprint(colors, icon))
+    );
     console.log(`wrote public/${icon.file}`);
   }
 

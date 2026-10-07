@@ -1,6 +1,16 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { PNG_ICONS, cssColorToHex, faviconColors, faviconSvg } from "../../../scripts/lib/favicon";
+import {
+  MASKABLE_SAFE_RADIUS,
+  PNG_ICONS,
+  PNG_SOURCE_KEYWORD,
+  cssColorToHex,
+  faviconColors,
+  faviconSvg,
+  pngIconFingerprint,
+  pngText,
+  withPngText,
+} from "../../../scripts/lib/favicon";
 
 /**
  * The favicon is generated from the logo mark and the palette
@@ -37,6 +47,41 @@ describe("favicon", () => {
 
   it.each(PNG_ICONS)("ships $file at $size×$size", ({ file, size }) => {
     expect(pngSize(read(`public/${file}`))).toEqual({ width: size, height: size });
+  });
+
+  it.each(PNG_ICONS)("keeps $file in sync with the logo mark and tokens.css", (icon) => {
+    // Recorded by `npm run favicon:build` when it drew the file: run it again if this fails.
+    expect(pngText(read(`public/${icon.file}`), PNG_SOURCE_KEYWORD)).toBe(pngIconFingerprint(colors, icon));
+  });
+
+  it("keeps the maskable icon's mark inside the safe zone, on a full-bleed background", () => {
+    const svg = faviconSvg(colors, { rounded: false, maskable: true });
+    const [background, ...pieces] = [...svg.matchAll(/<rect ([^>]*)\/>/g)].map(([, attrs]) =>
+      Object.fromEntries([...attrs.matchAll(/(\w+)="([^"]*)"/g)].map(([, name, value]) => [name, value]))
+    );
+    expect(background).toMatchObject({ width: "36", height: "36" });
+    expect(background).not.toHaveProperty("rx");
+    expect(pieces.length).toBeGreaterThan(0);
+    for (const piece of pieces) {
+      const [x, y, width, height] = [piece.x, piece.y, piece.width, piece.height].map(Number);
+      for (const [cx, cy] of [
+        [x, y],
+        [x + width, y],
+        [x, y + height],
+        [x + width, y + height],
+      ]) {
+        expect(Math.hypot(cx - 18, cy - 18)).toBeLessThanOrEqual(MASKABLE_SAFE_RADIUS * 36);
+      }
+    }
+  });
+
+  it("reads back the text it records in a PNG, leaving the image as it was", () => {
+    const png = read("public/favicon-48.png");
+    const signed = withPngText(png, "lyrix:test", "abc");
+    expect(pngText(signed, "lyrix:test")).toBe("abc");
+    expect(pngSize(signed)).toEqual(pngSize(png));
+    expect(signed.subarray(-12).toString("latin1", 4, 8)).toBe("IEND");
+    expect(pngText(signed, "lyrix:other")).toBeUndefined();
   });
 
   it("sets theme-color to the page background", () => {

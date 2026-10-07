@@ -30,6 +30,7 @@ const submitGuess = vi.hoisted(() => vi.fn());
 vi.mock("../../../src/api/client", () => ({ fetchRound, submitGuess }));
 
 const { GameScreen } = await import("../../../src/components/GameScreen");
+const { OFFLINE_MESSAGE } = await import("../../../src/pwa");
 const { prefetchTodayRound, takePrefetchedRound } = await import("../../../src/roundPrefetch");
 const { PEEK_FADE_MS, PEEK_SHOW_MS } = await import("../../../src/components/WordToken");
 
@@ -347,6 +348,83 @@ describe("a guess in flight", () => {
     fireEvent.submit(input);
     await waitFor(() => expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy());
     expect(submitGuess).toHaveBeenCalledTimes(2);
+  });
+});
+
+// An installed Lyrix opens without a network (#79): what the player sees then.
+describe("with no network", () => {
+  function goOffline() {
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+    window.dispatchEvent(new Event("offline"));
+  }
+
+  function backOnline() {
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(true);
+    window.dispatchEvent(new Event("online"));
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("says so in place of a round that couldn't load, and loads it once the network is back", async () => {
+    goOffline();
+    fetchRound.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await act(async () => {
+      render(<GameScreen />);
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toBe(OFFLINE_MESSAGE);
+    expect(screen.queryByText("Impossible de charger la partie.")).toBeNull();
+
+    await act(async () => backOnline());
+
+    await waitFor(() => expect(screen.getByPlaceholderText("Propose un mot…")).toBeTruthy());
+    expect(fetchRound).toHaveBeenCalledTimes(2);
+  });
+
+  it("still says the round couldn't load when the network is there, and waits for the player to retry", async () => {
+    fetchRound.mockRejectedValueOnce(new Error("request failed with status 500"));
+    await act(async () => {
+      render(<GameScreen />);
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Impossible de charger la partie.");
+    await act(async () => backOnline());
+    expect(fetchRound).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes a browser that doesn't say whether it is online for online", async () => {
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(undefined as unknown as boolean);
+    await mountGame();
+
+    expect(screen.queryByText(OFFLINE_MESSAGE)).toBeNull();
+  });
+
+  it("keeps today's saved round readable, the dock saying no word can be checked until the network is back", async () => {
+    saveRound(round(), []);
+    goOffline();
+    const input = await mountGame();
+
+    expect(screen.getByText("Couplet 1")).toBeTruthy();
+    expect(fetchRound).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toBe(OFFLINE_MESSAGE);
+
+    // A word sent anyway fails like any request with no network, and the line says why.
+    submitGuess.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    fireEvent.change(input, { target: { value: "vent" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(submitGuess).toHaveBeenCalledOnce());
+    expect(screen.getByRole("alert").textContent).toBe(OFFLINE_MESSAGE);
+    expect(input.value).toBe("vent");
+
+    wordTokenRenders.count = 0;
+    await act(async () => backOnline());
+
+    expect(screen.queryByText(OFFLINE_MESSAGE)).toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe("Le mot n'a pas pu être envoyé, réessaie.");
+    // Only the dock's line changed.
+    expect(wordTokenRenders.count).toBe(0);
   });
 });
 

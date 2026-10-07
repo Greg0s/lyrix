@@ -199,6 +199,11 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  // roundStorage's deferred writes outlive the test that made them: written
+  // now, they go with the next test's localStorage.clear(). Left pending, a
+  // room's progress came back in the next test as a snapshot to merge, and
+  // the mocked resumeRound's undefined replaced its round (see LEARNINGS.md).
+  flushSavedRound();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });

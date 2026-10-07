@@ -1,5 +1,7 @@
 node_modules
 dist
+# The build tests/e2e/pwa.spec.ts runs against (playwright.config.ts).
+dist-e2e
 .wrangler
 *.local
 
