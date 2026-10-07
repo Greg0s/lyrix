@@ -76,6 +76,10 @@ function undated(view: RoundView): Omit<RoundView, "day"> {
   return copy as Omit<RoundView, "day">;
 }
 
+function writesOf(setItem: { mock: { calls: unknown[][] } }, key: string): number {
+  return setItem.mock.calls.filter(([written]) => written === key).length;
+}
+
 describe("roundStorage", () => {
   it("round-trips today's round", () => {
     const storage = fakeStorage();
@@ -138,6 +142,56 @@ describe("roundStorage", () => {
     });
     expect(loadSavedRound(storage, NOW)).toBeNull();
     expect(loadSavedDay(TODAY, storage, NOW)).toEqual({ state: "newer-state", triedWords });
+  });
+
+  // A missed guess changes the round's state, never its view: serializing the
+  // whole song again for it was most of what saving a guess cost.
+  describe("today's view", () => {
+    const hidden: DisplayToken = { text: "____", isWord: true, revealed: false };
+    const found: DisplayToken = { text: "vent", isWord: true, revealed: true };
+    const withLine = (state: string, token: DisplayToken) =>
+      roundOf(TODAY, state, { sections: [{ label: "Couplet", lines: [{ tokens: [token, hidden] }] }] });
+
+    it("is not written again for a guess that revealed nothing", () => {
+      const storage = fakeStorage();
+      const setItem = vi.spyOn(storage, "setItem");
+      saveRound(withLine("s1", hidden), [], storage, NOW);
+      saveRound(withLine("s2", hidden), triedWords, storage, NOW);
+
+      expect(writesOf(setItem, viewKey(TODAY))).toBe(1);
+      expect(writesOf(setItem, dayKey(TODAY))).toBe(2);
+      expect(loadSavedRound(storage, NOW)).toEqual({ round: withLine("s2", hidden), triedWords });
+    });
+
+    it("is written again once a guess reveals a word", () => {
+      const storage = fakeStorage();
+      const setItem = vi.spyOn(storage, "setItem");
+      saveRound(withLine("s1", hidden), [], storage, NOW);
+      saveRound(withLine("s2", found), triedWords, storage, NOW);
+
+      expect(writesOf(setItem, viewKey(TODAY))).toBe(2);
+      expect(loadSavedRound(storage, NOW)).toEqual({ round: withLine("s2", found), triedWords });
+    });
+
+    it("holds no state of its own", () => {
+      const storage = fakeStorage();
+      saveRound(withLine("secret-state", hidden), [], storage, NOW);
+      expect(storage.getItem(viewKey(TODAY))).not.toContain("secret-state");
+    });
+
+    it("isn't resumed when it shows fewer words than the day's entry says", () => {
+      const storage = fakeStorage();
+      saveRound(withLine("s1", hidden), [], storage, NOW);
+      const entry = JSON.parse(storage.getItem(dayKey(TODAY)) ?? "{}") as Record<string, unknown>;
+      storage.setItem(dayKey(TODAY), JSON.stringify({ ...entry, state: "s2", revealed: 1 }));
+
+      expect(loadSavedRound(storage, NOW)).toBeNull();
+      expect(loadSavedDay(TODAY, storage, NOW)).toEqual({ state: "s2", triedWords: [] });
+    });
+
+    it("still resumes as saved before views were written apart", () => {
+      expect(loadSavedRound(savedToday(triedWords), NOW)).toEqual({ round, triedWords });
+    });
   });
 
   it("ignores corrupted JSON instead of throwing", () => {
@@ -388,10 +442,6 @@ describe("saveRoundSoon", () => {
     flushSavedRound();
     vi.useRealTimers();
   });
-
-  function writesOf(setItem: { mock: { calls: unknown[][] } }, key: string): number {
-    return setItem.mock.calls.filter(([written]) => written === key).length;
-  }
 
   it("writes nothing straight away", () => {
     vi.useFakeTimers({ now: NOW });
