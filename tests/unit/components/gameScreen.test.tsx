@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CELEBRATION_MS } from "../../../src/components/confetti";
 import { utcDay } from "../../../src/game/daily";
 import type { GuessDelta, GuessResult, RoundView } from "../../../src/game/types";
-import { saveRound } from "../../../src/roundStorage";
+import { flushSavedRound, saveRound } from "../../../src/roundStorage";
 
 /**
  * What the player feels between keystrokes.
@@ -88,6 +88,9 @@ beforeEach(() => {
 afterEach(() => {
   takePrefetchedRound();
   cleanup();
+  // A test's deferred writes are its own, as in rooms.test.tsx: left pending,
+  // one could land after the next test's localStorage.clear().
+  flushSavedRound();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
