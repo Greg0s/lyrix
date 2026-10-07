@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022", "WebWorker"],
+    "types": [],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "jsx": "react-jsx",
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -16,7 +16,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "scripts", "tests/unit/api", "tests/unit/ci", "tests/unit/components", "tests/unit/game", "tests/unit/scripts", "tests/unit/storage", "tests/e2e", "*.config.ts"],
-  // A service worker, not a page: checked against the WebWorker library by its own tsconfig.
-  "exclude": ["src/serviceWorker/sw.ts"]
+  "include": ["**/*", "../../tests/unit/serviceWorker/**/*"]
 }

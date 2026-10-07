@@ -1,0 +1,5 @@
+# Cloudflare Pages. The service worker (/sw.js, src/serviceWorker/sw.ts) is
+# never served from a cache on the way: a browser that got a stale copy would
+# keep the last version's app shell, and a deploy would not reach its player.
+/sw.js
+  Cache-Control: no-cache

@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { registerServiceWorker } from "./pwa";
 import { prefetchTodayRound } from "./roundPrefetch";
 import "./styles/tokens.css";
 import "./styles/global.css";
@@ -19,3 +20,5 @@ createRoot(rootElement).render(
     <App />
   </StrictMode>
 );
+
+if (import.meta.env.PROD) registerServiceWorker();
