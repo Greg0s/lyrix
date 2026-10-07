@@ -44,7 +44,8 @@ export interface BuiltFile {
  */
 export function precacheFor(index: BuiltFile, built: readonly BuiltFile[], publicFiles: readonly BuiltFile[]): Precache {
   const assets = built.filter((file) => file.fileName.startsWith("assets/"));
-  const kept = [...assets, ...publicFiles].sort((a, b) => a.fileName.localeCompare(b.fileName));
+  // By code unit, not locale: the same build hashes to the same version on any machine.
+  const kept = [...assets, ...publicFiles].sort((a, b) => (a.fileName < b.fileName ? -1 : a.fileName > b.fileName ? 1 : 0));
   const hash = createHash("sha256").update(index.content);
   for (const file of kept) hash.update(`\0${file.fileName}\0`).update(file.content);
   return {
