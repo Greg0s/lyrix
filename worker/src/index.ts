@@ -3,7 +3,15 @@ import { cors } from "hono/cors";
 import { dayStart, isDayKey, isPlayableDay, utcDay } from "../../src/game/daily";
 import type { GuessResult } from "../../src/game/types";
 import { freshRoundBody } from "./freshRound";
-import { buildRoundView, evaluateGuess, MAX_WORD_LENGTH, parseGuessWord, type RoundEnv } from "./round";
+import { isVictory } from "../../src/game/mask";
+import {
+  buildGuessDelta,
+  buildRoundView,
+  evaluateGuess,
+  MAX_WORD_LENGTH,
+  parseGuessWord,
+  type RoundEnv,
+} from "./round";
 import { roomRoutes, type RoomsEnv } from "./roomRoutes";
 import { getSongById, getSongOfDay } from "./songs";
 import { openState } from "./state";
@@ -121,7 +129,7 @@ app.post("/api/guess", async (c) => {
   if (typeof body !== "object" || body === null) {
     return c.json({ error: "request body must be a JSON object" }, 400);
   }
-  const { state, word } = body as Record<string, unknown>;
+  const { state, word, delta } = body as Record<string, unknown>;
   if (typeof state !== "string" || typeof word !== "string") {
     return c.json({ error: "state and word must both be strings" }, 400);
   }
@@ -144,7 +152,17 @@ app.post("/api/guess", async (c) => {
   const outcome = await evaluateGuess(c.env, song, new Set(payload.foundKeys), trimmed);
   const foundKeys = outcome.found ? [...payload.foundKeys, outcome.key] : payload.foundKeys;
   // A state sealed before the archives has no day: it can only be a round of today.
-  const view = await buildRoundView(song, foundKeys, c.env, payload.day ?? utcDay());
+  const day = payload.day ?? utcDay();
+
+  // A client that asked for it gets what the guess changed rather than the
+  // whole round, short of a win: a won round's view carries the artist and
+  // every hidden word's revealHint. One that didn't ask (a tab still running
+  // an older build) gets the full view, as it always has, for ever.
+  if (delta === true && !isVictory(song, new Set(foundKeys))) {
+    return c.json(await buildGuessDelta(song, foundKeys, outcome, c.env, day));
+  }
+
+  const view = await buildRoundView(song, foundKeys, c.env, day);
 
   const result: GuessResult = { ...view, ...outcome };
   return c.json(result);

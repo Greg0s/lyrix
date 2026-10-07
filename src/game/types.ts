@@ -91,3 +91,36 @@ export interface GuessResult extends RoundView {
    */
   near: NearSlot[];
 }
+
+/**
+ * One occurrence a found guess uncovered: where it is, and how the song writes
+ * it there. Exactly what a full view would turn `revealed: true`, never more.
+ */
+export interface RevealedSlot {
+  /** Same counting as NearSlot.position (see src/game/slots.ts). */
+  position: number;
+  text: string;
+}
+
+/**
+ * What POST /api/guess answers a client that asked for it (`delta: true`),
+ * short of a win: what the guess changed, instead of the whole round. Its size
+ * doesn't depend on the song's length. A delta only ever reveals: anything
+ * else (a win, another day) comes as a full view. Applied by src/game/delta.ts.
+ */
+export interface GuessDelta {
+  kind: "delta";
+  state: string;
+  day: string;
+  key: string;
+  found: boolean;
+  score: number | null;
+  near: NearSlot[];
+  /** Every occurrence of the word found; empty on a miss. */
+  reveal: RevealedSlot[];
+  /** Words revealed in the whole round after this guess: what the client checks its own view against. */
+  revealed: number;
+}
+
+/** A full view (an older Worker, or a win) or a delta. */
+export type GuessAnswer = GuessResult | GuessDelta;
