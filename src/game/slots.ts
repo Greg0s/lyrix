@@ -90,10 +90,31 @@ export interface SlotView {
   sections: SlotSection[];
 }
 
-/** Frontend-side: lays each slot's closest guess onto the masked round. A revealed word always shows itself instead. */
+/** What placeNearGuesses() was given and gave last time, so the next call can hand back what didn't change. */
+export interface SlotMemo {
+  round: Pick<RoundView, "title" | "sections">;
+  bySlot: ReadonlyMap<number, NearGuess>;
+  view: SlotView;
+}
+
+function sameNear(a: NearGuess | undefined, b: NearGuess | undefined): boolean {
+  return a === b || (a !== undefined && b !== undefined && a.text === b.text && a.score === b.score);
+}
+
+/**
+ * Frontend-side: lays each slot's closest guess onto the masked round. A
+ * revealed word always shows itself instead.
+ *
+ * Given the previous call (`previous`), a line comes back as the very same
+ * array when its masked tokens are (see applyReveal, src/game/delta.ts) and no
+ * closest guess changed on it: that is what lets a memoized line (TokenRun)
+ * skip rendering, so a guess only re-renders the lines it touched. A section,
+ * and the sections, come back the same when all of theirs do.
+ */
 export function placeNearGuesses(
   round: Pick<RoundView, "title" | "sections">,
-  bySlot: ReadonlyMap<number, NearGuess>
+  bySlot: ReadonlyMap<number, NearGuess>,
+  previous: SlotMemo | null = null
 ): SlotView {
   let position = 0;
   const place = (token: DisplayToken): SlotToken => {
@@ -102,12 +123,51 @@ export function placeNearGuesses(
     position += 1;
     return near ? { ...token, near } : token;
   };
+  const placeLine = (tokens: readonly DisplayToken[], before: readonly DisplayToken[] | undefined, placed: SlotToken[] | undefined): SlotToken[] => {
+    if (previous && placed && before === tokens) {
+      const start = position;
+      let unchanged = true;
+      for (const token of tokens) {
+        if (!token.isWord) continue;
+        if (unchanged && !token.revealed && !sameNear(bySlot.get(position), previous.bySlot.get(position))) unchanged = false;
+        position += 1;
+      }
+      if (unchanged) return placed;
+      position = start;
+    }
+    return tokens.map((token) => place(token));
+  };
 
   // Title first, then the lyrics: the order wordPositions() counts in.
-  const title = round.title.tokens.map((token) => place(token));
-  const sections = round.sections.map((section) => ({
-    label: section.label,
-    lines: section.lines.map((line) => ({ tokens: line.tokens.map((token) => place(token)) })),
-  }));
-  return { title, sections };
+  const title = placeLine(round.title.tokens, previous?.round.title.tokens, previous?.view.title);
+  let sectionsChanged = !previous || round.sections.length !== previous.view.sections.length;
+  const sections = round.sections.map((section, sectionIndex) => {
+    const sectionBefore = previous?.round.sections[sectionIndex];
+    const placedSection = previous?.view.sections[sectionIndex];
+    let linesChanged = !placedSection || section.lines.length !== placedSection.lines.length;
+    const lines = section.lines.map((line, lineIndex) => {
+      const placedLine = placedSection?.lines[lineIndex];
+      const tokens = placeLine(line.tokens, sectionBefore?.lines[lineIndex]?.tokens, placedLine?.tokens);
+      if (placedLine && tokens === placedLine.tokens) return placedLine;
+      linesChanged = true;
+      return { tokens };
+    });
+    if (placedSection && !linesChanged && section.label === placedSection.label) return placedSection;
+    sectionsChanged = true;
+    return { label: section.label, lines };
+  });
+  return {
+    title,
+    sections: !sectionsChanged && previous ? previous.view.sections : sections,
+  };
+}
+
+/** placeNearGuesses(), handed its own previous call each time: one per screen showing a round (GameScreen). */
+export function createNearPlacer(): (round: Pick<RoundView, "title" | "sections">, bySlot: ReadonlyMap<number, NearGuess>) => SlotView {
+  let previous: SlotMemo | null = null;
+  return (round, bySlot) => {
+    const view = placeNearGuesses(round, bySlot, previous);
+    previous = { round, bySlot, view };
+    return view;
+  };
 }

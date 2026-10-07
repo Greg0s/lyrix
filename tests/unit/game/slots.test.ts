@@ -114,6 +114,46 @@ describe("placeNearGuesses", () => {
   });
 });
 
+describe("placeNearGuesses, given its previous call", () => {
+  // Positions: the title's 0-2, the first verse line's 3-9, the second's 10-13, the chorus's 14-16.
+  function placedTwice(first: Map<number, NearGuess>, second: Map<number, NearGuess>, round = maskedRound()) {
+    const before = placeNearGuesses(round, first);
+    const after = placeNearGuesses(round, second, { round, bySlot: first, view: before });
+    return { before, after };
+  }
+
+  it("hands back the very same view when nothing changed", () => {
+    const { before, after } = placedTwice(guessOn([4], { text: "azur", score: 64 }), guessOn([4], { text: "azur", score: 64 }));
+    expect(after.title).toBe(before.title);
+    expect(after.sections).toBe(before.sections);
+  });
+
+  it("replaces only the line a closest guess changed on", () => {
+    const { before, after } = placedTwice(new Map(), guessOn([11], { text: "azur", score: 64 }));
+    expect(after.title).toBe(before.title);
+    expect(after.sections[0]?.lines[0]).toBe(before.sections[0]?.lines[0]);
+    expect(after.sections[0]?.lines[1]).not.toBe(before.sections[0]?.lines[1]);
+    expect(after.sections[1]).toBe(before.sections[1]);
+    expect(wordsOf(after)[11]?.near).toEqual({ text: "azur", score: 64 });
+  });
+
+  it("replaces the line a closest guess leaves", () => {
+    const { before, after } = placedTwice(guessOn([15], { text: "azur", score: 64 }), new Map());
+    expect(after.sections[1]).not.toBe(before.sections[1]);
+    expect(wordsOf(after)[15]?.near).toBeUndefined();
+    expect(after.sections[0]).toBe(before.sections[0]);
+  });
+
+  it("reuses nothing of a round whose lines are new arrays", () => {
+    const round = maskedRound();
+    const before = placeNearGuesses(round, new Map());
+    const after = placeNearGuesses(maskedRound(), new Map(), { round, bySlot: new Map(), view: before });
+    expect(after.title).not.toBe(before.title);
+    expect(after.sections[0]?.lines[0]).not.toBe(before.sections[0]?.lines[0]);
+    expect(after).toEqual(before);
+  });
+});
+
 describe("closestGuessBySlot", () => {
   function tried(display: string, near: [number, number][], found = false): PlacedGuess {
     return { display, found, near: near.map(([position, score]) => ({ position, score })) };

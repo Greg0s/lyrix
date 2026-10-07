@@ -15,11 +15,13 @@ interface LyricsBodyProps {
  * Memoized, and given a `sections` array that only changes when the round
  * does (see GameScreen): the lyrics are the biggest thing on the page and have
  * nothing to do with the word being typed, so a keystroke must not re-render a
- * single token. Guarded by tests/unit/components/gameScreen.test.tsx. Toggling
- * `revealAll` is a deliberate, explicit action rather than a keystroke, and
- * `lastFoundKey` only changes when a guess comes back, so either re-rendering
- * every token is expected. Moving between bars with the arrow keys re-renders
- * nothing: see useRovingBlanks.
+ * single token. A guess re-renders only the lines it changed, plus those
+ * holding the word highlighted before or after it: each line is a memoized
+ * TokenRun, handed the same array when it didn't change (placeNearGuesses).
+ * Both guarded by tests/unit/components/gameScreen.test.tsx. Toggling
+ * `revealAll` is a deliberate, explicit action rather than a keystroke, so
+ * re-rendering every token then is expected. Moving between bars with the
+ * arrow keys re-renders nothing: see useRovingBlanks.
  */
 export const LyricsBody = memo(function LyricsBody({ sections, revealAll = false, lastFoundKey = null }: LyricsBodyProps) {
   const roving = useRovingBlanks<HTMLDivElement>();

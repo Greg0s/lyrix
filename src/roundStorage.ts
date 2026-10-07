@@ -1,7 +1,7 @@
 import type { TriedWord } from "./hooks/useGame";
 import type { ArchiveEntry } from "./game/archive";
 import { archiveDays, isDayKey, utcDay } from "./game/daily";
-import { revealedPercent } from "./game/progress";
+import { revealedWords, wordCount } from "./game/delta";
 import { parseNearSlots } from "./game/slots";
 import type { DisplayToken, RoundView } from "./game/types";
 
@@ -15,7 +15,10 @@ export type { ArchiveEntry };
  * - `lyrix:view:<day>`: the whole masked view, for today only, so a reload
  *   resumes today's round without waiting on the network. A view is tens of
  *   kilobytes (about 47 KB for a 450-word song), thirty of them would crowd
- *   localStorage's few megabytes.
+ *   localStorage's few megabytes. Written only when it changes, which a view
+ *   only does by revealing words: a missed guess rewrites the day's state,
+ *   never the view. So the view holds no state of its own, only how many
+ *   words it shows revealed, which the day's entry must agree with.
  * - `lyrix:archive`: a summary per day (title as left, share revealed, tries,
  *   won), all the archives screen reads.
  *
@@ -104,13 +107,52 @@ function readJson(storage: Storage, key: string): unknown {
   return raw === null ? null : (JSON.parse(raw) as unknown);
 }
 
-function readDay(storage: Storage, day: string): { state: string; triedWords: TriedWord[] } | null {
+interface DayEntry {
+  state: string;
+  triedWords: TriedWord[];
+  /** Words the round showed revealed when saved; absent from an entry saved before views were written apart. */
+  revealed?: number;
+}
+
+function readDay(storage: Storage, day: string): DayEntry | null {
   const value = readJson(storage, DAY_PREFIX + day);
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
   const triedWords = parseTriedWords(candidate.triedWords);
   if (typeof candidate.state !== "string" || !triedWords) return null;
-  return { state: candidate.state, triedWords };
+  return {
+    state: candidate.state,
+    triedWords,
+    ...(typeof candidate.revealed === "number" ? { revealed: candidate.revealed } : {}),
+  };
+}
+
+/**
+ * Today's saved view as the round to resume, when it stands for the state the
+ * day carries on with: as many words revealed as the day's entry says, or, for
+ * a view saved before views were written apart, the very same state.
+ */
+function resumableView(value: unknown, saved: DayEntry, today: string): RoundView | null {
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as Record<string, unknown>;
+  const { title, sections, victory, artist, day } = candidate;
+  if (typeof title !== "object" || title === null || !Array.isArray(sections) || typeof victory !== "boolean") {
+    return null;
+  }
+  const current =
+    typeof candidate.revealed === "number"
+      ? candidate.revealed === saved.revealed
+      : typeof candidate.state === "string" && candidate.state === saved.state;
+  if (!current) return null;
+  return {
+    state: saved.state,
+    // A view from before the archives has no day: it can only be today's.
+    day: isDayKey(day) ? day : today,
+    title: title as RoundView["title"],
+    sections: sections as RoundView["sections"],
+    victory,
+    ...(typeof artist === "string" ? { artist } : {}),
+  };
 }
 
 function readArchive(storage: Storage): Record<string, ArchiveEntry> {
@@ -128,7 +170,8 @@ function readArchive(storage: Storage): Record<string, ArchiveEntry> {
 function summarize(round: RoundView, triedWords: readonly TriedWord[]): ArchiveEntry {
   return {
     title: round.title.tokens.map(({ text, isWord, revealed }) => ({ text, isWord, revealed })),
-    percent: revealedPercent(round),
+    // Counted as revealedPercent() does, off the counts a guess keeps up to date (delta.ts) rather than a walk of the song.
+    percent: wordCount(round) === 0 ? 0 : Math.floor((revealedWords(round) / wordCount(round)) * 100),
     victory: round.victory,
     tries: triedWords.length,
     ...(round.victory && round.artist !== undefined ? { artist: round.artist } : {}),
@@ -199,13 +242,21 @@ function tidyOnce(storage: Storage, now: Date): void {
 
 function write(storage: Storage, round: RoundView, triedWords: TriedWord[], today: string): void {
   const day = isDayKey(round.day) ? round.day : today;
-  storage.setItem(DAY_PREFIX + day, JSON.stringify({ state: round.state, triedWords }));
+  const revealed = revealedWords(round);
+  // What the view saved last showed: the same count, the same view, and a
+  // missed guess doesn't serialize the whole song again.
+  const before = day === today ? readDay(storage, day)?.revealed : undefined;
+  storage.setItem(DAY_PREFIX + day, JSON.stringify({ state: round.state, triedWords, revealed }));
   const archive = readArchive(storage);
   archive[day] = summarize(round, triedWords);
   storage.setItem(ARCHIVE_KEY, JSON.stringify(archive));
   // Last: the largest write, and the only one a full storage may refuse
   // without costing the day its progress.
-  if (day === today) storage.setItem(VIEW_PREFIX + day, JSON.stringify(round));
+  if (day === today && before !== revealed) {
+    const { day: viewDay, title, sections, victory, artist } = round;
+    const view = { day: viewDay, title, sections, victory, ...(artist !== undefined ? { artist } : {}), revealed };
+    storage.setItem(VIEW_PREFIX + day, JSON.stringify(view));
+  }
 }
 
 /** Today's round, ready to show without the network: only when its view was saved with it. */
@@ -228,11 +279,12 @@ export function loadSavedDay(
     tidyOnce(storage, now);
     const saved = readDay(storage, day);
     if (!saved) return null;
-    if (day !== utcDay(now)) return saved;
-    const view = readJson(storage, VIEW_PREFIX + day);
-    // Written together; should one write have failed, the view must not
-    // stand for another state than the one the round carries on with.
-    return isRoundView(view) && view.state === saved.state ? { ...saved, round: view } : saved;
+    const { state, triedWords } = saved;
+    if (day !== utcDay(now)) return { state, triedWords };
+    // Should the view's write have failed, or another tab have saved since,
+    // the view must not stand for another state than the round carries on with.
+    const round = resumableView(readJson(storage, VIEW_PREFIX + day), saved, day);
+    return round ? { state, triedWords, round } : { state, triedWords };
   } catch {
     return null;
   }
