@@ -198,6 +198,14 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // A test's deferred writes (saveRoundSoon, saveGroupSnapshotSoon) are its
+  // own: written now, they are wiped by the next test's localStorage.clear().
+  // Left pending, the room's progress landed in the next test's storage after
+  // that clear, and the page, out of every room, merged it into the round it
+  // had just loaded (with resumeRound reset to resolve nothing): the input was
+  // gone, back to "Chargement de la partie…". Only under load, when the timer
+  // fired late enough.
+  flushSavedRound();
   cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
