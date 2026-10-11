@@ -234,11 +234,34 @@
     animation: lyrix-logo-dot-drop 560ms linear 1000ms both;
   }
 
+  /* A mouse over the logo (Logo.tsx): its lines tighten and spring back in
+     turn. The rows move, not their words, whose own animation is the entrance.
+     A row is drawn on its own layer for good, not only while it moves: its
+     4.2px bars would otherwise snap to other pixels as the animation starts
+     and ends, and look a little thinner meanwhile. */
+  .lyrix-logo-row {
+    transform-origin: 0 50%;
+    will-change: transform;
+  }
+
+  .lyrix-logo.is-leveling .lyrix-logo-row {
+    animation: lyrix-logo-level 480ms ease-in-out both;
+  }
+
+  .lyrix-logo.is-leveling .lyrix-logo-row:nth-child(2) {
+    animation-delay: 60ms;
+  }
+
+  .lyrix-logo.is-leveling .lyrix-logo-row:nth-child(3) {
+    animation-delay: 120ms;
+  }
+
   /*
    * The logo leaving (AppHeader, on a click; the mockup's exit C, LOGO_EXIT_MS
    * in Logo.tsx): the rise it came in with keeps going. The mark's lines
    * scroll out of it one by one, the letters rise away L to x, the dot
-   * leading its ı, then the empty mark closes.
+   * leading its ı, then the empty mark closes. After the hover's rules, which
+   * it overrides: the mouse is still over the logo it clicked.
    */
   .lyrix-logo.is-leaving .lyrix-logo-row {
     animation: lyrix-logo-row-out 240ms cubic-bezier(0.23, 1, 0.32, 1) both;

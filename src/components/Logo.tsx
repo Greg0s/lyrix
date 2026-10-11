@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, type AnimationEvent, type PointerEvent } from "react";
 
 /** How long the logo takes to leave: its last letter's delay plus its own animation (game.css). */
 export const LOGO_EXIT_MS = 480;
@@ -16,10 +16,19 @@ export const LOGO_EXIT_MS = 480;
  * It leaves first (the mockup's exit C, "Défilement"), while `leaving`: the
  * rise it came in with keeps going, like lyrics scrolling past. The mark's
  * lines scroll out of it, the letters rise away, then the empty mark closes.
+ *
+ * A mouse coming over it sets the mark's lines going like a level meter, once
+ * through even if the mouse leaves halfway (a :hover animation would snap
+ * back), never while it leaves. The class is set on the DOM, not in state: the
+ * logo never re-renders for it, and `leaving` setting its class drops it.
  */
 export const Logo = memo(function Logo({ leaving = false }: { leaving?: boolean }) {
   return (
-    <span className={leaving ? "lyrix-logo is-leaving" : "lyrix-logo"}>
+    <span
+      className={leaving ? "lyrix-logo is-leaving" : "lyrix-logo"}
+      onPointerEnter={startLevel}
+      onAnimationEnd={endLevel}
+    >
       <span className="lyrix-logo-mark" aria-hidden="true">
         <span className="lyrix-logo-row">
           <span className="is-word is-short" />
@@ -47,3 +56,16 @@ export const Logo = memo(function Logo({ leaving = false }: { leaving?: boolean 
     </span>
   );
 });
+
+function startLevel(event: PointerEvent<HTMLSpanElement>) {
+  const logo = event.currentTarget;
+  if (event.pointerType === "mouse" && !logo.classList.contains("is-leaving")) logo.classList.add("is-leveling");
+}
+
+// The last line ends last.
+function endLevel(event: AnimationEvent<HTMLSpanElement>) {
+  if (event.animationName !== "lyrix-logo-level") return;
+  if (event.target instanceof Element && event.target.matches(".lyrix-logo-row:last-child")) {
+    event.currentTarget.classList.remove("is-leveling");
+  }
+}

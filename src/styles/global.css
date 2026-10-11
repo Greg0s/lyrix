@@ -240,6 +240,13 @@ input::placeholder {
   }
 }
 
+/* The logo's lines under a mouse, like a level meter. */
+@keyframes lyrix-logo-level {
+  40% {
+    transform: scaleX(0.55);
+  }
+}
+
 /* A wordmark letter rising in, then the ı's dot dropping and squashing as it lands. */
 @keyframes lyrix-logo-letter {
   from {

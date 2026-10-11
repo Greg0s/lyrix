@@ -28,6 +28,7 @@ describe("header logo link", () => {
       "lyrix-logo-mask",
       "lyrix-logo-letter",
       "lyrix-logo-dot-drop",
+      "lyrix-logo-level",
       "lyrix-logo-row-out",
       "lyrix-logo-mark-out",
       "lyrix-logo-letter-out",
@@ -37,6 +38,20 @@ describe("header logo link", () => {
       expect(motion?.[1]).toContain(name);
       expect(outside).not.toContain(name);
     }
+  });
+
+  // Under a mouse, the mark's rows move (Logo.tsx). Composited only while they
+  // move, their 4.2px bars were drawn on other pixels as it started and ended.
+  it("keeps the logo's moving lines on their own layer before and after they move", () => {
+    expect(game).toMatch(/\.lyrix-logo-row\s*\{[^}]*will-change:\s*transform/);
+    expect(game).toMatch(/\.lyrix-logo\.is-leveling \.lyrix-logo-row\s*\{[^}]*animation:\s*lyrix-logo-level/);
+  });
+
+  // Both are as specific: the exit must come later to win over the hover.
+  it("lets the logo's exit win over its hover animation", () => {
+    const hover = game.lastIndexOf(".lyrix-logo.is-leveling .lyrix-logo-row");
+    expect(hover).toBeGreaterThan(-1);
+    expect(game.indexOf(".lyrix-logo.is-leaving .lyrix-logo-row")).toBeGreaterThan(hover);
   });
 
   // AppHeader remounts the logo LOGO_EXIT_MS after a click: sooner, its exit
