@@ -444,3 +444,7 @@ CI failed "flags a code that is too short…" (`rooms.test.tsx`) once: its round
 ## 2026-10-07 — A test reading a stylesheet can't run under jsdom
 
 The header logo's entrance (mockup 1b, `Logo.tsx`) is CSS animations, so a click replays it by remounting the logo (`AppHeader`'s `key`). Its stylesheet check first sat in the jsdom component test: `readFileSync(new URL("…", import.meta.url))` threw "The URL must be of scheme file", since `import.meta.url` isn't a `file:` URL under the jsdom environment. Stylesheet checks belong in `tests/unit/ci` (node environment), and `\n` in a regex over a checked-in file needs `\r?\n` on a Windows checkout.
+
+## 2026-10-11 — A bar a few pixels high looked thinner while it moved
+
+The logo's hover animation (`lyrix-logo-level`, `Logo.tsx`) scales the mark's lines horizontally, yet their 4.2px bars looked a little shorter while it ran, and jumped back when it ended: Chrome draws an element on its own compositing layer only while a transform animates, and a layer snaps its fractional-pixel content to other pixels. `.lyrix-logo-row` now has `will-change: transform`, so it's drawn on its own layer before, during and after; captures of the mark before and after a hover are byte-identical. Pinned by `tests/unit/ci/logoLink.test.ts`. Two jsdom traps on the way: `fireEvent.animationEnd` drops `animationName` (jsdom has no `AnimationEvent`), and React then listens for `webkitAnimationEnd`, not `animationend` (`tests/unit/components/logo.test.tsx`).

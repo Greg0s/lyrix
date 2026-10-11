@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, type AnimationEvent, type PointerEvent } from "react";
 
 /**
  * The logo mark (three lines of lyrics, some words masked as accent bars) and
@@ -9,10 +9,14 @@ import { memo } from "react";
  * mark's lines write themselves in reading order, two of their words turning
  * into accent bars, then the letters rise one by one and the dot drops onto
  * the ı. Remounting it plays it again (AppHeader, on a click).
+ *
+ * A mouse coming over it sets the mark's lines going like a level meter, once
+ * through even if the mouse leaves halfway (a :hover animation would snap
+ * back). The class is set on the DOM, not in state: the logo never re-renders.
  */
 export const Logo = memo(function Logo() {
   return (
-    <span className="lyrix-logo">
+    <span className="lyrix-logo" onPointerEnter={startLevel} onAnimationEnd={endLevel}>
       <span className="lyrix-logo-mark" aria-hidden="true">
         <span className="lyrix-logo-row">
           <span className="is-word is-short" />
@@ -40,3 +44,15 @@ export const Logo = memo(function Logo() {
     </span>
   );
 });
+
+function startLevel(event: PointerEvent<HTMLSpanElement>) {
+  if (event.pointerType === "mouse") event.currentTarget.classList.add("is-leveling");
+}
+
+// The last line ends last.
+function endLevel(event: AnimationEvent<HTMLSpanElement>) {
+  if (event.animationName !== "lyrix-logo-level") return;
+  if (event.target instanceof Element && event.target.matches(".lyrix-logo-row:last-child")) {
+    event.currentTarget.classList.remove("is-leveling");
+  }
+}

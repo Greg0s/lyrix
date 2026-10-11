@@ -21,10 +21,24 @@ describe("header logo link", () => {
     const motion = /@media \(prefers-reduced-motion: no-preference\)\s*\{([\s\S]*?)\r?\n\}/.exec(game);
     expect(motion).not.toBeNull();
     const outside = game.replace(motion?.[0] ?? "", "");
-    for (const name of ["lyrix-logo-mark-in", "lyrix-logo-grow", "lyrix-logo-mask", "lyrix-logo-letter", "lyrix-logo-dot-drop"]) {
+    for (const name of [
+      "lyrix-logo-mark-in",
+      "lyrix-logo-grow",
+      "lyrix-logo-mask",
+      "lyrix-logo-letter",
+      "lyrix-logo-dot-drop",
+      "lyrix-logo-level",
+    ]) {
       expect(global).toContain(`@keyframes ${name} `);
       expect(motion?.[1]).toContain(name);
       expect(outside).not.toContain(name);
     }
+  });
+
+  // Under a mouse, the mark's rows move (Logo.tsx). Composited only while they
+  // move, their 4.2px bars were drawn on other pixels as it started and ended.
+  it("keeps the logo's moving lines on their own layer before and after they move", () => {
+    expect(game).toMatch(/\.lyrix-logo-row\s*\{[^}]*will-change:\s*transform/);
+    expect(game).toMatch(/\.lyrix-logo\.is-leveling \.lyrix-logo-row\s*\{[^}]*animation:\s*lyrix-logo-level/);
   });
 });
