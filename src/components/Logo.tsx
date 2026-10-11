@@ -1,5 +1,8 @@
 import { memo } from "react";
 
+/** How long the logo takes to leave: its last letter's delay plus its own animation (game.css). */
+export const LOGO_EXIT_MS = 480;
+
 /**
  * The logo mark (three lines of lyrics, some words masked as accent bars) and
  * the "Lyrıx" wordmark, whose dotless ı carries an accent bar for a dot. Pure
@@ -9,10 +12,14 @@ import { memo } from "react";
  * mark's lines write themselves in reading order, two of their words turning
  * into accent bars, then the letters rise one by one and the dot drops onto
  * the ı. Remounting it plays it again (AppHeader, on a click).
+ *
+ * It leaves first (the mockup's exit C, "Défilement"), while `leaving`: the
+ * rise it came in with keeps going, like lyrics scrolling past. The mark's
+ * lines scroll out of it, the letters rise away, then the empty mark closes.
  */
-export const Logo = memo(function Logo() {
+export const Logo = memo(function Logo({ leaving = false }: { leaving?: boolean }) {
   return (
-    <span className="lyrix-logo">
+    <span className={leaving ? "lyrix-logo is-leaving" : "lyrix-logo"}>
       <span className="lyrix-logo-mark" aria-hidden="true">
         <span className="lyrix-logo-row">
           <span className="is-word is-short" />

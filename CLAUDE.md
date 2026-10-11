@@ -143,6 +143,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   routes.ts              # the screens' addresses: / (today), /archives, /archives/<day>, /comment-jouer
   roundPrefetch.ts       # today's round, asked for by main.tsx before React renders (fresh loads only)
   pwa.ts                 # registers the service worker (production builds only); OFFLINE_MESSAGE
+  reducedMotion.ts       # prefersReducedMotion(), for motion decided in script (confetti, the logo's exit)
   /serviceWorker         # routes.ts: what the worker answers and how (shared with the build); sw.ts: the
                           # worker itself, type-checked by its own tsconfig.json (WebWorker lib)
   roundStorage.ts        # localStorage, one round per day of the archives: state + tried words per day,
@@ -161,7 +162,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                            # onto the round (slots.ts), owns whether the multiplayer dialog is open, the input ref, and
                            # the "show all lyrics" checkbox's local, unsigned reveal-all toggle
     AppHeader.tsx, Logo.tsx, GroupIcon.tsx, CalendarIcon.tsx, ChevronIcon.tsx  # sticky top bar
-                           # (logo: a link to today's song; multiplayer, archives, help, theme), CSS logo mark + wordmark, icons
+                           # (logo: a link to today's song, leaving then coming back in on a click; multiplayer, archives, help, theme), CSS logo mark + wordmark, icons
     ArchivesScreen.tsx, ArchiveCover.tsx  # the last 30 days as covers, from loadArchive() only (no network)
     DayBar.tsx, RouteLink.tsx  # a day of the archives: its date, the days either side; an <a> that
                                # changes screen in place
