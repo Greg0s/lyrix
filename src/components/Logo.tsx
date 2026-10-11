@@ -1,5 +1,8 @@
 import { memo, type AnimationEvent, type PointerEvent } from "react";
 
+/** How long the logo takes to leave: its last letter's delay plus its own animation (game.css). */
+export const LOGO_EXIT_MS = 480;
+
 /**
  * The logo mark (three lines of lyrics, some words masked as accent bars) and
  * the "Lyrıx" wordmark, whose dotless ı carries an accent bar for a dot. Pure
@@ -10,13 +13,22 @@ import { memo, type AnimationEvent, type PointerEvent } from "react";
  * into accent bars, then the letters rise one by one and the dot drops onto
  * the ı. Remounting it plays it again (AppHeader, on a click).
  *
+ * It leaves first (the mockup's exit C, "Défilement"), while `leaving`: the
+ * rise it came in with keeps going, like lyrics scrolling past. The mark's
+ * lines scroll out of it, the letters rise away, then the empty mark closes.
+ *
  * A mouse coming over it sets the mark's lines going like a level meter, once
  * through even if the mouse leaves halfway (a :hover animation would snap
- * back). The class is set on the DOM, not in state: the logo never re-renders.
+ * back), never while it leaves. The class is set on the DOM, not in state: the
+ * logo never re-renders for it, and `leaving` setting its class drops it.
  */
-export const Logo = memo(function Logo() {
+export const Logo = memo(function Logo({ leaving = false }: { leaving?: boolean }) {
   return (
-    <span className="lyrix-logo" onPointerEnter={startLevel} onAnimationEnd={endLevel}>
+    <span
+      className={leaving ? "lyrix-logo is-leaving" : "lyrix-logo"}
+      onPointerEnter={startLevel}
+      onAnimationEnd={endLevel}
+    >
       <span className="lyrix-logo-mark" aria-hidden="true">
         <span className="lyrix-logo-row">
           <span className="is-word is-short" />
@@ -46,7 +58,8 @@ export const Logo = memo(function Logo() {
 });
 
 function startLevel(event: PointerEvent<HTMLSpanElement>) {
-  if (event.pointerType === "mouse") event.currentTarget.classList.add("is-leveling");
+  const logo = event.currentTarget;
+  if (event.pointerType === "mouse" && !logo.classList.contains("is-leaving")) logo.classList.add("is-leveling");
 }
 
 // The last line ends last.

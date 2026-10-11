@@ -1,17 +1,10 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import { prefersReducedMotion } from "../reducedMotion";
 import { CELEBRATION_MS, confettiPieces, type ConfettiPiece } from "./confetti";
 
 /** How many pieces one burst throws. */
 const PIECE_COUNT = 80;
-
-/**
- * Asked here rather than left to global.css: its reduced-motion rule only
- * shortens CSS animations, and under it there must be no confetti at all.
- */
-function prefersReducedMotion(): boolean {
-  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
 
 /** A piece's own flight, as the custom properties game.css animates it with. */
 function flightStyle(piece: ConfettiPiece): CSSProperties {

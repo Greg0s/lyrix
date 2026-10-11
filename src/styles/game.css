@@ -96,6 +96,8 @@
   gap: 3.6px;
   padding: 0 7.2px;
   flex-shrink: 0;
+  /* Its lines scroll out of it as the logo leaves. */
+  overflow: hidden;
 }
 
 .lyrix-logo-row {
@@ -252,6 +254,57 @@
 
   .lyrix-logo.is-leveling .lyrix-logo-row:nth-child(3) {
     animation-delay: 120ms;
+  }
+
+  /*
+   * The logo leaving (AppHeader, on a click; the mockup's exit C, LOGO_EXIT_MS
+   * in Logo.tsx): the rise it came in with keeps going. The mark's lines
+   * scroll out of it one by one, the letters rise away L to x, the dot
+   * leading its ı, then the empty mark closes. After the hover's rules, which
+   * it overrides: the mouse is still over the logo it clicked.
+   */
+  .lyrix-logo.is-leaving .lyrix-logo-row {
+    animation: lyrix-logo-row-out 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  }
+
+  .lyrix-logo.is-leaving .lyrix-logo-row:nth-child(2) {
+    animation-delay: 50ms;
+  }
+
+  .lyrix-logo.is-leaving .lyrix-logo-row:nth-child(3) {
+    animation-delay: 100ms;
+  }
+
+  .lyrix-logo.is-leaving .lyrix-logo-mark {
+    animation: lyrix-logo-mark-out 220ms cubic-bezier(0.23, 1, 0.32, 1) 180ms both;
+  }
+
+  .lyrix-logo.is-leaving .lyrix-wordmark-letter {
+    animation: lyrix-logo-letter-out 260ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  }
+
+  .lyrix-logo.is-leaving .lyrix-wordmark-letter:nth-child(1) {
+    animation-delay: 80ms;
+  }
+
+  .lyrix-logo.is-leaving .lyrix-wordmark-letter:nth-child(2) {
+    animation-delay: 115ms;
+  }
+
+  .lyrix-logo.is-leaving .lyrix-wordmark-letter:nth-child(3) {
+    animation-delay: 150ms;
+  }
+
+  .lyrix-logo.is-leaving .lyrix-wordmark-letter:nth-child(4) {
+    animation-delay: 185ms;
+  }
+
+  .lyrix-logo.is-leaving .lyrix-wordmark-letter:nth-child(5) {
+    animation-delay: 220ms;
+  }
+
+  .lyrix-logo.is-leaving .lyrix-wordmark-dot {
+    animation: lyrix-logo-dot-out 240ms cubic-bezier(0.23, 1, 0.32, 1) 150ms both;
   }
 }
 
