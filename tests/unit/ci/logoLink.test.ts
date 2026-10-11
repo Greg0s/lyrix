@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { LOGO_EXIT_MS } from "../../../src/components/Logo";
 
 /**
  * A tap on a phone leaves :hover on the header's logo until the next tap
@@ -21,10 +22,47 @@ describe("header logo link", () => {
     const motion = /@media \(prefers-reduced-motion: no-preference\)\s*\{([\s\S]*?)\r?\n\}/.exec(game);
     expect(motion).not.toBeNull();
     const outside = game.replace(motion?.[0] ?? "", "");
-    for (const name of ["lyrix-logo-mark-in", "lyrix-logo-grow", "lyrix-logo-mask", "lyrix-logo-letter", "lyrix-logo-dot-drop"]) {
+    for (const name of [
+      "lyrix-logo-mark-in",
+      "lyrix-logo-grow",
+      "lyrix-logo-mask",
+      "lyrix-logo-letter",
+      "lyrix-logo-dot-drop",
+      "lyrix-logo-row-out",
+      "lyrix-logo-mark-out",
+      "lyrix-logo-letter-out",
+      "lyrix-logo-dot-out",
+    ]) {
       expect(global).toContain(`@keyframes ${name} `);
       expect(motion?.[1]).toContain(name);
       expect(outside).not.toContain(name);
     }
+  });
+
+  // AppHeader remounts the logo LOGO_EXIT_MS after a click: sooner, its exit
+  // is cut short; later, the logo sits invisible before coming back in.
+  it("brings the logo back in as soon as its exit ends", () => {
+    const ends = new Map<string, { duration: number; delay: number }>();
+    for (const [, selector, body] of game.matchAll(/([^{}]*\.is-leaving[^{}]*)\{([^}]*)\}/g)) {
+      const target = selector
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .trim()
+        .replace(/:nth-child\(\d+\)/, "");
+      const end = ends.get(target) ?? { duration: 0, delay: 0 };
+      const shorthand = /animation:\s*\S+\s+(\d+)ms\s+cubic-bezier\([^)]*\)(?:\s+(\d+)ms)?/.exec(body);
+      if (shorthand) {
+        end.duration = Number(shorthand[1]);
+        end.delay = Math.max(end.delay, Number(shorthand[2] ?? 0));
+      }
+      const delay = /animation-delay:\s*(\d+)ms/.exec(body);
+      if (delay) end.delay = Math.max(end.delay, Number(delay[1]));
+      ends.set(target, end);
+    }
+    expect([...ends.keys()].sort()).toEqual(
+      [".lyrix-logo-mark", ".lyrix-logo-row", ".lyrix-wordmark-dot", ".lyrix-wordmark-letter"].map(
+        (part) => `.lyrix-logo.is-leaving ${part}`,
+      ),
+    );
+    expect(Math.max(...[...ends.values()].map(({ duration, delay }) => duration + delay))).toBe(LOGO_EXIT_MS);
   });
 });

@@ -1,9 +1,10 @@
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { playerCountLabel } from "../game/room";
+import { prefersReducedMotion } from "../reducedMotion";
 import { TODAY, type Route } from "../routes";
 import { CalendarIcon } from "./CalendarIcon";
 import { GroupIcon } from "./GroupIcon";
-import { Logo } from "./Logo";
+import { LOGO_EXIT_MS, Logo } from "./Logo";
 import { RouteLink } from "./RouteLink";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -31,15 +32,26 @@ export const AppHeader = memo(function AppHeader({
   onToggleHelp,
   onNavigate,
 }: AppHeaderProps) {
-  // Each click on the logo plays its entrance again: a new key remounts it.
+  // Each click on the logo goes to today's song at once, while the logo leaves,
+  // then plays its entrance again: a new key remounts it. A click while it
+  // leaves changes nothing; under reduced motion it neither leaves nor comes in.
   const [logoPlays, setLogoPlays] = useState(0);
+  const [logoLeaving, setLogoLeaving] = useState(false);
   const onLogoClick = useCallback(
     (to: Route) => {
-      setLogoPlays((plays) => plays + 1);
       onNavigate(to);
+      if (!prefersReducedMotion()) setLogoLeaving(true);
     },
     [onNavigate],
   );
+  useEffect(() => {
+    if (!logoLeaving) return;
+    const timer = window.setTimeout(() => {
+      setLogoLeaving(false);
+      setLogoPlays((plays) => plays + 1);
+    }, LOGO_EXIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [logoLeaving]);
   const inRoom = roomPlayers !== null;
   const roomLabel = inRoom ? `Salon · ${playerCountLabel(roomPlayers)}` : "";
   return (
@@ -47,7 +59,7 @@ export const AppHeader = memo(function AppHeader({
       <div className="lyrix-topbar-inner">
         <div className="lyrix-brand">
           <RouteLink to={TODAY} onNavigate={onLogoClick} className="lyrix-logo-link" aria-label="Lyrix, chanson du jour">
-            <Logo key={logoPlays} />
+            <Logo key={logoPlays} leaving={logoLeaving} />
           </RouteLink>
           <span className="lyrix-slogan">Découvre la chanson&nbsp;!</span>
         </div>
