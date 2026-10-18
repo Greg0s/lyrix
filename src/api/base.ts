@@ -60,3 +60,33 @@ export async function withTimeout<T>(
 export function isNetworkFailure(error: unknown): boolean {
   return error instanceof TypeError || (error instanceof DOMException && error.name === "TimeoutError");
 }
+
+/** An error the Worker answered with, and its status. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+/**
+ * The Worker couldn't get the round's song right now (LRCLIB, see
+ * worker/src/songs.ts): a 503, which says nothing about what was asked
+ * either, and passes once LRCLIB answers again.
+ */
+export function isSongUnavailable(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 503;
+}
+
+/**
+ * Worth trying again as is, later: no answer at all, or the Worker saying it
+ * can't answer yet. Anything else is a refusal of what was asked. Telling the
+ * two apart is what keeps a day's progress: read as a refusal, an outage used
+ * to start a saved day afresh (docs/LEARNINGS.md, 2026-10-18).
+ */
+export function isTransientFailure(error: unknown): boolean {
+  return isNetworkFailure(error) || isSongUnavailable(error);
+}

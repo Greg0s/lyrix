@@ -93,12 +93,13 @@ const OCTOBER_2026_SONGS: readonly CatalogEntry[] = [
 export const catalog: CatalogEntry[] = [...LAUNCH_SONGS, ...OCTOBER_2026_SONGS];
 
 /**
- * The song the Worker falls back to when LRCLIB can't be reached for any
- * catalog entry (its lyrics live in songs.ts). Named here so anything that has
- * to cover every song the Worker can serve — the local KV loader, for one —
- * can do so without importing songs.ts, which only runs inside a Worker.
+ * The made-up song dev and e2e play when LRCLIB can't be reached (its lyrics
+ * live in songs.ts, see SongsEnv.DEV_STANDIN_SONG); never served in
+ * production. Named here so anything that has to cover every song a dev
+ * Worker can serve - the local KV loader, for one - can do so without
+ * importing songs.ts, which only runs inside a Worker.
  */
-export const FALLBACK_SONG_ID = "le-refuge-de-novembre";
+export const DEV_STANDIN_SONG_ID = "le-refuge-de-novembre";
 
 const DAY_MS = 86_400_000;
 

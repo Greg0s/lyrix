@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isNetworkFailure } from "../api/base";
+import { isSongUnavailable, isTransientFailure } from "../api/base";
 import { fetchRound, resumeRound, submitGuess } from "../api/client";
 import { continueAlone, submitRoomGuess } from "../api/rooms";
 import { utcDay } from "../game/daily";
@@ -171,6 +171,8 @@ interface GameState {
   loading: boolean;
   submitting: boolean;
   error: string | null;
+  /** The round couldn't load because its song couldn't be had right now: it is tried again by itself. */
+  songUnavailable: boolean;
   /**
    * Bumped when a guess of the player's own completes the title of the round
    * on screen, so the win is celebrated (TitleGuess, #42); never by a round
@@ -192,6 +194,7 @@ const initialState: GameState = {
   loading: true,
   submitting: false,
   error: null,
+  songUnavailable: false,
   celebration: 0,
 };
 
@@ -211,6 +214,7 @@ function hydratedState(day: string | null): GameState | null {
     loading: false,
     submitting: false,
     error: null,
+    songUnavailable: false,
     celebration: 0,
   };
 }
@@ -243,6 +247,12 @@ function showsSoloRound(state: GameState): boolean {
   return !roomShown(state);
 }
 
+/** While the round's song can't be had (LRCLIB, see worker/src/songs.ts): it is tried again by itself. */
+export const SONG_UNAVAILABLE_MESSAGE = "La chanson est momentanément indisponible — nouvelle tentative dans un instant…";
+
+/** Waits before loading again a round whose song was unavailable, attempt by attempt; the last one repeats. */
+export const SONG_RETRY_DELAYS_MS: readonly number[] = [5_000, 10_000, 20_000, 30_000];
+
 function isAbort(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
@@ -251,9 +261,10 @@ function isAbort(error: unknown): boolean {
  * A day's round and the words tried on it: from its saved state when it was
  * played before (the Worker rebuilds the view), fresh otherwise. A saved
  * state the Worker no longer opens starts the day afresh rather than lock
- * the player out of it. One it couldn't be asked about (offline, or too slow
- * to answer) is a failed load instead, retried as is: starting afresh then
- * would have overwritten the day's progress with the next guess.
+ * the player out of it. One it couldn't be asked about (offline, too slow to
+ * answer, or its song unavailable for now) is a failed load instead, retried
+ * as is: starting afresh then would have overwritten the day's progress with
+ * the next guess.
  */
 async function fetchDay(day: string | null, signal: AbortSignal): Promise<{ round: RoundView; triedWords: TriedWord[] }> {
   const saved = loadSavedDay(day ?? utcDay());
@@ -261,7 +272,7 @@ async function fetchDay(day: string | null, signal: AbortSignal): Promise<{ roun
     try {
       return { round: await resumeRound([saved.state], day ?? utcDay(), signal), triedWords: saved.triedWords };
     } catch (error) {
-      if (isAbort(error) || isNetworkFailure(error)) throw error;
+      if (isAbort(error) || isTransientFailure(error)) throw error;
     }
   }
   // Today's, asked for before the app even rendered when there is one (roundPrefetch.ts).
@@ -291,9 +302,16 @@ export function useGame(day: string | null = null) {
   const loadedFor = useRef<string | null | undefined>(state.round ? day : undefined);
   const dayRef = useRef(day);
   dayRef.current = day;
+  // A load whose song was unavailable is tried again by itself, a little later each time.
+  const retry = useRef<{ timer: ReturnType<typeof setTimeout> | null; attempt: number }>({ timer: null, attempt: 0 });
+  const cancelRetry = useCallback(() => {
+    if (retry.current.timer !== null) clearTimeout(retry.current.timer);
+    retry.current.timer = null;
+  }, []);
 
   const loadDay = useCallback(async (target: string | null) => {
     abortRef.current?.abort();
+    cancelRetry();
     const controller = new AbortController();
     abortRef.current = controller;
     loadedFor.current = target;
@@ -306,12 +324,26 @@ export function useGame(day: string | null = null) {
       const reset = switching
         ? { inputValue: "", feedback: null, celebration: 0, submitting: false, ...(prev.shared ? {} : { notice: null }) }
         : {};
-      if (saved) return { ...prev, ...reset, day: target, round: saved.round, triedWords: saved.triedWords, loading: false, error: null };
+      if (saved) {
+        return {
+          ...prev,
+          ...reset,
+          day: target,
+          round: saved.round,
+          triedWords: saved.triedWords,
+          loading: false,
+          error: null,
+          songUnavailable: false,
+        };
+      }
       return switching
         ? { ...prev, ...reset, day: target, round: null, triedWords: [], loading: true, error: null }
         : { ...prev, loading: true, error: null };
     });
-    if (saved) return;
+    if (saved) {
+      retry.current.attempt = 0;
+      return;
+    }
 
     try {
       const { round, triedWords } = await fetchDay(target, controller.signal);
@@ -325,17 +357,38 @@ export function useGame(day: string | null = null) {
           ...(roomShown(prev) ? {} : { inputValue: "", feedback: null, notice: null }),
           loading: false,
           error: null,
+          songUnavailable: false,
         };
       });
+      retry.current.attempt = 0;
     } catch (error) {
       if (isAbort(error)) return;
+      const unavailable = isSongUnavailable(error);
+      if (unavailable && abortRef.current === controller) {
+        const { attempt } = retry.current;
+        retry.current = {
+          attempt: attempt + 1,
+          timer: setTimeout(
+            () => {
+              retry.current.timer = null;
+              void loadDay(target);
+            },
+            SONG_RETRY_DELAYS_MS[Math.min(attempt, SONG_RETRY_DELAYS_MS.length - 1)]
+          ),
+        };
+      }
       setState((prev) =>
         prev.day !== target
           ? prev
-          : { ...prev, loading: false, error: error instanceof Error ? error.message : "Impossible de charger la partie." }
+          : {
+              ...prev,
+              loading: false,
+              error: error instanceof Error ? error.message : "Impossible de charger la partie.",
+              songUnavailable: unavailable,
+            }
       );
     }
-  }, []);
+  }, [cancelRetry]);
 
   /** Loads the round of the day shown again: the retry button. */
   const loadRound = useCallback(() => loadDay(dayRef.current), [loadDay]);
@@ -348,9 +401,10 @@ export function useGame(day: string | null = null) {
     // this effect loads the day again instead of believing it loaded.
     return () => {
       abortRef.current?.abort();
+      cancelRetry();
       loadedFor.current = undefined;
     };
-  }, [day, loadDay]);
+  }, [day, loadDay, cancelRetry]);
 
   const setInputValue = useCallback((value: string) => {
     setState((prev) => ({ ...prev, inputValue: value }));
@@ -601,9 +655,9 @@ export function useGame(day: string | null = null) {
         try {
           merged = await resumeRound(own ? [own.state, snapshot.state] : [snapshot.state], snapshot.day);
         } catch (error) {
-          // Offline or too slow: tried again on the next visit. Refused (a
+          // Offline, too slow, or the song unavailable for now: tried again on the next visit. Refused (a
           // state the Worker no longer opens): nothing to merge, ever.
-          if (!isNetworkFailure(error)) clearGroupSnapshot(snapshot);
+          if (!isTransientFailure(error)) clearGroupSnapshot(snapshot);
           continue;
         }
         const triedWords = withGroupFinds(own?.triedWords ?? [], snapshot.found);

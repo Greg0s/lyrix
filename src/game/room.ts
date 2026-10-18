@@ -38,6 +38,8 @@ export const ROOM_CLOSE_UNKNOWN = 4404;
 export const ROOM_CLOSE_EXPIRED = 4410;
 /** The member left the room, possibly from another tab. */
 export const ROOM_CLOSE_LEFT = 4001;
+/** The room's song couldn't be had right now (LRCLIB): the client reconnects, with its backoff, and asks again. */
+export const ROOM_CLOSE_TRY_AGAIN = 4503;
 
 /** Keep-alive: answered by the runtime itself (setWebSocketAutoResponse), without waking the room. */
 export const ROOM_PING = "ping";

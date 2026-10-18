@@ -5,6 +5,7 @@ import { MAX_PROXIMITY_SCORE } from "../../src/game/similarity";
 import { wordPositions } from "../../src/game/slots";
 import type { GuessDelta, NearSlot, RevealedSlot, RoundView, Song } from "../../src/game/types";
 import { proximityHint, type SimilarityEnv } from "./similarity";
+import type { SongsEnv } from "./songs";
 import { sealState } from "./state";
 
 /**
@@ -15,7 +16,7 @@ import { sealState } from "./state";
  * the player gets to see.
  */
 
-export interface RoundEnv extends SimilarityEnv {
+export interface RoundEnv extends SimilarityEnv, SongsEnv {
   STATE_SECRET: string;
   /**
    * Dev/e2e only, never set in production: makes every still-hidden word's

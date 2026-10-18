@@ -8,6 +8,7 @@ import {
   parseRoomRoundMessage,
   ROOM_CLOSE_EXPIRED,
   ROOM_CLOSE_LEFT,
+  ROOM_CLOSE_TRY_AGAIN,
   ROOM_CLOSE_UNKNOWN,
   ROOM_PING,
   ROOM_PONG,
@@ -18,6 +19,7 @@ import {
 } from "../../../src/game/room";
 import type { DisplayToken, RoundView } from "../../../src/game/types";
 import app from "../../../worker/src/index";
+import { pickDailyEntry } from "../../../worker/src/catalog";
 import { Room, type RoomContext, type RoomSocket } from "../../../worker/src/room";
 import type { RateLimiter, RoomNamespace } from "../../../worker/src/roomRoutes";
 import { resetSimilarityMemo } from "../../../worker/src/similarity";
@@ -32,8 +34,9 @@ import { titleLeaks } from "./titleLeak";
  * response exist in the Workers runtime alone), so connections go through
  * Room.admit with a fake socket, and the e2e suite covers the real thing.
  *
- * LRCLIB answers nothing here, so every room plays songs.ts's emergency song,
- * "Le refuge de novembre": a real song, known in full, without a network.
+ * LRCLIB has nothing here, and the Worker runs as in dev (DEV_STANDIN_SONG),
+ * so every room plays songs.ts's stand-in, "Le refuge de novembre": a real
+ * song, known in full, without a network.
  */
 
 const SOCKET_OPEN = 1;
@@ -177,6 +180,7 @@ class FakeLimiter implements RateLimiter {
 let rooms: FakeRooms;
 let env: {
   STATE_SECRET: string;
+  DEV_STANDIN_SONG?: string;
   ROOMS: FakeRooms;
   ROOM_CREATE_LIMIT: FakeLimiter;
   ROOM_JOIN_LIMIT: FakeLimiter;
@@ -185,11 +189,17 @@ let env: {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(Date.UTC(2026, 8, 29, 20, 0));
-  // LRCLIB has nothing: every room falls back to the emergency song (see above).
-  vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 404 })));
+  // LRCLIB has nothing: every room plays the dev stand-in (see above).
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200 })));
   resetSongMemo();
   rooms = new FakeRooms();
-  env = { STATE_SECRET: "test-secret", ROOMS: rooms, ROOM_CREATE_LIMIT: new FakeLimiter(), ROOM_JOIN_LIMIT: new FakeLimiter() };
+  env = {
+    STATE_SECRET: "test-secret",
+    DEV_STANDIN_SONG: "1",
+    ROOMS: rooms,
+    ROOM_CREATE_LIMIT: new FakeLimiter(),
+    ROOM_JOIN_LIMIT: new FakeLimiter(),
+  };
 });
 
 afterEach(() => {
@@ -665,7 +675,7 @@ describe("the room's round (#30)", () => {
     const miss = await guessIn(host, "guitare");
     const hit = await guessIn(host, "vent");
 
-    const song = await getSongById("le-refuge-de-novembre");
+    const song = await getSongById("le-refuge-de-novembre", env);
     if (!song) throw new Error("the emergency song can't be resolved");
     const sent = [...socket.sent, JSON.stringify(miss), JSON.stringify(hit)].join("\n");
     expect(socket.lastRound().round.victory).toBe(false);
@@ -1130,5 +1140,66 @@ describe("a word already proposed in a room", () => {
     expect(again.round).toEqual(first.round);
     expect(get).not.toHaveBeenCalled();
     expect(sealed).not.toHaveBeenCalled();
+  });
+});
+
+// 2026-10-18: LRCLIB was overloaded when a room first needed the day's song,
+// and the room pinned the made-up emergency song production stood in with,
+// for everyone in it, for the rest of the day - and without close words.
+describe("a song LRCLIB can't give right now", () => {
+  const LYRICS = Array.from({ length: 8 }, (_, index) => `ligne numero ${index} du vrai couplet`).join("\n");
+
+  function lrclibDown(): void {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 503 })));
+  }
+
+  function lrclibUp(): void {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        const artistName = url.searchParams.get("artist_name") ?? "Unknown";
+        return new Response(JSON.stringify([{ artistName, instrumental: false, plainLyrics: LYRICS, syncedLyrics: null }]));
+      })
+    );
+  }
+
+  async function songIdOf(socket: FakeSocket): Promise<string | undefined> {
+    return (await openState(socket.lastRound().round.state, env.STATE_SECRET))?.songId;
+  }
+
+  beforeEach(() => {
+    // Production: no stand-in.
+    delete env.DEV_STANDIN_SONG;
+  });
+
+  it("pins nothing, and has the member's connection try again", async () => {
+    lrclibDown();
+    const host = await createRoom("Camille");
+
+    const socket = await connect(host);
+
+    expect(socket.closed?.code).toBe(ROOM_CLOSE_TRY_AGAIN);
+    expect(rooms.state(host.room.code).store.has(`round:${utcDay()}`)).toBe(false);
+    expect((await post(`/api/rooms/${host.room.code}/guess`, { token: host.token, word: "vent" })).status).toBe(503);
+
+    lrclibUp();
+    const again = await connect(host);
+    expect(await songIdOf(again)).toBe(pickDailyEntry().id);
+  });
+
+  it("replaces a round left pinned to the stand-in with the day's song, from scratch", async () => {
+    lrclibUp();
+    const host = await createRoom("Camille");
+    rooms.state(host.room.code).store.set(`round:${utcDay()}`, {
+      songId: "le-refuge-de-novembre",
+      day: utcDay(),
+      guesses: [],
+    });
+
+    const socket = await connect(host);
+
+    expect(await songIdOf(socket)).toBe(pickDailyEntry().id);
+    expect(rooms.state(host.room.code).store.get(`round:${utcDay()}`)).toMatchObject({ songId: pickDailyEntry().id });
   });
 });

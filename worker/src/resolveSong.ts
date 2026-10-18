@@ -32,8 +32,10 @@ function wordCount(sections: Section[]): number {
  *
  * Split out of songs.ts so it stays free of Workers-only globals (the Cache
  * API): the offline similarity-table builder needs exactly this step, and
- * runs under plain Node. Returns null rather than throwing whenever LRCLIB
- * has nothing usable, so callers can move on to the next candidate.
+ * runs under plain Node. Returns null when LRCLIB answered with nothing
+ * usable, so callers can move on to the next candidate; throws
+ * LrclibUnavailableError when LRCLIB couldn't answer at all, which says
+ * nothing about the song and is no reason to pick another one.
  */
 export async function resolveFromLrclib(entry: CatalogEntry): Promise<Song | null> {
   const tracks = await searchTrack(entry);
