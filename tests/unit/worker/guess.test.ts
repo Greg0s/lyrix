@@ -3,7 +3,7 @@ import { normalize } from "../../../src/game/normalize";
 import { NEAR_SCORE, numberProximityScore } from "../../../src/game/similarity";
 import { tokenize } from "../../../src/game/tokenize";
 import type { DisplayToken, GuessResult, RoundView, Song } from "../../../src/game/types";
-import { ARCHIVE_DAYS, archiveDays } from "../../../src/game/daily";
+import { ARCHIVE_DAYS, archiveDays, utcDay } from "../../../src/game/daily";
 import { pickDailyEntry } from "../../../worker/src/catalog";
 import { resetFreshRoundMemo } from "../../../worker/src/freshRound";
 import app from "../../../worker/src/index";
@@ -188,35 +188,33 @@ describe("GET /api/round", () => {
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
   });
 
-  it("searches LRCLIB again after a resolution that found nothing", async () => {
+  it("searches LRCLIB again after a resolution that couldn't be had", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 500 })));
-    const emergency = await songIdOf(await getRound());
+    expect((await app.request("/api/round", {}, env)).status).toBe(503);
     mockLrclibFetch();
 
-    // The emergency song stood in, but the day's pick isn't given up on for the isolate's lifetime.
+    // The day's pick isn't given up on for the isolate's lifetime.
     const round = await getRound();
     expect(vi.mocked(fetch)).toHaveBeenCalled();
-    expect(await songIdOf(round)).not.toBe(emergency);
+    expect(await songIdOf(round)).toBe(pickDailyEntry().id);
   });
 
-  it("falls back to the next catalog entry when LRCLIB fails for the daily pick", async () => {
+  it("falls back to the next catalog entry when LRCLIB has no usable lyrics for the daily pick", async () => {
     let callCount = 0;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL | Request) => {
         callCount += 1;
-        if (callCount === 1) return new Response("", { status: 500 });
         const artistName = requestUrl(input).searchParams.get("artist_name") ?? "Unknown";
-        return new Response(
-          JSON.stringify([{ artistName, instrumental: false, plainLyrics: FIXTURE_LYRICS, syncedLyrics: null }]),
-          { status: 200, headers: { "content-type": "application/json" } }
-        );
+        const tracks =
+          callCount === 1 ? [] : [{ artistName, instrumental: false, plainLyrics: FIXTURE_LYRICS, syncedLyrics: null }];
+        return new Response(JSON.stringify(tracks), { status: 200, headers: { "content-type": "application/json" } });
       })
     );
 
     const round = await getRound();
-    expect(await songIdOf(round)).toBeTruthy();
-    expect(callCount).toBeGreaterThan(1);
+    expect(await songIdOf(round)).not.toBe(pickDailyEntry().id);
+    expect(callCount).toBe(2);
   });
 });
 
@@ -236,13 +234,17 @@ describe("the song's identity", () => {
     expect(titleLeaks(sent, song)).toEqual([]);
   });
 
-  it("is in no response for the emergency song either", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 500 })));
-    const round = await getRound();
-    const song = await playedSong(round);
+  it("is in no response for the dev stand-in either", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200 })));
+    const dev = { ...env, DEV_STANDIN_SONG: "1" };
+    const res = await app.request("/api/round", {}, dev);
+    const round = (await res.json()) as RoundView;
+    const payload = await openState(round.state, env.STATE_SECRET);
+    const song = payload ? await getSongById(payload.songId, dev) : null;
+    if (!song) throw new Error("the stand-in can't be opened");
     expect(song.id).toBe("le-refuge-de-novembre");
 
-    const miss = await guess(round.state, "xylophoneinexistant");
+    const miss = await guess(round.state, "xylophoneinexistant", dev);
     const sent = [round, miss.body].map((body) => JSON.stringify(body)).join("\n");
     expect(titleLeaks(sent, song)).toEqual([]);
   });
@@ -935,5 +937,107 @@ describe("CORS preflight", () => {
       {}
     );
     expect(res.status).toBe(204);
+  });
+});
+
+/** Stands in for the SONGS namespace: songs once resolved, and each day's song id. */
+class FakeSongsKv {
+  readonly store = new Map<string, string>();
+  readonly writes: string[] = [];
+  async get(key: string): Promise<string | null> {
+    return this.store.get(key) ?? null;
+  }
+  async put(key: string, value: string): Promise<void> {
+    this.writes.push(key);
+    this.store.set(key, value);
+  }
+}
+
+// 2026-10-18: LRCLIB was overloaded one morning, every song of the day's
+// rotation came back as "no results", and the Worker served a made-up
+// emergency song instead - with no similarity table, so no close words - which
+// a room then kept for the whole day. Resuming a saved day on a cold isolate
+// was refused as an invalid state, which the client read as "start it afresh".
+describe("a song LRCLIB can't give right now", () => {
+  function lrclibDown(): void {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 503 })));
+  }
+
+  async function resume(states: string[]): Promise<Response> {
+    return app.request(
+      "/api/round/resume",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ states }) },
+      env
+    );
+  }
+
+  it("is a 503 to try again, never another song", async () => {
+    lrclibDown();
+
+    const res = await app.request("/api/round", {}, env);
+
+    expect(res.status).toBe(503);
+    expect(res.headers.get("Retry-After")).not.toBeNull();
+    // Only the day's pick was asked about, a few times: no other song stood in.
+    const asked = vi.mocked(fetch).mock.calls.map(([input]) => requestUrl(input).searchParams.get("track_name"));
+    expect(new Set(asked)).toEqual(new Set([pickDailyEntry().title]));
+    expect(asked.length).toBeGreaterThan(1);
+  });
+
+  it("serves the day's song once LRCLIB answers again after a failed attempt", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        calls += 1;
+        if (calls === 1) return new Response("", { status: 503 });
+        const artistName = requestUrl(input).searchParams.get("artist_name") ?? "Unknown";
+        return new Response(
+          JSON.stringify([{ artistName, instrumental: false, plainLyrics: FIXTURE_LYRICS, syncedLyrics: null }]),
+          { status: 200 }
+        );
+      })
+    );
+
+    expect(await songIdOf(await getRound())).toBe(pickDailyEntry().id);
+  });
+
+  it("answers a saved round's resume and guesses with a 503, not as an invalid state", async () => {
+    const round = await getRound();
+    const found = await guess(round.state, "ligne");
+    resetSongMemo();
+    lrclibDown();
+
+    expect((await resume([found.body.state])).status).toBe(503);
+    expect((await guess(found.body.state, "refrain")).status).toBe(503);
+  });
+
+  it("asks LRCLIB about a song once, ever, when the SONGS namespace keeps it", async () => {
+    const SONGS = new FakeSongsKv();
+    const first = await app.request("/api/round", {}, { ...env, SONGS });
+    expect(first.status).toBe(200);
+    expect(SONGS.writes).toEqual([`song:${pickDailyEntry().id}`, expect.stringMatching(/^day:/)]);
+
+    // A new isolate, with LRCLIB down: the kept copy is played.
+    resetSongMemo();
+    resetFreshRoundMemo();
+    lrclibDown();
+    const again = await app.request("/api/round", {}, { ...env, SONGS });
+
+    expect(again.status).toBe(200);
+    expect(await songIdOf((await again.json()) as RoundView)).toBe(pickDailyEntry().id);
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  it("keeps the song a day was played on, whatever LRCLIB says later", async () => {
+    const SONGS = new FakeSongsKv();
+    const other = "papaoutai";
+    expect(pickDailyEntry().id).not.toBe(other);
+    SONGS.store.set(`day:${utcDay()}`, other);
+
+    const res = await app.request("/api/round", {}, { ...env, SONGS });
+
+    expect(await songIdOf((await res.json()) as RoundView)).toBe(other);
+    expect(SONGS.writes).toEqual([`song:${other}`]);
   });
 });

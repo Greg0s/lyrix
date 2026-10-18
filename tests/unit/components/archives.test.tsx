@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GuessResult, RoundView } from "../../../src/game/types";
+import { ApiError } from "../../../src/api/base";
 import { flushSavedRound, loadArchive, loadSavedDay, saveRound } from "../../../src/roundStorage";
 
 /**
@@ -18,6 +19,7 @@ const submitGuess = vi.hoisted(() => vi.fn());
 vi.mock("../../../src/api/client", () => ({ fetchRound, resumeRound, submitGuess }));
 
 const { GameScreen } = await import("../../../src/components/GameScreen");
+const { SONG_RETRY_DELAYS_MS, SONG_UNAVAILABLE_MESSAGE } = await import("../../../src/hooks/useGame");
 
 const NOW = new Date("2026-10-01T10:00:00Z");
 const TODAY = "2026-10-01";
@@ -288,6 +290,30 @@ describe("a day of the archives", () => {
     resumeRound.mockResolvedValue(round(DAY, "resumed-state"));
     fireEvent.click(screen.getByRole("button", { name: "Réessayer" }));
     await screen.findByPlaceholderText("Propose un mot…");
+    expect(resumeRound).toHaveBeenLastCalledWith(["saved-state"], DAY, expect.anything());
+    expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy();
+  });
+
+  // 2026-10-18: LRCLIB was down, the Worker refused the saved state as
+  // invalid, and the day was started afresh: "not started" where the
+  // archives said "found". Now a 503, tried again by itself.
+  it("keeps its progress and tries again by itself while its song is unavailable", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], now: NOW });
+    saveRound(answer(DAY, "vent", true, "saved-state"), [{ key: "vent", display: "vent", found: true, score: 100, near: [] }]);
+    resumeRound.mockRejectedValue(new ApiError("the song is unavailable, try again", 503));
+    await mount(`/archives/${DAY}`);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.getByText(SONG_UNAVAILABLE_MESSAGE)).toBeTruthy();
+    expect(fetchRound).not.toHaveBeenCalledWith(expect.anything(), DAY);
+
+    resumeRound.mockResolvedValue(round(DAY, "resumed-state"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SONG_RETRY_DELAYS_MS[0]);
+    });
+    expect(screen.getByPlaceholderText("Propose un mot…")).toBeTruthy();
     expect(resumeRound).toHaveBeenLastCalledWith(["saved-state"], DAY, expect.anything());
     expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy();
   });

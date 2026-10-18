@@ -28,24 +28,67 @@ export function parseLrclibTrack(value: unknown): LrclibTrack | null {
   };
 }
 
-// Never throws: any failure (network, non-2xx, malformed body) surfaces as
-// "no results" so callers can move on to the next catalog candidate.
-export async function searchTrack(entry: CatalogEntry): Promise<LrclibTrack[]> {
+/**
+ * LRCLIB couldn't be asked: the network failed, it took too long, or it
+ * answered with an error (it sheds load with `503 ServerOverloaded`, see
+ * docs/LEARNINGS.md, 2026-10-01). Says nothing about the song, unlike an
+ * answer with no usable result: a caller must never move on to another song
+ * because of it, or the day's song would depend on LRCLIB's health that hour.
+ */
+export class LrclibUnavailableError extends Error {
+  constructor(readonly entryId: string, readonly reason: string) {
+    super(`LRCLIB couldn't be asked about "${entryId}": ${reason}`);
+    this.name = "LrclibUnavailableError";
+  }
+}
+
+/** How long one search may take: LRCLIB usually answers in well under a second. */
+export const SEARCH_TIMEOUT_MS = 5_000;
+
+/** Waits before each new attempt after LRCLIB couldn't be asked, one at a time (see https://lrclib.net/docs). */
+export const SEARCH_RETRY_DELAYS_MS: readonly number[] = [250, 750];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** One search, or why LRCLIB couldn't answer it. */
+async function searchOnce(url: URL): Promise<unknown[] | string> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: { "Lrclib-Client": CLIENT_HEADER },
+      signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+    });
+  } catch (error) {
+    return error instanceof Error && error.name === "TimeoutError" ? "timed out" : "network error";
+  }
+  if (!response.ok) return `HTTP ${response.status}`;
+  const body: unknown = await response.json().catch(() => null);
+  return Array.isArray(body) ? body : "malformed body";
+}
+
+/**
+ * LRCLIB's results for a catalog entry; an empty list when it has none.
+ * Throws LrclibUnavailableError when LRCLIB couldn't answer, after trying
+ * again a couple of times: a missing song and a busy LRCLIB are not the same.
+ */
+export async function searchTrack(
+  entry: CatalogEntry,
+  retryDelaysMs: readonly number[] = SEARCH_RETRY_DELAYS_MS
+): Promise<LrclibTrack[]> {
   const url = new URL(SEARCH_URL);
   url.searchParams.set("track_name", entry.title);
   url.searchParams.set("artist_name", entry.artist);
 
-  let response: Response;
-  try {
-    response = await fetch(url, { headers: { "Lrclib-Client": CLIENT_HEADER } });
-  } catch {
-    return [];
+  let outcome = await searchOnce(url);
+  for (const delay of retryDelaysMs) {
+    if (typeof outcome !== "string") break;
+    await sleep(delay);
+    outcome = await searchOnce(url);
   }
-  if (!response.ok) return [];
-
-  const body: unknown = await response.json().catch(() => null);
-  if (!Array.isArray(body)) return [];
-  return body.map(parseLrclibTrack).filter((track): track is LrclibTrack => track !== null);
+  if (typeof outcome === "string") throw new LrclibUnavailableError(entry.id, outcome);
+  return outcome.map(parseLrclibTrack).filter((track): track is LrclibTrack => track !== null);
 }
 
 function hasUsableLyrics(track: LrclibTrack): boolean {

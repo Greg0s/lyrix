@@ -13,6 +13,8 @@ export interface CatalogAudit {
   id: string;
   label: string;
   resolved: boolean;
+  /** Why LRCLIB couldn't be asked about it at all, when it couldn't: says nothing about the entry. */
+  unavailable?: string;
   sections: number;
   words: number;
   warnings: string[];
@@ -32,9 +34,20 @@ function wordCount(lines: string[]): number {
   return lines.reduce((total, line) => total + tokenize(line).filter((token) => token.isWord).length, 0);
 }
 
-export function auditSong(entry: CatalogEntry, song: Song | null): CatalogAudit {
+/** `unavailable`: LRCLIB couldn't be asked (see LrclibUnavailableError), so there is no song to audit. */
+export function auditSong(entry: CatalogEntry, song: Song | null, unavailable?: string): CatalogAudit {
   const label = `${entry.artist} - ${entry.title}`;
-  if (!song) return { id: entry.id, label, resolved: false, sections: 0, words: 0, warnings: [] };
+  if (!song) {
+    return {
+      id: entry.id,
+      label,
+      resolved: false,
+      ...(unavailable !== undefined ? { unavailable } : {}),
+      sections: 0,
+      words: 0,
+      warnings: [],
+    };
+  }
 
   const lines = song.sections.flatMap((section) => section.lines);
   const words = wordCount(lines);
@@ -58,7 +71,9 @@ export function formatAudit(audit: CatalogAudit): string {
   const id = audit.id.padEnd(ID_COLUMN);
   const head = audit.resolved
     ? `  ok    ${id} ${audit.sections} sections, ${audit.words} words`
-    : `  FAIL  ${id} no usable lyrics on LRCLIB`;
+    : audit.unavailable !== undefined
+      ? `  FAIL  ${id} LRCLIB didn't answer (${audit.unavailable})`
+      : `  FAIL  ${id} no usable lyrics on LRCLIB`;
   return [head, ...audit.warnings.map((warning) => `${WARNING_INDENT} ! ${warning}`)].join("\n");
 }
 
@@ -71,14 +86,22 @@ export function summarizeAudits(audits: CatalogAudit[]): { resolved: number; fai
 }
 
 /**
- * What to say about the entries that didn't resolve. searchTrack swallows every
- * failure into "no results" so the Worker can move on, which means a blocked or
- * down LRCLIB looks exactly like a wrong artist/title — except that it takes the
- * whole catalog down with it, and one bad entry doesn't.
+ * What to say about the entries that didn't resolve. An LRCLIB that didn't
+ * answer is told apart from one with nothing usable, but a proxy answering in
+ * its place, or an empty answer under load, can still make a blocked or down
+ * LRCLIB look like a wrong artist/title — except that it takes the whole
+ * catalog down with it, and one bad entry doesn't.
  */
 export function failureAdvice(audits: CatalogAudit[]): string | null {
   const { resolved, failed } = summarizeAudits(audits);
   if (failed === 0) return null;
+  const unanswered = audits.filter((audit) => audit.unavailable !== undefined).length;
+  if (unanswered > 0) {
+    return (
+      `LRCLIB didn't answer for ${unanswered} ${unanswered === 1 ? "entry" : "entries"}, which says nothing ` +
+      "about them: run those again alone (--song <id>) a little later before touching worker/src/catalog.ts."
+    );
+  }
   if (resolved === 0 && audits.length > 1) {
     return (
       "Every entry failed, which is far likelier to mean LRCLIB was unreachable (outage, rate limit, " +
@@ -88,7 +111,7 @@ export function failureAdvice(audits: CatalogAudit[]): string | null {
   }
   return (
     "An unresolved entry is not fatal: the day it comes up, the Worker falls through to the next catalog " +
-    "song. Fix it by correcting the artist/title in worker/src/catalog.ts to match LRCLIB's spelling, or " +
+    "song, and keeps it for that day. Fix it by correcting the artist/title in worker/src/catalog.ts to match LRCLIB's spelling, or " +
     "by replacing the entry."
   );
 }

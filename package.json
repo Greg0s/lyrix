@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "predev:worker": "tsx scripts/ensure-dev-vars.ts",
-    "dev:worker": "wrangler dev --config worker/wrangler.toml --var SIMILARITY_SAMPLE:1 --var DEV_REVEAL_LYRICS:1",
+    "dev:worker": "wrangler dev --config worker/wrangler.toml --var SIMILARITY_SAMPLE:1 --var DEV_REVEAL_LYRICS:1 --var DEV_STANDIN_SONG:1",
     "dev:all": "concurrently -k -s first -n web,api \"npm:dev\" \"npm:dev:worker\"",
     "dev:debug": "tsx scripts/dev-debug.ts",
     "build": "tsc -p tsconfig.json --noEmit && vite build",

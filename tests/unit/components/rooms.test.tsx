@@ -17,7 +17,7 @@ import {
 } from "../../../src/game/room";
 import { utcDay } from "../../../src/game/daily";
 import type { RoundView } from "../../../src/game/types";
-import { flushSavedRound } from "../../../src/roundStorage";
+import { flushSavedRound, saveRound } from "../../../src/roundStorage";
 
 /**
  * Rooms (issue #29) as the player meets them: the dialog, the Salon card, the
@@ -1199,6 +1199,33 @@ describe("the day the room plays", () => {
     expect(roomCard()).toBeTruthy();
     // Following is not moving: nobody asked the room to go anywhere.
     expect(dayCalls()).toHaveLength(0);
+    window.history.replaceState(null, "", "/");
+  });
+
+  // 2026-10-18: in a room, the archives showed a day the player had found
+  // alone as found, but opening it showed the room's round of it, untouched.
+  it("keeps a day the player found alone as they found it, while the room plays it", async () => {
+    const title = ["le", "refuge", "de", "novembre"];
+    const mine: RoundView = { ...round("mine-won", title), day: ARCHIVED };
+    saveRound(mine, title.map((key) => ({ key, display: key, found: true, score: 100, near: [] })));
+    flushSavedRound();
+    resumeRound.mockResolvedValue(mine);
+    seedRoom(entry(camille.id, [camille, leo]));
+    await mountGame();
+
+    const socket = latestSocket();
+    socket.receive({
+      type: "room",
+      room: { ...snapshot([camille, leo]), day: ARCHIVED },
+      event: { kind: "day", member: leo, day: ARCHIVED },
+    });
+    socket.receive(archivedMessage([roomGuess("jardin", leo, true)]));
+
+    await waitFor(() => expect(window.location.pathname).toBe(`/archives/${ARCHIVED}`));
+    await waitFor(() => expect(lyricsText()).toContain("novembre"));
+    // The room's round of that day is the others' to play: none of it shows.
+    expect(lyricsText()).not.toContain("jardin");
+    expect(roomCard()).toBeTruthy();
     window.history.replaceState(null, "", "/");
   });
 

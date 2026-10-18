@@ -4,6 +4,7 @@ import { parseArgs } from "node:util";
 import { songWordKeys } from "../src/game/mask";
 import type { Song } from "../src/game/types";
 import { catalog, pickDailyEntry, type CatalogEntry } from "../worker/src/catalog";
+import { LrclibUnavailableError } from "../worker/src/lrclib";
 import { parseSections } from "../worker/src/lyrics";
 import { resolveFromLrclib } from "../worker/src/resolveSong";
 import { SIMILARITY_TABLE_VERSION, type SimilarityTable } from "../worker/src/similarity";
@@ -71,7 +72,14 @@ async function resolveSongs(values: { song?: string; all?: boolean; lyrics?: str
   const songs: Song[] = [];
   for (const entry of wanted) {
     // Sequential on purpose: LRCLIB asks clients not to fire parallel requests.
-    const song = await resolveFromLrclib(entry);
+    let song: Song | null;
+    try {
+      song = await resolveFromLrclib(entry);
+    } catch (error) {
+      if (!(error instanceof LrclibUnavailableError)) throw error;
+      console.warn(`  ! ${entry.id}: LRCLIB didn't answer (${error.reason}), skipping - run it again later`);
+      continue;
+    }
     if (!song) {
       console.warn(`  ! ${entry.id}: no lyrics resolved, skipping`);
       continue;

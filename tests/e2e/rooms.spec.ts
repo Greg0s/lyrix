@@ -21,7 +21,7 @@ test.afterEach(async () => {
 /**
  * The title's words of the day's song, read off the solo round's dev hints:
  * the e2e Worker runs with DEV_REVEAL_LYRICS (see CLAUDE.md), and this works
- * whichever song the day falls on, the emergency one included.
+ * whichever song the day falls on, the dev stand-in included.
  */
 let titleWords: string[] = [];
 /** A lyrics word outside the title, same source: a find that never wins the round. */

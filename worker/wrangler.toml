@@ -48,3 +48,20 @@ simple = { limit = 30, period = 60 }
 [[kv_namespaces]]
 binding = "SIMILARITY"
 id = "90be993fabd1457e9cb7a8e4280e477c"
+
+# Every song once resolved from LRCLIB ("song:<id>"), and which song each day
+# was played on ("day:<YYYY-MM-DD>"), written by the Worker itself (see
+# worker/src/songs.ts): LRCLIB is asked about a song once, ever, and a day's
+# song can't change once played. Without it, a new isolate had to reach
+# LRCLIB again, and when LRCLIB was down the day was played on a stand-in
+# (docs/LEARNINGS.md, 2026-10-18). Created with
+# `npx wrangler kv namespace create SONGS`; the id is not a secret.
+[[kv_namespaces]]
+binding = "SONGS"
+id = "4987d2487c7e43b395ea4f6569d66af2"
+
+# Workers Logs: what the Worker says (an LRCLIB that didn't answer, a SONGS
+# write that failed) is kept, so an incident can be read afterwards. Repeated
+# in wrangler.debug.toml (tests/unit/ci/debugMode.test.ts).
+[observability]
+enabled = true

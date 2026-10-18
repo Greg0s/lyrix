@@ -3,7 +3,7 @@ import { daysToFind, groupEntry, nextDayToFind, type ArchiveEntry } from "../gam
 import { revealedPercent } from "../game/progress";
 import { parseInvitePath } from "../game/room";
 import { closestGuessBySlot, createNearPlacer } from "../game/slots";
-import { useGame, type Feedback } from "../hooks/useGame";
+import { SONG_UNAVAILABLE_MESSAGE, useGame, type Feedback } from "../hooks/useGame";
 import { useOnline } from "../hooks/useOnline";
 import { useRoom } from "../hooks/useRoom";
 import { useRoute } from "../hooks/useRoute";
@@ -222,7 +222,13 @@ export function GameScreen() {
     return shell(
       <main className="lyrix-main is-message">
         <div className="lyrix-card lyrix-message">
-          <p role="alert">{online ? "Impossible de charger la partie." : OFFLINE_MESSAGE}</p>
+          <p role="alert">
+            {!online
+              ? OFFLINE_MESSAGE
+              : game.songUnavailable
+                ? SONG_UNAVAILABLE_MESSAGE
+                : "Impossible de charger la partie."}
+          </p>
           <button type="button" className="lyrix-button" onClick={() => void game.loadRound()}>
             Réessayer
           </button>

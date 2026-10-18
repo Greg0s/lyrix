@@ -1,5 +1,5 @@
 import type { GuessAnswer, RoundView } from "../game/types";
-import { API_BASE, apiUrl, GUESS_TIMEOUT_MS, ROUND_LOAD_TIMEOUT_MS, withTimeout } from "./base";
+import { API_BASE, ApiError, apiUrl, GUESS_TIMEOUT_MS, ROUND_LOAD_TIMEOUT_MS, withTimeout } from "./base";
 
 interface ErrorBody {
   error: string;
@@ -12,7 +12,7 @@ function isErrorBody(value: unknown): value is ErrorBody {
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null);
-    throw new Error(isErrorBody(body) ? body.error : `request failed with status ${response.status}`);
+    throw new ApiError(isErrorBody(body) ? body.error : `request failed with status ${response.status}`, response.status);
   }
   return (await response.json()) as T;
 }
