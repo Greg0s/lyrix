@@ -23,7 +23,8 @@
     "similarity:convert": "tsx scripts/convert-embeddings.ts",
     "similarity:build": "tsx scripts/build-similarity-table.ts",
     "favicon:build": "tsx scripts/build-favicon.ts",
-    "similarity:inspect": "tsx scripts/inspect-similarity-table.ts"
+    "similarity:inspect": "tsx scripts/inspect-similarity-table.ts",
+    "similarity:check-prod": "tsx scripts/check-prod-similarity.ts"
   },
   "keywords": [],
   "author": "",

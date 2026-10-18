@@ -24,6 +24,9 @@ npm run similarity:build -- --model data/models/frwac.vecbin --all --bulk
 
 npm run similarity:inspect -- --song papaoutai amour papa
 
+# is the deployed Worker scoring the day's song? (sends a few probe words, exits 1 if all come back unscored)
+npm run similarity:check-prod
+
 npx wrangler kv bulk put data/similarity/bulk.json --binding SIMILARITY --remote --config worker/wrangler.toml
 
 # play today's song against a real table: builds it, loads it into a local-only
