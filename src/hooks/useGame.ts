@@ -227,9 +227,19 @@ function withGroupFinds(own: readonly TriedWord[], group: readonly TriedWord[]):
   return [...own, ...group.filter((word) => word.found && !keys.has(word.key))];
 }
 
-/** The room's round is played on today's song only: on a day of the archives, the player plays alone. */
+/**
+ * The room's round is the one on screen on the room's day, unless the player
+ * is looking alone, or already found that day's song on their own: their won
+ * round stays theirs, as the archives show it (decided with the developer),
+ * and the room plays on without spoiling it for the others.
+ */
 function roomShown(state: GameState): boolean {
-  return state.shared !== null && onRoomDay(state) && !lookingAlone(state.shared);
+  return state.shared !== null && onRoomDay(state) && !lookingAlone(state.shared) && !wonAlone(state);
+}
+
+/** The solo round on screen is the day's, and won. */
+function wonAlone(state: GameState): boolean {
+  return state.round?.victory === true && state.round.day === (state.day ?? utcDay());
 }
 
 /**
