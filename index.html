@@ -5,8 +5,13 @@
     <!--
       viewport-fit=cover: the page reaches under a phone's notch and home
       indicator, and game.css keeps its content out of them (safe-area insets).
+      interactive-widget=resizes-content: a phone's keyboard shrinks the page
+      itself, so the sticky guess dock sits right above it. Under Chrome's
+      default (resizes-visual), Android browsers placed the dock by their own
+      reckoning of the keyboard, wrong by a toolbar's height and changing as the
+      page scrolled: docs/LEARNINGS.md, 2026-10-19.
     -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>Lyrix - retrouve la chanson du jour à partir de ses paroles</title>
     <!--
       Search and link-preview metadata. Every URL is absolute and points at the

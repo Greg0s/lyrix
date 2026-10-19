@@ -474,3 +474,15 @@ Fixed in `useGame.ts`: a load that was superseded never lands, whatever answered
 Regression tests: "loading a round a newer load superseded" (`tests/unit/components/gameScreen.test.tsx`, under `<StrictMode>`), and "asks for today's round once, keeping a word typed as soon as the dock shows" (`tests/e2e/play.spec.ts`), both failing without the fix.
 
 **Takeaway**: a promise shared outside React (a prefetch, a cache) ignores the `AbortSignal` its consumer passes. A load guarded only by `prev.day !== target` still lands when superseded on the same day; check the controller.
+
+## 2026-10-19 — The guess dock floated above the phone keyboard, or slid under it
+
+Reported on a Pixel 9, in Brave and in Chrome: with the keyboard open, the sticky dock (`.lyrix-dock`, `bottom: 12px`) sat sometimes well above the keyboard, over a strip where the lyrics weren't drawn, and sometimes partly or wholly under it, depending on how the player had scrolled. Since Chrome 108 an Android keyboard only shrinks the *visual* viewport (`interactive-widget=resizes-visual`, the default): the layout viewport, which a sticky or fixed `bottom` is measured from, keeps the full height, and the browser places the visible part within it from its own idea of the keyboard's height. A diagnostic panel injected into the phone's tab (adb + DevTools protocol) showed that idea was wrong, and the dock right where it was told: 12px above the visual viewport's bottom every time.
+
+- Brave took 48px more for the keyboard than it covers (its bottom toolbar, hidden under the keyboard, counted twice): visible height reported 389, actually about 437. The dock floated 60px above the keyboard.
+- After a scroll, the layout viewport grew by 128px (the top bar plus the bottom bars), as if the toolbars were hidden, while the address bar stayed on screen: visible height reported 517. The dock went 68px under the keyboard's edge.
+- `visualViewport.offsetTop` stayed at its maximum throughout, so compensating in script from `visualViewport` (or the VirtualKeyboard API) would have used the same wrong numbers. The safe-area inset (#79) was 0 throughout, ruled out too.
+
+Fixed with `interactive-widget=resizes-content` in index.html's viewport meta: the keyboard resizes the page itself, as Android did before Chrome 108, and the dock sits 12px above it in both scroll directions. Checked on the Pixel 9 by switching the meta live in the tab before shipping it. Side effect: viewport units follow the keyboard while it's open (`100vh`, the dialogs' `max-height`), which is what the dialogs want. Regression test: `tests/unit/ci/virtualKeyboard.test.ts` pins the meta, on the invite page too; neither jsdom nor Playwright has an on-screen keyboard to play it.
+
+**Takeaway**: anything stuck to the bottom of the screen (sticky or fixed) needs `interactive-widget=resizes-content` on Android. To see what a phone browser really does, measure it on the device: a fixed `top:0;bottom:0` probe gives the layout viewport, `visualViewport` the visible part, and a screenshot what's actually on screen.
