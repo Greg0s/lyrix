@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CELEBRATION_MS } from "../../../src/components/confetti";
 import { utcDay } from "../../../src/game/daily";
@@ -34,6 +35,7 @@ const { GameScreen } = await import("../../../src/components/GameScreen");
 const { OFFLINE_MESSAGE } = await import("../../../src/pwa");
 const { prefetchTodayRound, takePrefetchedRound } = await import("../../../src/roundPrefetch");
 const { PEEK_FADE_MS, PEEK_SHOW_MS } = await import("../../../src/components/WordToken");
+const { useGame } = await import("../../../src/hooks/useGame");
 
 function tokens(text: string, revealed = false) {
   return text.split(" ").flatMap((word, index) => {
@@ -138,6 +140,75 @@ describe("today's round, asked for before the app rendered", () => {
 
     expect(fetchRound).not.toHaveBeenCalled();
     expect(takePrefetchedRound()).toBeNull();
+  });
+});
+
+// Regression: under StrictMode (dev, and every e2e run), the mount effect's
+// first load took the prefetched round, which doesn't know about the abort
+// signal, and showed it; the second asked for the round again, and its answer
+// landed over the first, wiping what the player had typed (and any guess made
+// meanwhile). An e2e guess typed as soon as the round showed then never went.
+describe("loading a round a newer load superseded", () => {
+  /** The next answer of fetchRound, held until the test hands it over. */
+  function pendingRound() {
+    let answer: (view: RoundView) => void = () => {};
+    fetchRound.mockImplementationOnce(() => new Promise<RoundView>((resolve) => (answer = resolve)));
+    return (view: RoundView) => act(async () => answer(view));
+  }
+
+  it("asks for today's prefetched round once under StrictMode, keeping a word typed as soon as it shows", async () => {
+    fetchRound.mockResolvedValueOnce(round("prefetched"));
+    prefetchTodayRound("/");
+    const answerAgain = pendingRound();
+    await act(async () => {
+      render(
+        <StrictMode>
+          <GameScreen />
+        </StrictMode>
+      );
+    });
+    const input = (await screen.findByPlaceholderText("Propose un mot…")) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "refuge" } });
+    await answerAgain(round("asked-again"));
+
+    expect(fetchRound).toHaveBeenCalledTimes(1);
+    expect(input.value).toBe("refuge");
+  });
+
+  it("never lands once superseded, even when its answer comes last", async () => {
+    submitGuess.mockReturnValue(new Promise(() => {}));
+    const answerFirst = pendingRound();
+    const answerSecond = pendingRound();
+    await act(async () => {
+      render(
+        <StrictMode>
+          <GameScreen />
+        </StrictMode>
+      );
+    });
+    await answerSecond(round("second"));
+    const input = (await screen.findByPlaceholderText("Propose un mot…")) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "refuge" } });
+    await answerFirst(round("first"));
+
+    expect(input.value).toBe("refuge");
+    fireEvent.submit(input);
+    await waitFor(() => expect(submitGuess).toHaveBeenCalledWith("second", "refuge"));
+  });
+
+  // A day of the archives: today's would load again from its saved view, with no network.
+  it("keeps what the player typed when the same day's round loads again", async () => {
+    const yesterday = utcDay(new Date(Date.now() - 86_400_000));
+    const { result } = renderHook(() => useGame(yesterday));
+    await waitFor(() => expect(result.current.round).not.toBeNull());
+    act(() => result.current.setInputValue("refuge"));
+
+    const answerAgain = pendingRound();
+    act(() => void result.current.loadRound());
+    await answerAgain(round("loaded-again"));
+
+    expect(result.current.round?.state).toBe("loaded-again");
+    expect(result.current.inputValue).toBe("refuge");
   });
 });
 

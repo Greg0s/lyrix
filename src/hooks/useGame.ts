@@ -16,7 +16,7 @@ import {
 import { parseNearSlots } from "../game/slots";
 import type { NearSlot, RoundView } from "../game/types";
 import { isAnswerRevealed, loadSavedRoom, saveAnswerRevealed } from "../roomStorage";
-import { takePrefetchedRound } from "../roundPrefetch";
+import { restorePrefetchedRound, takePrefetchedRound } from "../roundPrefetch";
 import {
   clearGroupSnapshot,
   flushSavedRound,
@@ -268,6 +268,24 @@ function isAbort(error: unknown): boolean {
 }
 
 /**
+ * The prefetched round, for a load `signal` can supersede. The prefetch itself
+ * doesn't know about `signal`: superseded before the round arrives (React
+ * StrictMode's double mount), the load gives it back at once, for the load
+ * superseding it to take instead of asking a second time, and drops it.
+ */
+async function awaitPrefetched(prefetched: Promise<RoundView>, signal: AbortSignal): Promise<RoundView> {
+  const giveBack = () => restorePrefetchedRound(prefetched);
+  signal.addEventListener("abort", giveBack, { once: true });
+  try {
+    const round = await prefetched;
+    if (signal.aborted) throw new DOMException("The load was superseded.", "AbortError");
+    return round;
+  } finally {
+    signal.removeEventListener("abort", giveBack);
+  }
+}
+
+/**
  * A day's round and the words tried on it: from its saved state when it was
  * played before (the Worker rebuilds the view), fresh otherwise. A saved
  * state the Worker no longer opens starts the day afresh rather than lock
@@ -287,7 +305,7 @@ async function fetchDay(day: string | null, signal: AbortSignal): Promise<{ roun
   }
   // Today's, asked for before the app even rendered when there is one (roundPrefetch.ts).
   const prefetched = day === null ? takePrefetchedRound() : null;
-  const round = await (prefetched ?? fetchRound(signal, day ?? undefined));
+  const round = await (prefetched ? awaitPrefetched(prefetched, signal) : fetchRound(signal, day ?? undefined));
   // Deferred too: the freshly loaded round is the largest thing we ever
   // serialize, and it sits right before the game's first paint. Today's
   // only: a day of the archives joins them once the player tries a word.
@@ -357,14 +375,18 @@ export function useGame(day: string | null = null) {
 
     try {
       const { round, triedWords } = await fetchDay(target, controller.signal);
+      // Superseded (or unmounted) meanwhile, whatever answered this load: only the newest lands.
+      if (controller.signal.aborted) return;
       setState((prev) => {
         if (prev.day !== target) return prev;
         return {
           ...prev,
           round,
           triedWords,
-          // A room's round and what the player is typing are no business of the solo round's.
-          ...(roomShown(prev) ? {} : { inputValue: "", feedback: null, notice: null }),
+          // A room's round is no business of the solo round's. What the player
+          // is typing is never cleared here: a day switch already did, and on
+          // the same day it is a word meant for this very round.
+          ...(roomShown(prev) ? {} : { feedback: null, notice: null }),
           loading: false,
           error: null,
           songUnavailable: false,
@@ -372,7 +394,7 @@ export function useGame(day: string | null = null) {
       });
       retry.current.attempt = 0;
     } catch (error) {
-      if (isAbort(error)) return;
+      if (isAbort(error) || controller.signal.aborted) return;
       const unavailable = isSongUnavailable(error);
       if (unavailable && abortRef.current === controller) {
         const { attempt } = retry.current;

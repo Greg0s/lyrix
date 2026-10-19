@@ -33,3 +33,14 @@ export function takePrefetchedRound(): Promise<RoundView> | null {
   prefetched = null;
   return taken;
 }
+
+/**
+ * Hands back a round takePrefetchedRound gave out, for the next load of
+ * today's round to take: the load that took it was superseded before the
+ * round arrived (React StrictMode's double-invoked mount effect), and its
+ * result is dropped. Without it, that next load asked for the round a second
+ * time, and its answer landed over the first one, already on screen.
+ */
+export function restorePrefetchedRound(round: Promise<RoundView>): void {
+  prefetched ??= round;
+}
