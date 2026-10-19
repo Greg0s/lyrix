@@ -18,6 +18,8 @@ import { DayBar } from "./DayBar";
 import { playerColor } from "./playerColor";
 import { GroupFoundBanner } from "./GroupFoundBanner";
 import { GuessForm, type GuessFeedback } from "./GuessForm";
+import { HintSheet } from "./HintSheet";
+import { HintsCard } from "./HintsCard";
 import { HowToPlay } from "./HowToPlay";
 import { LyricsBody } from "./LyricsBody";
 import { MultiplayerModal } from "./MultiplayerModal";
@@ -36,7 +38,7 @@ function feedbackMessage({ word, found, duplicate, nearCount }: Feedback): strin
   return `« ${word} » n’y est pas, mais il est proche ${where}.`;
 }
 
-type Dialog = "multiplayer" | null;
+type Dialog = "multiplayer" | "hints" | null;
 
 /** A phone or tablet: its primary pointer is a finger, and focusing a text input opens its keyboard. */
 function isTouchScreen(): boolean {
@@ -111,6 +113,7 @@ export function GameScreen() {
     setDialog(which);
   }, []);
   const openMultiplayer = useCallback(() => openDialog("multiplayer"), [openDialog]);
+  const openHints = useCallback(() => openDialog("hints"), [openDialog]);
   // Once a dialog is gone, the player is back to guessing: give them the input.
   // Not on a touch screen, where focusing the input pops the on-screen keyboard
   // up over the page the player just came back to: focus goes back to the
@@ -183,6 +186,13 @@ export function GameScreen() {
     return days;
   }, [roomDays, roomCode, member, roomDay, roomRevealed]);
 
+  // The room's round: who revealed which hint, named and coloured from the player's side.
+  const { playingRoom, roomHints } = game;
+  const hintGroup = useMemo(
+    () => (playingRoom && member !== null ? { you: member, hints: roomHints } : null),
+    [playingRoom, member, roomHints]
+  );
+
   const header = (
     <AppHeader
       roomPlayers={room.view ? room.view.members.length : null}
@@ -196,6 +206,9 @@ export function GameScreen() {
   );
   const dialogs = (
     <>
+      {dialog === "hints" && round?.hints ? (
+        <HintSheet hints={round.hints} group={playingRoom} onReveal={game.revealHint} onClosed={closeDialog} />
+      ) : null}
       {dialog === "multiplayer" ? (
         <MultiplayerModal
           room={room.view}
@@ -262,6 +275,17 @@ export function GameScreen() {
   // just news.
   if (!online) {
     guessFeedback = { text: OFFLINE_MESSAGE, tone: "offline", seq: 0, shake: false };
+  } else if (notice?.hint) {
+    // A hint just became available: on a phone, the card is collapsed far
+    // above, so the dock offers to pick it there and then.
+    guessFeedback = {
+      text: notice.text,
+      tone: "hint",
+      seq: notice.seq,
+      shake: false,
+      detail: "Choisis-le dans la carte Indices.",
+      action: { label: "Choisir", onClick: openHints },
+    };
   } else if (notice) {
     guessFeedback = {
       text: notice.text,
@@ -332,6 +356,15 @@ export function GameScreen() {
         ) : null}
         <ProgressCard percent={percent} foundCount={foundCount} triedCount={triedWords.length} />
         <TriedWords triedWords={triedWords} group={group} />
+        {round.hints ? (
+          <HintsCard
+            hints={round.hints}
+            victory={round.victory}
+            group={hintGroup}
+            revealing={game.revealingHint}
+            onReveal={game.revealHint}
+          />
+        ) : null}
         {room.view || day !== null ? null : <MultiplayerPromo onOpen={openMultiplayer} />}
       </aside>
     </main>

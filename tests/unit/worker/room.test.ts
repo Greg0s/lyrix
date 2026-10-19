@@ -5,6 +5,7 @@ import {
   parseRoomEntry,
   parseRoomGuessResult,
   parseRoomMessage,
+  parseRoomRoundAnswer,
   parseRoomRoundMessage,
   ROOM_CLOSE_EXPIRED,
   ROOM_CLOSE_LEFT,
@@ -1201,5 +1202,77 @@ describe("a song LRCLIB can't give right now", () => {
 
     expect(await songIdOf(socket)).toBe(pickDailyEntry().id);
     expect(rooms.state(host.room.code).store.get(`round:${utcDay()}`)).toMatchObject({ songId: pickDailyEntry().id });
+  });
+});
+
+describe("a room's hints", () => {
+  async function revealIn(entry: RoomEntry, hint: unknown): Promise<Response> {
+    return post(`/api/rooms/${entry.room.code}/hint`, { token: entry.token, hint });
+  }
+
+  /** `count` guesses nobody would find, from `entry`: every one counts towards the group's next hint. */
+  async function missIn(entry: RoomEntry, count: number, from = 0): Promise<void> {
+    for (let index = from; index < from + count; index += 1) await guessIn(entry, `essai${index}`);
+  }
+
+  it("unlock on the group's guesses, whoever made them", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await missIn(host, 10);
+    await missIn(guest, 9, 10);
+    expect((await revealIn(guest, "era")).status).toBe(409);
+
+    const last = await guessIn(host, "essai19");
+    expect(last.round.hints).toEqual({ tried: 20, used: [], values: {} });
+    expect((await revealIn(guest, "era")).status).toBe(200);
+  });
+
+  it("are revealed for everyone, with who picked each, and announced to the others", async () => {
+    const host = await createRoom("Camille");
+    const hostSocket = await connect(host);
+    const guest = await joinRoom(host.room.code, "Léo");
+    await missIn(host, 20);
+
+    const response = await revealIn(guest, "style");
+    expect(response.status).toBe(200);
+    const answer = parseRoomRoundAnswer(await response.json());
+    expect(answer?.round.hints).toEqual({ tried: 20, used: ["style"], values: { style: "Chanson" } });
+    expect(answer?.hints?.map((hint) => [hint.id, hint.by.name])).toEqual([["style", "Léo"]]);
+
+    const heard = hostSocket.lastRound();
+    expect(heard.latestHint).toBe("style");
+    expect(heard.round.hints?.values).toEqual({ style: "Chanson" });
+    // Kept by the room: a member connecting later gets it, from a fresh object.
+    expect((await connect(host)).lastRound().hints?.map((hint) => hint.id)).toEqual(["style"]);
+  });
+
+  it("allow one per threshold for the whole room, and refuse a stranger like a guess does", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await missIn(host, 20);
+    expect((await revealIn(host, "era")).status).toBe(200);
+    expect((await revealIn(guest, "style")).status).toBe(409);
+    // Picked twice: the round as it stands, nothing used up.
+    expect((await revealIn(guest, "era")).status).toBe(200);
+
+    const wrong = await post(`/api/rooms/${host.room.code}/hint`, { token: "0".repeat(32), hint: "era" });
+    const guess = await post(`/api/rooms/${host.room.code}/guess`, { token: "0".repeat(32), word: "x" });
+    expect(wrong.status).toBe(404);
+    expect(await wrong.json()).toEqual(await guess.json());
+  });
+
+  it("stay revealed for a member who keeps looking alone, and show in full once won", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await missIn(host, 20);
+    await revealIn(guest, "era");
+    await winTogether(host, guest);
+
+    const won = (await connect(host)).lastRound().round;
+    expect(won.hints?.values).toEqual({ era: "Années 90", artistType: "Une artiste française", style: "Chanson" });
+    expect((await revealIn(host, "style")).status).toBe(409);
+
+    const view = (await (await alone(host)).json()) as RoundView;
+    expect(view.hints).toEqual({ tried: 24, used: ["era"], values: { era: "Années 90" } });
   });
 });

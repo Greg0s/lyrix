@@ -1,18 +1,24 @@
 import type { CSSProperties, FormEvent, MouseEvent, RefObject } from "react";
+import { BulbIcon } from "./HintIcon";
 
 export interface GuessFeedback {
   text: string;
   /**
    * "info": something from outside the round, e.g. a player joining the room.
    * "offline": the device has no network, so no guess can be checked.
+   * "hint": a hint just became available (src/game/hints.ts).
    */
-  tone: "found" | "missed" | "error" | "info" | "offline";
+  tone: "found" | "missed" | "error" | "info" | "offline" | "hint";
   /** Bumped on every new guess: a new message is a new element, so its entrance replays, and the shake alternates. */
   seq: number;
   /** A guess of the player's own that missed: the input row shakes. */
   shake: boolean;
   /** In a room: the colour of the player who proposed the word, shown as a dot before the text. */
   color?: string;
+  /** More of the text, where there is room for it: from 880px only (game.css). */
+  detail?: string;
+  /** A button after the text, below 880px only: the hints card is out of sight there. */
+  action?: { label: string; onClick: () => void };
 }
 
 interface GuessFormProps {
@@ -73,16 +79,29 @@ export function GuessForm({ value, onChange, onSubmit, submitting, feedback, inp
           </button>
         </div>
         {feedback ? (
-          <p
-            key={`${feedback.tone}-${feedback.seq}`}
-            className={`lyrix-feedback is-${feedback.tone}`}
-            role={feedback.tone === "error" || feedback.tone === "offline" ? "alert" : "status"}
-          >
-            {feedback.color ? (
-              <span className="lyrix-player-dot" style={{ "--player": feedback.color } as CSSProperties} aria-hidden="true" />
+          <div className="lyrix-feedback-line">
+            <p
+              key={`${feedback.tone}-${feedback.seq}`}
+              className={`lyrix-feedback is-${feedback.tone}`}
+              role={feedback.tone === "error" || feedback.tone === "offline" ? "alert" : "status"}
+            >
+              {feedback.color ? (
+                <span className="lyrix-player-dot" style={{ "--player": feedback.color } as CSSProperties} aria-hidden="true" />
+              ) : null}
+              {feedback.tone === "hint" ? (
+                <span className="lyrix-feedback-icon">
+                  <BulbIcon />
+                </span>
+              ) : null}
+              {feedback.text}
+              {feedback.detail ? <span className="lyrix-feedback-detail"> {feedback.detail}</span> : null}
+            </p>
+            {feedback.action ? (
+              <button type="button" className="lyrix-feedback-action" onClick={feedback.action.onClick}>
+                {feedback.action.label}
+              </button>
             ) : null}
-            {feedback.text}
-          </p>
+          </div>
         ) : null}
       </form>
     </div>

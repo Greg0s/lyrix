@@ -1,4 +1,13 @@
-import type { DisplayLine, DisplaySection, DisplayToken, GuessAnswer, GuessDelta, RevealedSlot, RoundView } from "./types";
+import type {
+  DisplayLine,
+  DisplaySection,
+  DisplayToken,
+  GuessAnswer,
+  GuessDelta,
+  RevealedSlot,
+  RoundHints,
+  RoundView,
+} from "./types";
 
 /**
  * Applying what a guess changed (GuessDelta) to the round on screen, instead
@@ -74,11 +83,17 @@ export function isGuessDelta(answer: GuessAnswer): answer is GuessDelta {
 }
 
 /**
- * `view` with every slot of `reveal` revealed, and `state` as its new state.
- * A slot that points at nothing, or at a word already revealed, changes
- * nothing: a delta coming from the network isn't trusted to be well formed.
+ * `view` with every slot of `reveal` revealed, and `state` as its new state,
+ * plus the round's `hints` when the delta brought them. A slot that points at
+ * nothing, or at a word already revealed, changes nothing: a delta coming
+ * from the network isn't trusted to be well formed.
  */
-export function applyReveal(view: RoundView, reveal: readonly RevealedSlot[], state: string): RoundView {
+export function applyReveal(
+  view: RoundView,
+  reveal: readonly RevealedSlot[],
+  state: string,
+  hints?: RoundHints
+): RoundView {
   const layout = layoutOf(view);
   let title: DisplayToken[] | null = null;
   let sections: DisplaySection[] | null = null;
@@ -126,8 +141,17 @@ export function applyReveal(view: RoundView, reveal: readonly RevealedSlot[], st
     state,
     ...(title ? { title: { ...view.title, tokens: title } } : {}),
     ...(sections ? { sections } : {}),
+    ...(hints ? { hints } : {}),
   };
   layouts.set(next, layout);
   revealedCounts.set(next, revealedWords(view) + uncovered);
+  return next;
+}
+
+/** `view` with a hint revealed: its new state and hints, every line kept as it was, counts included. */
+export function withHints(view: RoundView, state: string, hints: RoundHints): RoundView {
+  const next: RoundView = { ...view, state, hints };
+  layouts.set(next, layoutOf(view));
+  revealedCounts.set(next, revealedWords(view));
   return next;
 }

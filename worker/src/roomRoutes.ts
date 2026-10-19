@@ -146,6 +146,15 @@ roomRoutes.post("/:code/alone", async (c) => {
   return roomStub(c.env, code).fetch(internalPost("/alone", { token, state, day }));
 });
 
+// Reveals a hint for the whole room. Same shape as /guess: a member's token,
+// and the same 404 for a wrong one.
+roomRoutes.post("/:code/hint", async (c) => {
+  const code = c.req.param("code");
+  if (!isRoomCode(code)) return c.json({ error: "not a member of a live room" }, 404);
+  const { token, hint, day, tab } = await readBody(c);
+  return roomStub(c.env, code).fetch(internalPost("/hint", { token, hint, day, tab }));
+});
+
 // Not rate-limited: it takes a member's token, which can't be guessed, and
 // its answer for a wrong one says nothing about whether the room exists
 // (see Room.admit). A reconnecting phone must never be locked out by it.

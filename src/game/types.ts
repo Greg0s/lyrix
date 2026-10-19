@@ -60,6 +60,31 @@ export interface RoundView {
   victory: boolean;
   /** Only ever present once `victory` is true. */
   artist?: string;
+  /** The song's hints (src/game/hints.ts). Absent for a song without any, or from a Worker that predates them. */
+  hints?: RoundHints;
+}
+
+/** The three hints every song has, in the order the card shows them (src/game/hints.ts). */
+export type HintId = "era" | "artistType" | "style";
+
+/**
+ * Where a round stands with its hints. Sealed in the round state by the
+ * Worker, which alone holds their text (worker/src/songFacts.ts): a value is
+ * only ever sent once its hint was revealed, or once the round is won.
+ */
+export interface RoundHints {
+  /** Guesses the Worker answered on this round, found or not (a room's: the group's): what unlocks a hint. */
+  tried: number;
+  /** The hints revealed, in the order they were chosen. */
+  used: HintId[];
+  /** The text of each hint revealed, and of every hint once the round is won. Nothing else. */
+  values: Partial<Record<HintId, string>>;
+}
+
+/** What POST /api/round/hint answers: a hint changes no lyrics, only the state and the hints. */
+export interface HintAnswer {
+  state: string;
+  hints: RoundHints;
 }
 
 /**
@@ -120,6 +145,8 @@ export interface GuessDelta {
   reveal: RevealedSlot[];
   /** Words revealed in the whole round after this guess: what the client checks its own view against. */
   revealed: number;
+  /** The round's hints after this guess (one more guess counted); absent for a song without any. */
+  hints?: RoundHints;
 }
 
 /** A full view (an older Worker, or a win) or a delta. */

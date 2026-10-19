@@ -1,12 +1,14 @@
 import { analyzeSong } from "../../src/game/analyze";
+import { HINT_IDS } from "../../src/game/hints";
 import { buildSectionsView, buildTitleView, isVictory, songWordKeys } from "../../src/game/mask";
 import { normalize } from "../../src/game/normalize";
 import { MAX_PROXIMITY_SCORE } from "../../src/game/similarity";
 import { wordPositions } from "../../src/game/slots";
-import type { GuessDelta, NearSlot, RevealedSlot, RoundView, Song } from "../../src/game/types";
+import type { GuessDelta, HintId, NearSlot, RevealedSlot, RoundHints, RoundView, Song } from "../../src/game/types";
 import { proximityHint, type SimilarityEnv } from "./similarity";
+import { hintValues } from "./songFacts";
 import type { SongsEnv } from "./songs";
-import { sealState } from "./state";
+import { sealState, type HintProgress } from "./state";
 
 /**
  * What a guess does to a round, wherever it is played: alone (POST /api/guess,
@@ -52,6 +54,43 @@ export function parseGuessWord(word: unknown): string | null {
   return trimmed.length === 0 || trimmed.length > MAX_WORD_LENGTH ? null : trimmed;
 }
 
+/** A round nobody has guessed on yet. */
+export const NO_HINT_PROGRESS: HintProgress = { tried: 0, used: [] };
+
+/**
+ * The round's hints as a view carries them: the guess count, the hints
+ * revealed, and the text of those alone - of all of them once the round is
+ * won, which the Worker decides from found words it sealed itself, like
+ * `revealHint`. Undefined for a song with no hints (songFacts.ts).
+ */
+export function roundHints(song: Song, progress: HintProgress, victory: boolean): RoundHints | undefined {
+  const all = hintValues(song.id);
+  if (!all) return undefined;
+  const values: Partial<Record<HintId, string>> = {};
+  for (const id of HINT_IDS) if (victory || progress.used.includes(id)) values[id] = all[id];
+  return { tried: progress.tried, used: [...progress.used], values };
+}
+
+/** The round's state, sealed: its song, day, found words and hint progress. */
+export function sealRound(
+  song: Song,
+  foundKeys: Iterable<string>,
+  env: RoundEnv,
+  day: string,
+  progress: HintProgress
+): Promise<string> {
+  return sealState(
+    {
+      songId: song.id,
+      foundKeys: [...new Set(foundKeys)],
+      day,
+      tried: progress.tried,
+      ...(progress.used.length > 0 ? { hints: [...progress.used] } : {}),
+    },
+    env.STATE_SECRET
+  );
+}
+
 // Takes the resolved Song rather than an id: every caller has already resolved
 // it by the time it gets here, and looking it up again would repeat a Cache API
 // read and a full JSON parse of the lyrics for nothing.
@@ -59,12 +98,14 @@ export async function buildRoundView(
   song: Song,
   foundKeys: Iterable<string>,
   env: RoundEnv,
-  day: string
+  day: string,
+  progress: HintProgress = NO_HINT_PROGRESS
 ): Promise<RoundView> {
   const foundSet = new Set(foundKeys);
   const devReveal = devRevealOn(env);
   const victory = isVictory(song, foundSet);
-  const state = await sealState({ songId: song.id, foundKeys: [...foundSet], day }, env.STATE_SECRET);
+  const state = await sealRound(song, foundSet, env, day, progress);
+  const hints = roundHints(song, progress, victory);
 
   return {
     state,
@@ -77,6 +118,7 @@ export async function buildRoundView(
     sections: buildSectionsView(song, foundSet, devReveal, victory),
     victory,
     ...(victory ? { artist: song.artist } : {}),
+    ...(hints ? { hints } : {}),
   };
 }
 
@@ -100,22 +142,34 @@ export function revealedCount(song: Song, foundKeys: Iterable<string>): number {
  * (GuessDelta): the sealed state, plus every occurrence of a found word.
  * Nothing in it scales with the song's length. A hidden word's text is only
  * read once its guess has been checked: `reveal` is empty on a miss.
- * `foundKeys` are the words found once the guess is counted.
+ * `foundKeys` are the words found once the guess is counted, and `progress`
+ * the hints' with it. Never a win's answer, so no hint the round hasn't
+ * revealed rides along.
  */
 export async function buildGuessDelta(
   song: Song,
   foundKeys: Iterable<string>,
   outcome: GuessOutcome,
   env: RoundEnv,
-  day: string
+  day: string,
+  progress: HintProgress = NO_HINT_PROGRESS
 ): Promise<GuessDelta> {
   const foundSet = new Set(foundKeys);
-  const state = await sealState({ songId: song.id, foundKeys: [...foundSet], day }, env.STATE_SECRET);
+  const state = await sealRound(song, foundSet, env, day, progress);
+  const hints = roundHints(song, progress, false);
   const { wordTexts } = analyzeSong(song);
   const reveal: RevealedSlot[] = outcome.found
     ? (wordPositions(song).get(outcome.key) ?? []).map((position) => ({ position, text: wordTexts[position] ?? "" }))
     : [];
-  return { kind: "delta", state, day, ...outcome, reveal, revealed: revealedCount(song, foundSet) };
+  return {
+    kind: "delta",
+    state,
+    day,
+    ...outcome,
+    reveal,
+    revealed: revealedCount(song, foundSet),
+    ...(hints ? { hints } : {}),
+  };
 }
 
 /** Checks one (already trimmed) guess against the song, given the words found before it. */

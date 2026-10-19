@@ -1,7 +1,8 @@
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { dayStart, isDayKey, isPlayableDay, utcDay } from "../../src/game/daily";
-import type { GuessResult } from "../../src/game/types";
+import { canReveal, isHintId } from "../../src/game/hints";
+import type { GuessResult, HintAnswer, HintId } from "../../src/game/types";
 import { freshRoundBody } from "./freshRound";
 import { isVictory } from "../../src/game/mask";
 import {
@@ -10,11 +11,13 @@ import {
   evaluateGuess,
   MAX_WORD_LENGTH,
   parseGuessWord,
+  roundHints,
+  sealRound,
   type RoundEnv,
 } from "./round";
 import { roomRoutes, type RoomsEnv } from "./roomRoutes";
 import { getSongById, getSongOfDay, SongUnavailableError } from "./songs";
-import { openState } from "./state";
+import { hintProgressOf, openState, type HintProgress } from "./state";
 
 type Env = RoundEnv & RoomsEnv;
 
@@ -139,7 +142,12 @@ app.post("/api/round/resume", async (c) => {
     return c.json({ error: "invalid or expired round state" }, 400);
   }
   const foundKeys = new Set(opened.flatMap((payload) => payload.foundKeys));
-  return c.json(await buildRoundView(song, foundKeys, c.env, day));
+  // Hints too: as many guesses as the furthest state counted, every hint any of them revealed.
+  const progresses = opened.map(hintProgressOf);
+  const used: HintId[] = [];
+  for (const id of progresses.flatMap((progress) => progress.used)) if (!used.includes(id)) used.push(id);
+  const progress: HintProgress = { tried: Math.max(...progresses.map((p) => p.tried)), used };
+  return c.json(await buildRoundView(song, foundKeys, c.env, day, progress));
 });
 
 app.post("/api/guess", async (c) => {
@@ -182,19 +190,81 @@ app.post("/api/guess", async (c) => {
   const foundKeys = outcome.found ? [...payload.foundKeys, outcome.key] : payload.foundKeys;
   // A state sealed before the archives has no day: it can only be a round of today.
   const day = payload.day ?? utcDay();
+  // Every guess answered counts towards the next hint, found or not.
+  const before = hintProgressOf(payload);
+  const progress: HintProgress = { tried: before.tried + 1, used: before.used };
 
   // A client that asked for it gets what the guess changed rather than the
   // whole round, short of a win: a won round's view carries the artist and
   // every hidden word's revealHint. One that didn't ask (a tab still running
   // an older build) gets the full view, as it always has, for ever.
   if (delta === true && !isVictory(song, new Set(foundKeys))) {
-    return c.json(await buildGuessDelta(song, foundKeys, outcome, c.env, day));
+    return c.json(await buildGuessDelta(song, foundKeys, outcome, c.env, day, progress));
   }
 
-  const view = await buildRoundView(song, foundKeys, c.env, day);
+  const view = await buildRoundView(song, foundKeys, c.env, day, progress);
 
   const result: GuessResult = { ...view, ...outcome };
   return c.json(result);
+});
+
+/**
+ * Reveals one of the round's hints (src/game/hints.ts): one the guesses
+ * sealed in the state have unlocked and no earlier reveal used up, never
+ * once the round is won (every hint is shown then). A hint already revealed
+ * answers the round as it stands, so a double click is harmless. Only the
+ * state and the hints come back: a hint changes no lyrics.
+ */
+app.post("/api/round/hint", async (c) => {
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid JSON body" }, 400);
+  }
+  if (typeof body !== "object" || body === null) {
+    return c.json({ error: "request body must be a JSON object" }, 400);
+  }
+  const { state, hint } = body as Record<string, unknown>;
+  if (typeof state !== "string" || !isHintId(hint)) {
+    return c.json({ error: "state must be a round state and hint one of the song's hints" }, 400);
+  }
+
+  const payload = await openState(state, c.env.STATE_SECRET);
+  if (!payload) {
+    return c.json({ error: "invalid or expired round state" }, 400);
+  }
+  let song;
+  try {
+    song = await getSongById(payload.songId, c.env);
+  } catch (error) {
+    return songUnavailable(c, error);
+  }
+  if (!song) {
+    return c.json({ error: "invalid or expired round state" }, 400);
+  }
+  const progress = hintProgressOf(payload);
+  const current = roundHints(song, progress, false);
+  if (!current) {
+    return c.json({ error: "this song has no hints" }, 404);
+  }
+  if (isVictory(song, new Set(payload.foundKeys))) {
+    return c.json({ error: "the round is already won" }, 409);
+  }
+  if (progress.used.includes(hint)) {
+    const answer: HintAnswer = { state, hints: current };
+    return c.json(answer);
+  }
+  if (!canReveal(progress, hint)) {
+    return c.json({ error: "no hint is unlocked yet" }, 409);
+  }
+  const next: HintProgress = { tried: progress.tried, used: [...progress.used, hint] };
+  const day = payload.day ?? utcDay();
+  const answer: HintAnswer = {
+    state: await sealRound(song, payload.foundKeys, c.env, day, next),
+    hints: roundHints(song, next, false) ?? current,
+  };
+  return c.json(answer);
 });
 
 // Rooms ("salons", issue #29), and the round each plays together (#30).

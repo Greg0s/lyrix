@@ -1,4 +1,6 @@
 import { isDayKey } from "../../src/game/daily";
+import { isHintId } from "../../src/game/hints";
+import type { HintId } from "../../src/game/types";
 
 export interface StatePayload {
   songId: string;
@@ -10,6 +12,27 @@ export interface StatePayload {
    * played on.
    */
   day?: string;
+  /**
+   * Guesses the Worker answered on this round, found or not: what unlocks a
+   * hint (src/game/hints.ts). Missing from a state sealed before hints.
+   */
+  tried?: number;
+  /** The hints revealed, in the order chosen. Missing when none is, or from a state sealed before hints. */
+  hints?: HintId[];
+}
+
+/** Where a round stands with its hints: what the guess count allows, and what was taken. */
+export interface HintProgress {
+  tried: number;
+  used: readonly HintId[];
+}
+
+/**
+ * A state's hint progress. One sealed before hints counted no guesses: its
+ * found words are the guesses it is sure of (a missed one left no trace).
+ */
+export function hintProgressOf(payload: StatePayload): HintProgress {
+  return { tried: payload.tried ?? payload.foundKeys.length, used: payload.hints ?? [] };
 }
 
 const encoder = new TextEncoder();
@@ -81,7 +104,13 @@ function isStatePayload(value: unknown): value is StatePayload {
     typeof candidate.songId === "string" &&
     Array.isArray(candidate.foundKeys) &&
     candidate.foundKeys.every((key) => typeof key === "string") &&
-    (candidate.day === undefined || isDayKey(candidate.day))
+    (candidate.day === undefined || isDayKey(candidate.day)) &&
+    (candidate.tried === undefined ||
+      (typeof candidate.tried === "number" && Number.isInteger(candidate.tried) && candidate.tried >= 0)) &&
+    (candidate.hints === undefined ||
+      (Array.isArray(candidate.hints) &&
+        candidate.hints.every(isHintId) &&
+        new Set(candidate.hints).size === candidate.hints.length))
   );
 }
 

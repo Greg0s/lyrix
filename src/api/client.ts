@@ -1,4 +1,4 @@
-import type { GuessAnswer, RoundView } from "../game/types";
+import type { GuessAnswer, HintAnswer, HintId, RoundView } from "../game/types";
 import { API_BASE, ApiError, apiUrl, GUESS_TIMEOUT_MS, ROUND_LOAD_TIMEOUT_MS, withTimeout } from "./base";
 
 interface ErrorBody {
@@ -46,6 +46,23 @@ export function resumeRound(states: readonly string[], day: string, signal?: Abo
     },
     signal
   );
+}
+
+/**
+ * Reveals one of the round's hints (src/game/hints.ts): the round's state with
+ * it sealed, and its hints. Throws when the Worker refused it or couldn't be
+ * asked in time (GUESS_TIMEOUT_MS).
+ */
+export function revealHint(state: string, hint: HintId): Promise<HintAnswer> {
+  return withTimeout(GUESS_TIMEOUT_MS, async (signal) => {
+    const response = await fetch(`${API_BASE}/api/round/hint`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state, hint }),
+      signal,
+    });
+    return parseJsonResponse<HintAnswer>(response);
+  });
 }
 
 /**

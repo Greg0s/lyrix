@@ -520,3 +520,32 @@ describe("saveRoundSoon", () => {
     expect(() => saveRoundSoon(round, triedWords, undefined)).not.toThrow();
   });
 });
+
+describe("a round's hints", () => {
+  const hidden: DisplayToken = { text: "____", isWord: true, revealed: false };
+  const withHints = (state: string, hints: RoundView["hints"]) =>
+    roundOf(TODAY, state, { sections: [{ label: "Couplet", lines: [{ tokens: [hidden] }] }], hints });
+
+  // The view is only written again when a guess reveals words: the hints,
+  // which change with every guess, ride with the day's state instead.
+  it("come back with today's round as of its latest state, its view not written again", () => {
+    const storage = fakeStorage();
+    saveRound(withHints("s1", { tried: 19, used: [], values: {} }), triedWords, storage, NOW);
+    const setItem = vi.spyOn(storage, "setItem");
+    const latest = { tried: 20, used: ["era" as const], values: { era: "Années 90" } };
+    saveRound(withHints("s2", latest), triedWords, storage, NOW);
+
+    expect(writesOf(setItem, viewKey(TODAY))).toBe(0);
+    expect(loadSavedRound(storage, NOW)?.round).toMatchObject({ state: "s2", hints: latest });
+  });
+
+  it("are dropped when malformed, never the round with them", () => {
+    const storage = fakeStorage({
+      [dayKey(TODAY)]: JSON.stringify({ state: round.state, triedWords, hints: { tried: "many", used: [], values: {} } }),
+      [viewKey(TODAY)]: JSON.stringify(round),
+    });
+    const saved = loadSavedRound(storage, NOW);
+    expect(saved?.round.state).toBe(round.state);
+    expect(saved?.round.hints).toBeUndefined();
+  });
+});
