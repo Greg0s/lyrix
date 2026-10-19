@@ -105,6 +105,7 @@ export const SONG_FACTS: Readonly<Record<string, SongFacts>> = {
   "le-vent-nous-portera": { year: 2001, artist: "group", origin: "fr", style: "Rock" },
   "les-corons": { year: 1982, artist: "man", origin: "fr", style: "Variété" },
   "une-belle-histoire": { year: 1972, artist: "man", origin: "fr", style: "Variété" },
+  "nuit-de-folie": { year: 1988, artist: "duo", origin: "fr", style: "Pop" },
   // The made-up song dev and e2e play (songs.ts): never served in production.
   [DEV_STANDIN_SONG_ID]: { year: 1996, artist: "woman", origin: "fr", style: "Chanson" },
 };
