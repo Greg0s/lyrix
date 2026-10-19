@@ -337,7 +337,7 @@ Switching between "Créer un salon" and "Rejoindre" nudged the "Jouer à plusieu
 - **"The round is won now and wasn't before" is not "the player just won".** A `victory` flip is also what a reload, joining a room that already won, and "Afficher la réponse" look like, and in a room a guess of the player's can come back won by a teammate's word that landed first. So the trigger is in `useGame.submit`, on the guess's own answer (`celebration`), with `winningKey === guess.key` for rooms. Each case has a test in `gameScreen.test.tsx` or `rooms.test.tsx`.
 - **A retrying negative assertion passes on something that came and went.** `await expect(locator).toHaveCount(0)` polls for 5 s, and the confetti clears itself after 3 s, so "no confetti after a reload" would have passed even with a burst. The e2e specs read the count once, right after the victory panel shows (a burst comes with it): `expect(await locator.count()).toBe(0)`.
 
-Also: `tests/unit/ci/favicon.test.ts` fails on a Windows checkout with `core.autocrlf=true`, on `main` as on any branch: `public/favicon.svg` is checked out with CRLF and compared byte for byte with the LF the generator writes. Not caused by a change; run it on the base commit before blaming one.
+Also: `tests/unit/ci/favicon.test.ts` fails on a Windows checkout with `core.autocrlf=true`, on `main` as on any branch: `public/favicon.svg` is checked out with CRLF and compared byte for byte with the LF the generator writes. Not caused by a change; run it on the base commit before blaming one. (Fixed on 2026-10-19, see that day's entry.)
 
 ## 2026-10-01 — Growing the catalog would have rewritten every past day
 
@@ -474,3 +474,11 @@ Fixed in `useGame.ts`: a load that was superseded never lands, whatever answered
 Regression tests: "loading a round a newer load superseded" (`tests/unit/components/gameScreen.test.tsx`, under `<StrictMode>`), and "asks for today's round once, keeping a word typed as soon as the dock shows" (`tests/e2e/play.spec.ts`), both failing without the fix.
 
 **Takeaway**: a promise shared outside React (a prefetch, a cache) ignores the `AbortSignal` its consumer passes. A load guarded only by `prev.day !== target` still lands when superseded on the same day; check the controller.
+
+## 2026-10-19 — Three tests failed on every Windows checkout, over line endings
+
+`npm test` in a fresh worktree on Windows: 3 failures in `tests/unit/ci`, on `main` too, while CI on Linux was green. Git for Windows' installer sets `core.autocrlf=true` in its system gitconfig, and with no `.gitattributes` every text file was checked out in CRLF. `e2e-servers.test.ts` split `.gitignore` on `"\n"` and looked for `dist-e2e` among lines ending in `\r`, `serviceWorker.test.ts` did the same with `public/_headers`, and `favicon.test.ts` compared `public/favicon.svg` byte for byte with the LF the generator writes. Each now splits on `/\r?\n/` or turns `\r\n` into `\n` first.
+
+`.gitattributes` (`* text=auto eol=lf`) now checks every text file out with LF whatever `core.autocrlf` says, so a Windows checkout reads the same bytes as CI and as the scripts that generate files; pinned by `tests/unit/ci/lineEndings.test.ts`. A checkout made before it keeps its CRLF files, and `git add` warns about each, until they are checked out again: on a clean tree, `git rm -r --cached -q . && git reset --hard`.
+
+**Takeaway**: the third time (see 2026-09-30, 2026-10-07). Now a rule in CLAUDE.md's Testing Philosophy: a test never depends on the line endings of a file it reads.
