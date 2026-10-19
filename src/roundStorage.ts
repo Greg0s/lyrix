@@ -2,8 +2,9 @@ import type { TriedWord } from "./hooks/useGame";
 import type { ArchiveEntry } from "./game/archive";
 import { archiveDays, isDayKey, utcDay } from "./game/daily";
 import { revealedWords, wordCount } from "./game/delta";
+import { parseRoundHints } from "./game/hints";
 import { parseNearSlots } from "./game/slots";
-import type { DisplayToken, RoundView } from "./game/types";
+import type { DisplayToken, RoundHints, RoundView } from "./game/types";
 
 export type { ArchiveEntry };
 
@@ -18,7 +19,9 @@ export type { ArchiveEntry };
  *   localStorage's few megabytes. Written only when it changes, which a view
  *   only does by revealing words: a missed guess rewrites the day's state,
  *   never the view. So the view holds no state of its own, only how many
- *   words it shows revealed, which the day's entry must agree with.
+ *   words it shows revealed, which the day's entry must agree with. Nor
+ *   does it hold the round's hints, which change with every guess: the
+ *   day's entry keeps them, next to the state they were sealed in.
  * - `lyrix:archive`: a summary per day (title as left, share revealed, tries,
  *   won), all the archives screen reads.
  *
@@ -112,6 +115,8 @@ interface DayEntry {
   triedWords: TriedWord[];
   /** Words the round showed revealed when saved; absent from an entry saved before views were written apart. */
   revealed?: number;
+  /** The round's hints as of `state`; absent for a song without any, or from an entry saved before hints. */
+  hints?: RoundHints;
 }
 
 function readDay(storage: Storage, day: string): DayEntry | null {
@@ -120,10 +125,12 @@ function readDay(storage: Storage, day: string): DayEntry | null {
   const candidate = value as Record<string, unknown>;
   const triedWords = parseTriedWords(candidate.triedWords);
   if (typeof candidate.state !== "string" || !triedWords) return null;
+  const hints = parseRoundHints(candidate.hints);
   return {
     state: candidate.state,
     triedWords,
     ...(typeof candidate.revealed === "number" ? { revealed: candidate.revealed } : {}),
+    ...(hints ? { hints } : {}),
   };
 }
 
@@ -152,6 +159,7 @@ function resumableView(value: unknown, saved: DayEntry, today: string): RoundVie
     sections: sections as RoundView["sections"],
     victory,
     ...(typeof artist === "string" ? { artist } : {}),
+    ...(saved.hints ? { hints: saved.hints } : {}),
   };
 }
 
@@ -246,7 +254,8 @@ function write(storage: Storage, round: RoundView, triedWords: TriedWord[], toda
   // What the view saved last showed: the same count, the same view, and a
   // missed guess doesn't serialize the whole song again.
   const before = day === today ? readDay(storage, day)?.revealed : undefined;
-  storage.setItem(DAY_PREFIX + day, JSON.stringify({ state: round.state, triedWords, revealed }));
+  const entry: DayEntry = { state: round.state, triedWords, revealed, ...(round.hints ? { hints: round.hints } : {}) };
+  storage.setItem(DAY_PREFIX + day, JSON.stringify(entry));
   const archive = readArchive(storage);
   archive[day] = summarize(round, triedWords);
   storage.setItem(ARCHIVE_KEY, JSON.stringify(archive));

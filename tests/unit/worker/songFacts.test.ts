@@ -23,7 +23,8 @@ describe("song facts", () => {
 
   it("give no hint a word of its song's title or artist", () => {
     const leaks = catalog.flatMap((entry) => {
-      const values = hintValues(entry.id) ?? {};
+      const values = hintValues(entry.id);
+      if (!values) return [];
       const secret = meaningfulWords(`${entry.title} ${entry.artist}`);
       return Object.values(values).flatMap((text) =>
         [...meaningfulWords(text)].filter((word) => secret.has(word)).map((word) => `${entry.id}: ${word}`)

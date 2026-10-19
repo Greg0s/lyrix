@@ -10,13 +10,14 @@ import {
   type RoomEntry,
   type RoomGuess,
   type RoomGuessResult,
+  type RoomHint,
   type RoomMember,
   type RoomMessage,
   type RoomRoundMessage,
   type RoomSnapshot,
 } from "../../../src/game/room";
 import { utcDay } from "../../../src/game/daily";
-import type { RoundView } from "../../../src/game/types";
+import type { RoundHints, RoundView } from "../../../src/game/types";
 import { flushSavedRound, saveRound } from "../../../src/roundStorage";
 
 /**
@@ -1322,5 +1323,52 @@ describe("the day the room plays", () => {
     await screen.findByRole("heading", { name: "Les 30 derniers jours" });
     expect(dayCalls()).toHaveLength(0);
     window.history.replaceState(null, "", "/");
+  });
+});
+
+describe("a room's hints", () => {
+  const unlocked = { tried: 20, used: [], values: {} } satisfies RoundHints;
+  const twenty = Array.from({ length: 20 }, (_, index) => roomGuess(`essai${index}`, leo, false));
+
+  function withHints(message: RoomRoundMessage, hints: RoundHints, roomHints: RoomHint[] = []): RoomRoundMessage {
+    return { ...message, round: { ...message.round, hints }, ...(roomHints.length > 0 ? { hints: roomHints } : {}) };
+  }
+
+  function hintsCard(): HTMLElement {
+    return screen.getByRole("region", { name: "Indices" });
+  }
+
+  it("are revealed for the group through the room, never the solo route", async () => {
+    seedRoom();
+    render(<GameScreen />);
+    latestSocket().receive(withHints(roundMessage(twenty), unlocked));
+    await waitFor(() => expect(screen.getByPlaceholderText(PLACEHOLDER)).toBeTruthy());
+    answer(
+      200,
+      withHints(roundMessage(twenty), { tried: 20, used: ["era"], values: { era: "Années 90" } }, [{ id: "era", by: camille }])
+    );
+
+    fireEvent.click(within(hintsCard()).getByRole("button", { name: /Époque/ }));
+
+    await waitFor(() => expect(within(hintsCard()).getByText("Années 90")).toBeTruthy());
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://localhost:3000/api/rooms/ABC234/hint");
+    expect(sentBody()).toEqual({ token: "token-m1", hint: "era", day: utcDay(), tab: expect.stringMatching(/^[0-9a-f]{32}$/) });
+    expect(within(hintsCard()).getByText(/choisi par/).textContent).toBe("choisi par Camille");
+  });
+
+  it("are announced when a teammate reveals one, with what it says", async () => {
+    seedRoom();
+    render(<GameScreen />);
+    latestSocket().receive(withHints(roundMessage(twenty), unlocked));
+    await waitFor(() => expect(screen.getByPlaceholderText(PLACEHOLDER)).toBeTruthy());
+
+    latestSocket().receive({
+      ...withHints(roundMessage(twenty), { tried: 20, used: ["style"], values: { style: "Chanson" } }, [{ id: "style", by: leo }]),
+      latestHint: "style",
+    });
+
+    expect(feedbackText()).toBe("Léo a révélé l'indice Style : Chanson.");
+    expect(within(hintsCard()).getByText("Chanson")).toBeTruthy();
+    expect(within(hintsCard()).getByText(/choisi par/).textContent).toBe("choisi par Léo");
   });
 });

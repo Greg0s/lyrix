@@ -1,20 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isSongUnavailable, isTransientFailure } from "../api/base";
-import { fetchRound, resumeRound, submitGuess } from "../api/client";
-import { continueAlone, submitRoomGuess } from "../api/rooms";
+import { fetchRound, resumeRound, revealHint as requestHint, submitGuess } from "../api/client";
+import { continueAlone, revealRoomHint, submitRoomGuess } from "../api/rooms";
 import { utcDay } from "../game/daily";
-import { applyReveal, isGuessDelta, revealedWords } from "../game/delta";
+import { applyReveal, isGuessDelta, revealedWords, withHints } from "../game/delta";
+import { availableHints, HINT_LABELS } from "../game/hints";
 import { normalize } from "../game/normalize";
 import {
   memberName,
   type RoomDaySummary,
   type RoomGuess,
+  type RoomHint,
   type RoomMember,
   type RoomRound,
   type RoomRoundMessage,
 } from "../game/room";
 import { parseNearSlots } from "../game/slots";
-import type { NearSlot, RoundView } from "../game/types";
+import type { HintId, NearSlot, RoundHints, RoundView } from "../game/types";
 import { isAnswerRevealed, loadSavedRoom, saveAnswerRevealed } from "../roomStorage";
 import { takePrefetchedRound } from "../roundPrefetch";
 import {
@@ -75,6 +77,8 @@ export interface Notice {
   outcome?: "found" | "missed";
   /** The key of the word that guess found, highlighted in the lyrics like the player's own. */
   foundKey?: string;
+  /** A hint just became available: the dock offers to choose it. */
+  hint?: boolean;
 }
 
 /** The room the player is in, as far as the round is concerned (see useRoom). */
@@ -103,6 +107,8 @@ interface SharedRound extends RoomSession {
   aloneRequested: boolean;
   /** Every day the room played, for the group's collection in the archives. */
   days: RoomDaySummary[];
+  /** The hints the group revealed, with who picked each (RoomRound.hints). */
+  hints: RoomHint[];
 }
 
 /** Who completed the title for the group, once someone has. */
@@ -129,19 +135,24 @@ function triedWordFrom({ key, display, found, score, near, by }: RoomGuess): Tri
 /**
  * The room's round, updated to `update` unless that is older than what is
  * shown: an answer and a broadcast travel separately and can cross, but a
- * room's guesses only ever grow, so their count orders them.
+ * room's guesses and hints only ever grow, so their counts order them: the
+ * guesses first, then, for as many guesses, the hints.
  */
 function withRoomRound(shared: SharedRound, update: RoomRound): SharedRound {
   // Another day's round (the room moved, #B) always replaces the one shown;
   // the answer on that day is the player's to ask for again.
   const otherDay = shared.round !== null && shared.round.day !== update.round.day;
-  if (shared.round && !otherDay && update.guesses.length <= shared.triedWords.length) return shared;
+  const guesses = update.guesses.length;
+  const known = shared.triedWords.length;
+  const stale = guesses < known || (guesses === known && (update.hints?.length ?? 0) <= shared.hints.length);
+  if (shared.round && !otherDay && stale) return shared;
   return {
     ...shared,
     round: update.round,
     triedWords: update.guesses.map(triedWordFrom),
     winningKey: update.winningKey ?? null,
     days: update.days ?? shared.days,
+    hints: update.hints ?? [],
     ...(otherDay || shared.round === null
       ? { revealed: isAnswerRevealed(shared.code, update.round.day), aloneRequested: false }
       : {}),
@@ -155,6 +166,28 @@ function teammateNotice(guess: RoomGuess, you: string, seq: number, winning: boo
   return guess.found
     ? { text: `${name} a trouvé « ${guess.display} » !`, seq, by: guess.by, outcome: "found", foundKey: guess.key }
     : { text: `${name} a proposé « ${guess.display} », sans succès.`, seq, by: guess.by, outcome: "missed" };
+}
+
+/** Whether `after` makes a hint available that `before` didn't: the one moment the dock says so. */
+function hintUnlocked(before: RoundHints | undefined, after: RoundHints | undefined): boolean {
+  return after !== undefined && availableHints(after) > 0 && (before === undefined || availableHints(before) === 0);
+}
+
+/** A guess made a hint available. The word it found, if any, stays highlighted in the lyrics. */
+function unlockNotice(seq: number, group: boolean, foundKey?: string): Notice {
+  const text = group ? "Un indice est débloqué pour le groupe." : "Un indice est débloqué.";
+  return { text, seq, hint: true, ...(foundKey !== undefined ? { foundKey } : {}) };
+}
+
+/** A hint just revealed, as the dock tells it: by the player ("Époque : Années 90") or by a teammate. */
+function revealNotice(id: HintId, hints: RoundHints | undefined, seq: number, by?: RoomMember, you?: string): Notice {
+  const label = HINT_LABELS[id];
+  const value = hints?.values[id];
+  if (by && you !== undefined) {
+    const name = memberName(by, you);
+    return { text: value ? `${name} a révélé l'indice ${label} : ${value}.` : `${name} a révélé l'indice ${label}.`, seq, by };
+  }
+  return { text: value ? `${label} : ${value}.` : `Indice ${label} révélé.`, seq };
 }
 
 interface GameState {
@@ -173,6 +206,8 @@ interface GameState {
   error: string | null;
   /** The round couldn't load because its song couldn't be had right now: it is tried again by itself. */
   songUnavailable: boolean;
+  /** A hint is being revealed: nothing else is sent until it is, a guess included. */
+  revealingHint: boolean;
   /**
    * Bumped when a guess of the player's own completes the title of the round
    * on screen, so the win is celebrated (TitleGuess, #42); never by a round
@@ -195,6 +230,7 @@ const initialState: GameState = {
   submitting: false,
   error: null,
   songUnavailable: false,
+  revealingHint: false,
   celebration: 0,
 };
 
@@ -215,11 +251,13 @@ function hydratedState(day: string | null): GameState | null {
     submitting: false,
     error: null,
     songUnavailable: false,
+    revealingHint: false,
     celebration: 0,
   };
 }
 
 const NO_ROOM_DAYS: RoomDaySummary[] = [];
+const NO_ROOM_HINTS: RoomHint[] = [];
 
 /** The player's own words, then the words the group found that they hadn't: what a round merged with a room's lists. */
 function withGroupFinds(own: readonly TriedWord[], group: readonly TriedWord[]): TriedWord[] {
@@ -312,6 +350,10 @@ export function useGame(day: string | null = null) {
   const loadedFor = useRef<string | null | undefined>(state.round ? day : undefined);
   const dayRef = useRef(day);
   dayRef.current = day;
+  // The state as last rendered, for the callbacks that must stay the same
+  // function across renders (revealHint, handed to a memoized card).
+  const stateRef = useRef(state);
+  stateRef.current = state;
   // A load whose song was unavailable is tried again by itself, a little later each time.
   const retry = useRef<{ timer: ReturnType<typeof setTimeout> | null; attempt: number }>({ timer: null, attempt: 0 });
   const cancelRetry = useCallback(() => {
@@ -441,7 +483,7 @@ export function useGame(day: string | null = null) {
   }, []);
 
   const submit = useCallback(async () => {
-    const { inputValue, submitting } = state;
+    const { inputValue, submitting, revealingHint } = state;
     // Looking alone after the group won, or on a day of the archives: the player's guesses are their own.
     const shared = roomShown(state) ? state.shared : null;
     const round = shared ? shared.round : state.round;
@@ -450,7 +492,9 @@ export function useGame(day: string | null = null) {
     // Guards against a second guess firing while one is still in flight
     // (e.g. a fast double Enter), which would otherwise race and let a
     // slower response clobber a faster one's revealed words.
-    if (!raw || !round || submitting) return;
+    // A hint on its way too: its answer carries the state, which a guess
+    // answered meanwhile would have moved on without it.
+    if (!raw || !round || submitting || revealingHint) return;
 
     // Mirror the server's own normalization so a repeat guess is a free,
     // instant no-op instead of a round trip. In a room, anyone's counts.
@@ -475,13 +519,16 @@ export function useGame(day: string | null = null) {
         // This very guess completed the title (RoomRound.winningKey): the
         // group's win is the player's. A teammate's, landing first, is not.
         const won = !result.duplicate && !round.victory && result.round.victory && result.winningKey === guess.key;
+        const unlocked = !result.duplicate && !result.round.victory && hintUnlocked(round.hints, result.round.hints);
         setState((prev) => ({
           ...prev,
           // Unless the player left the room while the guess was on its way.
           shared: prev.shared?.code === shared.code ? withRoomRound(prev.shared, result) : prev.shared,
           inputValue: prev.inputValue === inputValue ? "" : prev.inputValue,
           submitting: false,
-          notice: null,
+          notice: unlocked
+            ? unlockNotice((prev.notice?.seq ?? 0) + 1, true, guess.found ? guess.key : undefined)
+            : null,
           feedback: {
             word: result.duplicate ? raw : guess.display,
             key: guess.key,
@@ -499,7 +546,8 @@ export function useGame(day: string | null = null) {
       const result = await submitGuess(round.state, raw);
       // What the guess changed, applied to the round it was made on (the one
       // whose state was sent); a full view (a win, or an older Worker) as is.
-      const next = isGuessDelta(result) ? applyReveal(round, result.reveal, result.state) : result;
+      const next = isGuessDelta(result) ? applyReveal(round, result.reveal, result.state, result.hints) : result;
+      const unlocked = !next.victory && hintUnlocked(round.hints, next.hints);
       // Parsed rather than trusted: a Worker deployed before close words were
       // placed in the lyrics sends no `near` at all.
       const near = parseNearSlots(result.near);
@@ -526,7 +574,7 @@ export function useGame(day: string | null = null) {
         // would close a phone's keyboard): keep whatever was typed meanwhile.
         inputValue: prev.inputValue === inputValue ? "" : prev.inputValue,
         submitting: false,
-        notice: null,
+        notice: unlocked ? unlockNotice((prev.notice?.seq ?? 0) + 1, false, result.found ? result.key : undefined) : null,
         feedback: {
           word: raw,
           key: result.key,
@@ -549,6 +597,50 @@ export function useGame(day: string | null = null) {
     }
   }, [state, resyncRound]);
 
+  /**
+   * Reveals one of the hints of the round on screen: the player's own, or the
+   * room's for everyone. Never while a guess is on its way (see submit), and
+   * one at a time. The dock then says what it was.
+   */
+  const revealHint = useCallback(
+    async (id: HintId) => {
+      const state = stateRef.current;
+      const shared = roomShown(state) ? state.shared : null;
+      const round = shared ? shared.round : state.round;
+      if (!round?.hints || state.revealingHint || state.submitting) return;
+      setState((prev) => ({ ...prev, revealingHint: true }));
+      try {
+        if (shared) {
+          const result = await revealRoomHint(shared.code, shared.token, id, round.day);
+          setState((prev) => ({
+            ...prev,
+            shared: prev.shared?.code === shared.code ? withRoomRound(prev.shared, result) : prev.shared,
+            revealingHint: false,
+            notice: revealNotice(id, result.round.hints, (prev.notice?.seq ?? 0) + 1),
+          }));
+          return;
+        }
+        const answer = await requestHint(round.state, id);
+        const playedDay = state.day;
+        setState((prev) => {
+          // The round moved on meanwhile (another day on screen): the hint is
+          // the answer's to keep, sealed in a state no longer the round's.
+          if (prev.day !== playedDay || prev.round?.state !== round.state) return { ...prev, revealingHint: false };
+          const next = withHints(prev.round, answer.state, answer.hints);
+          saveRoundSoon(next, prev.triedWords);
+          return { ...prev, round: next, revealingHint: false, notice: revealNotice(id, answer.hints, (prev.notice?.seq ?? 0) + 1) };
+        });
+      } catch {
+        setState((prev) => ({
+          ...prev,
+          revealingHint: false,
+          notice: { text: "L'indice n'a pas pu être révélé, réessaie.", seq: (prev.notice?.seq ?? 0) + 1 },
+        }));
+      }
+    },
+    []
+  );
+
   const announce = useCallback((text: string) => {
     setState((prev) => ({ ...prev, notice: { text, seq: (prev.notice?.seq ?? 0) + 1 } }));
   }, []);
@@ -567,6 +659,7 @@ export function useGame(day: string | null = null) {
         revealed: false,
         aloneRequested: false,
         days: [],
+        hints: [],
       };
       return { ...prev, shared, submitting: false, error: null, celebration: 0 };
     });
@@ -585,10 +678,19 @@ export function useGame(day: string | null = null) {
       // Looking alone, the room's later finds would give words away: only the win itself is news.
       // On another day than the room's, its round isn't the one played: none of it is.
       const quiet = !onRoomDay({ ...prev, shared }) || (lookingAlone(current) && !winning);
-      const notice =
-        latest && latest.by.id !== current.you && !quiet
-          ? teammateNotice(latest, current.you, (prev.notice?.seq ?? 0) + 1, winning)
-          : prev.notice;
+      const seq = (prev.notice?.seq ?? 0) + 1;
+      // A teammate revealed a hint: the player hears what it says.
+      const hintBy = message.latestHint ? message.hints?.find((hint) => hint.id === message.latestHint)?.by : undefined;
+      let notice = prev.notice;
+      if (message.latestHint && hintBy && hintBy.id !== current.you && !quiet) {
+        notice = revealNotice(message.latestHint, message.round.hints, seq, hintBy, current.you);
+      } else if (latest && latest.by.id !== current.you && !quiet) {
+        // Their guess made a hint available: that is the news, more than the word.
+        notice =
+          !winning && hintUnlocked(current.round?.hints, message.round.hints)
+            ? unlockNotice(seq, true, latest.found ? latest.key : undefined)
+            : teammateNotice(latest, current.you, seq, winning);
+      }
       return { ...prev, shared, notice };
     });
   }, []);
@@ -702,6 +804,9 @@ export function useGame(day: string | null = null) {
     roomRevealed: state.shared?.revealed ?? false,
     /** Every day the player's room played, for the group's collection. */
     roomDays: state.shared?.days ?? NO_ROOM_DAYS,
+    /** While the room's round is the one shown: who revealed each of its hints. */
+    roomHints: shared ? shared.hints : NO_ROOM_HINTS,
+    revealHint,
     revealAnswer,
     setInputValue,
     submit,

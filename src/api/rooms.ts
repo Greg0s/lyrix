@@ -8,7 +8,7 @@ import {
   type RoomGuessResult,
   type RoomRound,
 } from "../game/room";
-import type { RoundView } from "../game/types";
+import type { HintId, RoundView } from "../game/types";
 import { apiUrl, GUESS_TIMEOUT_MS, ROOM_ENTRY_TIMEOUT_MS, withTimeout } from "./base";
 
 /** This page's tab, as its room tells its connections apart (see generateTabId). */
@@ -91,6 +91,27 @@ export function submitRoomGuess(code: string, token: string, word: string, day?:
     const result = response.ok ? parseRoomGuessResult(body) : null;
     if (!result) throw new Error(`room guess failed with status ${response.status}`);
     return result;
+  });
+}
+
+/**
+ * Reveals one of the round's hints for the whole room: the room's round with
+ * it, which every other tab and member is sent over the socket. Throws when
+ * it couldn't be revealed, in time included.
+ */
+export function revealRoomHint(code: string, token: string, hint: HintId, day?: string): Promise<RoomRound> {
+  return withTimeout(GUESS_TIMEOUT_MS, async (signal) => {
+    const response = await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/hint`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // The day it was picked on, and the tab, as for a guess (submitRoomGuess).
+      body: JSON.stringify({ token, hint, day, tab: TAB_ID }),
+      signal,
+    });
+    const body: unknown = await response.json().catch(() => null);
+    const round = response.ok ? parseRoomRoundAnswer(body) : null;
+    if (!round) throw new Error(`revealing the hint failed with status ${response.status}`);
+    return round;
   });
 }
 

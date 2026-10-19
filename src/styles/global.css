@@ -96,6 +96,25 @@ input::placeholder {
   }
 }
 
+/* The hints sheet, below 880px: up from the bottom of the screen, and back down. */
+@keyframes lyrix-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes lyrix-sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
 @keyframes lyrix-reveal {
   0% {
     transform: scale(0.82);

@@ -37,6 +37,12 @@ describe("safe areas", () => {
     expect(rule(".lyrix-dock")).toMatch(/bottom:\s*calc\([^;]*env\(safe-area-inset-bottom/);
   });
 
+  it("keeps the hints sheet's content off the sides and above the home indicator", () => {
+    // Inside the phone breakpoint, so not found by rule(): the sheet sits on the bottom edge there only.
+    const sheet = /\n\s+\.lyrix-modal\.is-sheet\s*\{([^}]*)\}/.exec(game)?.[1] ?? "";
+    for (const side of ["left", "right", "bottom"]) expect(sheet).toContain(`env(safe-area-inset-${side}`);
+  });
+
   it("keeps a dialog inside them all", () => {
     const backdrop = rule(".lyrix-modal-backdrop");
     for (const side of ["top", "right", "bottom", "left"]) expect(backdrop).toContain(`env(safe-area-inset-${side}`);

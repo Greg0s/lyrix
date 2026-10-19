@@ -518,10 +518,20 @@
     align-items: start;
   }
 
+  /*
+   * Sticky, and scrolling on its own when taller than the screen: the hints
+   * card sits at its bottom, under "Tes mots", and must stay within reach
+   * on a laptop, a room's card above it all included.
+   */
   .lyrix-aside {
     order: 0;
     position: sticky;
     top: 96px;
+    max-height: calc(100dvh - 96px - 24px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
   }
 
   .lyrix-main.has-day-bar {
@@ -1142,6 +1152,59 @@
   color: var(--color-on-ink);
 }
 
+/* A hint just became available (GameScreen): a bulb, and on a phone a "Choisir" button beside the line. */
+.lyrix-feedback-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lyrix-feedback-line .lyrix-feedback {
+  flex: 1;
+  min-width: 0;
+}
+
+.lyrix-feedback.is-hint {
+  font-weight: 600;
+  color: var(--color-on-ink);
+}
+
+.lyrix-feedback-icon {
+  display: inline-flex;
+  margin-right: 8px;
+  vertical-align: -0.15em;
+  color: var(--color-on-ink-accent);
+}
+
+.lyrix-feedback-detail {
+  display: none;
+}
+
+.lyrix-feedback-action {
+  flex-shrink: 0;
+  min-height: 44px;
+  margin: 0 2px 2px 0;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background: var(--color-solid-raised);
+  color: var(--color-on-ink);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (min-width: 880px) {
+  .lyrix-feedback-detail {
+    display: inline;
+  }
+
+  .lyrix-feedback-action {
+    display: none;
+  }
+}
+
 .lyrix-feedback.is-error,
 .lyrix-feedback.is-offline {
   font-weight: 600;
@@ -1620,6 +1683,332 @@
   color: var(--color-ink);
 }
 
+/* ---------- The hints card (HintsCard.tsx) ---------- */
+
+/*
+ * Only a revealed hint's value stands out (decided with the developer): the
+ * display face, semibold. Names and buttons are medium, everything else
+ * regular and muted. A hint waiting to be picked outlines the card.
+ */
+.lyrix-hints {
+  animation-delay: 0.22s;
+}
+
+.lyrix-hints.is-waiting {
+  border-color: var(--accent-solid);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+.lyrix-hints-heading {
+  margin: 0;
+}
+
+/* The toggle only does anything below 880px; above, the card is always open, like "Tes mots". */
+.lyrix-hints-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.lyrix-hints-badge,
+.lyrix-hints-counter {
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
+
+.lyrix-hints-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent-tint);
+  color: var(--accent-deep);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.lyrix-hints-counter {
+  font-size: 0.85rem;
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.lyrix-hints.is-open .lyrix-chevron {
+  transform: rotate(180deg);
+}
+
+.lyrix-hints-body {
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lyrix-hints.is-open .lyrix-hints-body {
+  display: flex;
+  animation: lyrix-feed 0.25s ease;
+}
+
+@media (min-width: 880px) {
+  .lyrix-hints-toggle {
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .lyrix-hints .lyrix-chevron {
+    display: none;
+  }
+
+  .lyrix-hints-body,
+  .lyrix-hints.is-open .lyrix-hints-body {
+    display: flex;
+    animation: none;
+  }
+}
+
+.lyrix-hints-intro {
+  margin: -6px 0 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--color-ink-soft);
+  text-wrap: pretty;
+}
+
+.lyrix-hints-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lyrix-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 12px 8px 10px;
+  border-radius: 12px;
+}
+
+.lyrix-hint.is-choice {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lyrix-hint.is-choice:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--accent-solid);
+  }
+}
+
+.lyrix-hint.is-choice[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.lyrix-hint.is-locked {
+  border: 1px dashed var(--color-border-dashed);
+}
+
+.lyrix-hint.is-revealed {
+  min-height: 56px;
+  background: var(--color-sunken);
+}
+
+.lyrix-hint.is-unused {
+  min-height: 56px;
+  border: 1px solid var(--color-border);
+}
+
+.lyrix-hint-icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface-muted);
+  color: var(--color-ink-soft);
+}
+
+.lyrix-hint.is-locked .lyrix-hint-icon {
+  color: var(--color-ink-faint);
+}
+
+/* What the player got, on the same tint as a word just found in the lyrics. */
+.lyrix-hint.is-revealed .lyrix-hint-icon {
+  background: var(--accent-tint);
+  color: var(--accent-deep);
+}
+
+.lyrix-hint.is-unused .lyrix-hint-icon {
+  color: var(--color-ink-muted);
+}
+
+.lyrix-hint-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.lyrix-hint.is-locked .lyrix-hint-name {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--color-ink-muted);
+}
+
+.lyrix-hint-action {
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  color: var(--color-ink-muted);
+}
+
+.lyrix-hint-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.lyrix-hint-label {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--color-ink-muted);
+}
+
+.lyrix-hint-value {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-ink);
+}
+
+.lyrix-hint.is-unused .lyrix-hint-value {
+  font-family: var(--font-ui);
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: var(--color-ink-soft);
+}
+
+.lyrix-hint-by {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: var(--color-ink-muted);
+}
+
+.lyrix-hint-tag {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  font-size: 0.72rem;
+  color: var(--color-ink-muted);
+  white-space: nowrap;
+}
+
+.lyrix-hints-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lyrix-hints-meter-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.82rem;
+  color: var(--color-ink-soft);
+}
+
+.lyrix-hints-meter-count {
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.lyrix-hints-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-track);
+  overflow: hidden;
+}
+
+.lyrix-hints-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent-solid);
+  transition: width 0.6s var(--ease-out);
+}
+
+.lyrix-hints-footer {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--color-ink-muted);
+  text-wrap: pretty;
+}
+
+.lyrix-hints-footer.is-proud {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+/* Read aloud, never shown: a locked hint says so to a screen reader. */
+.lyrix-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The hints sheet (HintSheet.tsx): its text, and "Plus tard". */
+.lyrix-sheet-text {
+  margin: -6px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--color-ink-muted);
+}
+
+.lyrix-sheet-later {
+  align-self: center;
+  min-height: 44px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: var(--color-ink-muted);
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
 /* ---------- Dialogs ---------- */
 
 .lyrix-modal-backdrop {
@@ -1701,6 +2090,27 @@
 .lyrix-modal-close:hover {
   background: var(--color-surface-hover);
   transform: rotate(90deg);
+}
+
+/* A sheet (Modal's variant), below 880px: from the bottom edge, its content kept above the home indicator. */
+@media (max-width: 879px) {
+  .lyrix-modal-backdrop.is-sheet {
+    align-items: flex-end;
+    padding: max(20px, env(safe-area-inset-top, 0px)) 0 0;
+  }
+
+  .lyrix-modal.is-sheet {
+    max-width: none;
+    max-height: calc(100dvh - 48px);
+    border-radius: 24px 24px 0 0;
+    padding: 20px max(16px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px))
+      max(16px, env(safe-area-inset-left, 0px));
+    animation: lyrix-sheet-in 0.32s var(--ease-out);
+  }
+
+  .is-closing .lyrix-modal.is-sheet {
+    animation: lyrix-sheet-out 0.18s ease forwards;
+  }
 }
 
 /* ---------- The rules: a page of their own (HowToPlay.tsx, /comment-jouer) ---------- */

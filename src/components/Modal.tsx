@@ -8,6 +8,8 @@ interface ModalProps {
   /** Called once the closing animation is over: the parent unmounts the modal and puts focus back where it belongs. */
   onClosed: () => void;
   size?: "narrow" | "wide";
+  /** "sheet": below 880px, slides up from the bottom of the screen instead of sitting in its middle (game.css). */
+  variant?: "sheet";
   /** Given the modal's own close request, for a button inside the body that dismisses it. */
   children: (requestClose: () => void) => ReactNode;
 }
@@ -17,7 +19,7 @@ interface ModalProps {
  * backdrop or the ✕ button, each time with a short exit animation first.
  * Mount it only while it is open; it takes focus when it mounts.
  */
-export function Modal({ title, onClosed, size = "narrow", children }: ModalProps) {
+export function Modal({ title, onClosed, size = "narrow", variant, children }: ModalProps) {
   const [closing, setClosing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -42,10 +44,13 @@ export function Modal({ title, onClosed, size = "narrow", children }: ModalProps
   }, [closing, onClosed]);
 
   return (
-    <div className={`lyrix-modal-backdrop${closing ? " is-closing" : ""}`} onClick={requestClose}>
+    <div
+      className={`lyrix-modal-backdrop${variant ? ` is-${variant}` : ""}${closing ? " is-closing" : ""}`}
+      onClick={requestClose}
+    >
       <div
         ref={panelRef}
-        className={`lyrix-modal is-${size}`}
+        className={`lyrix-modal is-${size}${variant ? ` is-${variant}` : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
