@@ -448,3 +448,7 @@ The header logo's entrance (mockup 1b, `Logo.tsx`) is CSS animations, so a click
 ## 2026-10-11 — A bar a few pixels high looked thinner while it moved
 
 The logo's hover animation (`lyrix-logo-level`, `Logo.tsx`) scales the mark's lines horizontally, yet their 4.2px bars looked a little shorter while it ran, and jumped back when it ended: Chrome draws an element on its own compositing layer only while a transform animates, and a layer snaps its fractional-pixel content to other pixels. `.lyrix-logo-row` now has `will-change: transform`, so it's drawn on its own layer before, during and after; captures of the mark before and after a hover are byte-identical. Pinned by `tests/unit/ci/logoLink.test.ts`. Two jsdom traps on the way: `fireEvent.animationEnd` drops `animationName` (jsdom has no `AnimationEvent`), and React then listens for `webkitAnimationEnd`, not `animationend` (`tests/unit/components/logo.test.tsx`).
+
+## 2026-10-19 — `catalog:check` reported an overloaded LRCLIB as missing lyrics
+
+Moving the catalog to one list per month, `npm run catalog:check` flagged 24 of 61 songs as "no usable lyrics on LRCLIB", among them "Ne me quitte pas", and the same ones again song by song. LRCLIB was answering `503 ServerOverloaded`, and the audit can't tell a failed request from an empty result. Before replacing a refused song, query `https://lrclib.net/api/search` for it: a 503 means retry later, not fix the catalog.

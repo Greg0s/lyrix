@@ -11,7 +11,7 @@ import {
 } from "../../../src/game/archive";
 import type { RoomDaySummary } from "../../../src/game/room";
 
-const NOW = new Date("2026-10-01T10:00:00Z");
+const NOW = new Date("2026-10-20T10:00:00Z");
 
 function entry(extra: Partial<ArchiveEntry> = {}): ArchiveEntry {
   return { title: [{ text: "____", isWord: true, revealed: false }], percent: 12, victory: false, tries: 3, ...extra };
@@ -19,33 +19,33 @@ function entry(extra: Partial<ArchiveEntry> = {}): ArchiveEntry {
 
 describe("archiveOverview", () => {
   const entries = {
-    "2026-10-01": entry(),
-    "2026-09-30": entry({ victory: true, percent: 40, artist: "Bigflo & Oli" }),
-    "2026-09-29": entry(),
-    "2026-09-28": entry({ tries: 0, percent: 0 }),
+    "2026-10-20": entry(),
+    "2026-10-19": entry({ victory: true, percent: 40, artist: "Bigflo & Oli" }),
+    "2026-10-18": entry(),
+    "2026-10-17": entry({ tries: 0, percent: 0 }),
     // Before the first song: never shown, whatever storage says.
-    "2026-09-05": entry({ victory: true }),
+    "2026-09-24": entry({ victory: true }),
   };
   const overview = archiveOverview(entries, NOW);
   const status = (day: string) => overview.days.find((archived) => archived.day === day)?.status;
 
   it("spans the last 30 days, newest first", () => {
     expect(overview.days).toHaveLength(30);
-    expect(overview.days[0].day).toBe("2026-10-01");
-    expect(overview.days[29].day).toBe("2026-09-02");
+    expect(overview.days[0].day).toBe("2026-10-20");
+    expect(overview.days[29].day).toBe("2026-09-21");
   });
 
   it("tells each day's state", () => {
-    expect(status("2026-10-01")).toBe("today");
-    expect(status("2026-09-30")).toBe("solved");
-    expect(status("2026-09-29")).toBe("progress");
-    expect(status("2026-09-27")).toBe("new");
-    expect(status("2026-09-11")).toBe("unavailable");
-    expect(status("2026-09-05")).toBe("unavailable");
+    expect(status("2026-10-20")).toBe("today");
+    expect(status("2026-10-19")).toBe("solved");
+    expect(status("2026-10-18")).toBe("progress");
+    expect(status("2026-10-16")).toBe("new");
+    expect(status("2026-09-30")).toBe("unavailable");
+    expect(status("2026-09-24")).toBe("unavailable");
   });
 
   it("keeps a day opened without a guess still to discover, its title unseen", () => {
-    const opened = overview.days.find((archived) => archived.day === "2026-09-28");
+    const opened = overview.days.find((archived) => archived.day === "2026-10-17");
     expect(opened).toMatchObject({ status: "new", entry: null });
   });
 
@@ -55,33 +55,33 @@ describe("archiveOverview", () => {
   });
 
   it("marks the oldest day as leaving tomorrow, unless found or unplayable", () => {
-    const later = new Date("2026-10-20T10:00:00Z");
-    expect(archiveOverview({}, later).days.at(-1)).toMatchObject({ day: "2026-09-21", leaving: true });
-    expect(archiveOverview({ "2026-09-21": entry({ victory: true }) }, later).days.at(-1)?.leaving).toBe(false);
+    const later = new Date("2026-11-08T10:00:00Z");
+    expect(archiveOverview({}, later).days.at(-1)).toMatchObject({ day: "2026-10-10", leaving: true });
+    expect(archiveOverview({ "2026-10-10": entry({ victory: true }) }, later).days.at(-1)?.leaving).toBe(false);
     expect(overview.days.at(-1)?.leaving).toBe(false);
   });
 });
 
 describe("the days still to find", () => {
-  const entries = { "2026-09-30": entry({ victory: true }), "2026-09-29": entry() };
+  const entries = { "2026-10-19": entry({ victory: true }), "2026-10-18": entry() };
 
   it("are the past days that had a song and aren't found, newest first", () => {
     const days = daysToFind(entries, NOW);
-    expect(days[0]).toBe("2026-09-29");
-    expect(days).not.toContain("2026-10-01");
-    expect(days).not.toContain("2026-09-30");
-    expect(days.at(-1)).toBe("2026-09-12");
+    expect(days[0]).toBe("2026-10-18");
+    expect(days).not.toContain("2026-10-20");
+    expect(days).not.toContain("2026-10-19");
+    expect(days.at(-1)).toBe("2026-10-01");
     expect(days).toHaveLength(18);
   });
 
   it("suggest the most recent one but the day just played", () => {
-    expect(nextDayToFind(entries, "2026-09-29", NOW)).toBe("2026-09-28");
-    expect(nextDayToFind(entries, "2026-09-26", NOW)).toBe("2026-09-29");
+    expect(nextDayToFind(entries, "2026-10-18", NOW)).toBe("2026-10-17");
+    expect(nextDayToFind(entries, "2026-10-15", NOW)).toBe("2026-10-18");
   });
 
   it("run out once every day is found", () => {
     const all = Object.fromEntries(daysToFind({}, NOW).map((day) => [day, entry({ victory: true })]));
-    expect(nextDayToFind(all, "2026-09-26", NOW)).toBeNull();
+    expect(nextDayToFind(all, "2026-10-15", NOW)).toBeNull();
   });
 });
 
@@ -114,7 +114,7 @@ describe("the group's collection", () => {
   const space = { text: " ", isWord: false, revealed: true };
   const leo = { id: "m2", name: "Léo", number: 2 };
   const won: RoomDaySummary = {
-    day: "2026-09-20",
+    day: "2026-10-09",
     title: [word("Le", true), space, word("Sud", true)],
     percent: 40,
     victory: true,
@@ -143,17 +143,17 @@ describe("the group's collection", () => {
   });
 
   it("keeps a day the player found, and the group's progress where it is further along", () => {
-    const own = { "2026-09-20": entry({ victory: true }), "2026-09-21": entry({ percent: 50 }), "2026-09-22": entry({ percent: 5 }) };
+    const own = { "2026-10-09": entry({ victory: true }), "2026-10-10": entry({ percent: 50 }), "2026-10-11": entry({ percent: 5 }) };
     const group = {
-      "2026-09-20": entry({ percent: 90, byGroup: true }),
-      "2026-09-21": entry({ percent: 20, byGroup: true }),
-      "2026-09-22": entry({ percent: 30, byGroup: true }),
-      "2026-09-23": entry({ percent: 10, byGroup: true }),
+      "2026-10-09": entry({ percent: 90, byGroup: true }),
+      "2026-10-10": entry({ percent: 20, byGroup: true }),
+      "2026-10-11": entry({ percent: 30, byGroup: true }),
+      "2026-10-12": entry({ percent: 10, byGroup: true }),
     };
     const merged = withGroupDays(own, group);
-    expect(merged["2026-09-20"].byGroup).toBeUndefined();
-    expect(merged["2026-09-21"].percent).toBe(50);
-    expect(merged["2026-09-22"].percent).toBe(30);
-    expect(merged["2026-09-23"].byGroup).toBe(true);
+    expect(merged["2026-10-09"].byGroup).toBeUndefined();
+    expect(merged["2026-10-10"].percent).toBe(50);
+    expect(merged["2026-10-11"].percent).toBe(30);
+    expect(merged["2026-10-12"].byGroup).toBe(true);
   });
 });
