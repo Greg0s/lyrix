@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { ARCHIVES, HELP, isPageRoute, parseRoute, routePath, TODAY } from "../../src/routes";
 
-const NOW = new Date("2026-10-01T10:00:00Z");
+const NOW = new Date("2026-10-20T10:00:00Z");
 
 describe("parseRoute", () => {
   it("reads today's song, the archives and a day of them", () => {
     expect(parseRoute("/", NOW)).toEqual(TODAY);
     expect(parseRoute("/archives", NOW)).toEqual(ARCHIVES);
     expect(parseRoute("/archives/", NOW)).toEqual(ARCHIVES);
-    expect(parseRoute("/archives/2026-09-26", NOW)).toEqual({ name: "day", day: "2026-09-26" });
+    expect(parseRoute("/archives/2026-10-15", NOW)).toEqual({ name: "day", day: "2026-10-15" });
   });
 
   it("reads the rules' page", () => {
@@ -18,11 +18,11 @@ describe("parseRoute", () => {
   });
 
   it("takes today's own day for today's song", () => {
-    expect(parseRoute("/archives/2026-10-01", NOW)).toEqual(TODAY);
+    expect(parseRoute("/archives/2026-10-20", NOW)).toEqual(TODAY);
   });
 
   it("sends a day the archives don't offer to the archives", () => {
-    for (const path of ["/archives/2026-10-02", "/archives/2026-09-11", "/archives/2026-02-30", "/archives/hier"]) {
+    for (const path of ["/archives/2026-10-21", "/archives/2026-09-30", "/archives/2026-02-30", "/archives/hier"]) {
       expect(parseRoute(path, NOW), path).toEqual(ARCHIVES);
     }
   });
@@ -35,7 +35,7 @@ describe("parseRoute", () => {
 
 describe("routePath", () => {
   it("round-trips with parseRoute", () => {
-    for (const route of [TODAY, ARCHIVES, HELP, { name: "day" as const, day: "2026-09-26" }]) {
+    for (const route of [TODAY, ARCHIVES, HELP, { name: "day" as const, day: "2026-10-15" }]) {
       expect(parseRoute(routePath(route), NOW)).toEqual(route);
     }
   });
@@ -46,6 +46,6 @@ describe("isPageRoute", () => {
     expect(isPageRoute(ARCHIVES)).toBe(true);
     expect(isPageRoute(HELP)).toBe(true);
     expect(isPageRoute(TODAY)).toBe(false);
-    expect(isPageRoute({ name: "day", day: "2026-09-26" })).toBe(false);
+    expect(isPageRoute({ name: "day", day: "2026-10-15" })).toBe(false);
   });
 });

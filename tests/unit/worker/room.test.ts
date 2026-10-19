@@ -189,7 +189,7 @@ let env: {
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(Date.UTC(2026, 8, 29, 20, 0));
+  vi.setSystemTime(Date.UTC(2026, 9, 18, 20, 0));
   // LRCLIB has nothing: every room plays the dev stand-in (see above).
   vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200 })));
   resetSongMemo();
@@ -251,8 +251,8 @@ describe("POST /api/rooms", () => {
   it("expires the room at the next UTC midnight, with the day's song", async () => {
     const entry = await createRoom();
 
-    expect(entry.room.expiresAt).toBe(Date.UTC(2026, 8, 30));
-    expect(rooms.state(entry.room.code).alarm).toBe(Date.UTC(2026, 8, 30));
+    expect(entry.room.expiresAt).toBe(Date.UTC(2026, 9, 19));
+    expect(rooms.state(entry.room.code).alarm).toBe(Date.UTC(2026, 9, 19));
   });
 
   it("keeps an empty pseudo as unnamed, and sanitizes any other", async () => {
@@ -320,7 +320,7 @@ describe("POST /api/rooms/:code/members", () => {
 
   it("answers 404 once the room has expired, even if its alarm hasn't run yet", async () => {
     const host = await createRoom();
-    vi.setSystemTime(Date.UTC(2026, 8, 30, 0, 0, 1));
+    vi.setSystemTime(Date.UTC(2026, 9, 19, 0, 0, 1));
 
     expect((await post(`/api/rooms/${host.room.code}/members`, {})).status).toBe(404);
     expect(rooms.state(host.room.code).store.size).toBe(0);
@@ -495,7 +495,7 @@ describe("a room's expiry", () => {
     const guestSocket = await connect(await joinRoom(host.room.code, "Léo"));
     const state = rooms.state(host.room.code);
 
-    vi.setSystemTime(Date.UTC(2026, 8, 30));
+    vi.setSystemTime(Date.UTC(2026, 9, 19));
     await rooms.room(host.room.code).alarm();
 
     expect(hostSocket.closed?.code).toBe(ROOM_CLOSE_EXPIRED);
@@ -835,9 +835,9 @@ describe("a Worker missing the room bindings", () => {
 // Phase B of the archives: a room plays one day's song at a time, today's or
 // a day of the archives any member takes everyone to, and keeps a round per day.
 describe("the day a room plays", () => {
-  // The suite's clock: 2026-09-29, so the archives run from 2026-09-12.
-  const TODAY = "2026-09-29";
-  const ARCHIVED = "2026-09-20";
+  // The suite's clock: 2026-10-18, so the archives run from 2026-10-01.
+  const TODAY = "2026-10-18";
+  const ARCHIVED = "2026-10-09";
 
   async function setDay(entry: RoomEntry, day: unknown): Promise<Response> {
     return post(`/api/rooms/${entry.room.code}/day`, { token: entry.token, day });
@@ -890,7 +890,7 @@ describe("the day a room plays", () => {
   it("refuses a day the archives don't offer, and stays where it was", async () => {
     const host = await createRoom("Camille");
     const socket = await connect(host);
-    for (const day of ["2026-09-30", "2026-09-11", "2026-02-30", "hier", undefined]) {
+    for (const day of ["2026-10-19", "2026-09-30", "2026-02-30", "hier", undefined]) {
       expect((await setDay(host, day)).status, String(day)).toBe(400);
     }
     expect(dayEvents(socket)).toEqual([]);
@@ -1002,7 +1002,7 @@ describe("the day a room plays", () => {
     await guessIn(host, "refuge");
     await setDay(host, ARCHIVED);
     await guessIn(host, "refuge");
-    await setDay(host, "2026-09-21");
+    await setDay(host, "2026-10-10");
     await guessIn(host, "refuge");
     await setDay(host, TODAY);
 
@@ -1021,14 +1021,14 @@ describe("the day a room plays", () => {
     state.reads.length = 0;
     expect((await guess("vent")).status).toBe(200);
     const roundReads = state.reads.filter((read) => Array.isArray(read) || read.startsWith("round"));
-    expect(roundReads).toEqual([`round:${TODAY}`, [`round:${ARCHIVED}`, "round:2026-09-21"]]);
+    expect(roundReads).toEqual([`round:${TODAY}`, [`round:${ARCHIVED}`, "round:2026-10-10"]]);
 
     state.reads.length = 0;
     const second = await guess("porte");
     expect(second.status).toBe(200);
     expect(state.reads).toEqual([]);
     const result = parseRoomGuessResult(await second.json());
-    expect(result?.days?.map((summary) => summary.day)).toEqual([TODAY, ARCHIVED, "2026-09-21"]);
+    expect(result?.days?.map((summary) => summary.day)).toEqual([TODAY, ARCHIVED, "2026-10-10"]);
   });
 });
 
@@ -1070,14 +1070,14 @@ describe("a guess's broadcast", () => {
     const otherTab = await connectTab(host, OTHER_TAB);
     const before = moving.rounds().length;
 
-    const response = await post(`/api/rooms/${host.room.code}/day`, { token: host.token, day: "2026-09-20", tab: TAB });
+    const response = await post(`/api/rooms/${host.room.code}/day`, { token: host.token, day: "2026-10-09", tab: TAB });
 
     expect(response.status).toBe(200);
-    expect(((await response.json()) as { round: RoundView }).round.day).toBe("2026-09-20");
+    expect(((await response.json()) as { round: RoundView }).round.day).toBe("2026-10-09");
     expect(moving.rounds()).toHaveLength(before);
-    expect(otherTab.lastRound().round.day).toBe("2026-09-20");
+    expect(otherTab.lastRound().round.day).toBe("2026-10-09");
     // The day itself is news for every tab, the mover's included.
-    expect(moving.last().room.day).toBe("2026-09-20");
+    expect(moving.last().room.day).toBe("2026-10-09");
   });
 
   it("never spares another member's tab, whatever tab a guess names", async () => {

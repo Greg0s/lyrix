@@ -21,9 +21,9 @@ vi.mock("../../../src/api/client", () => ({ fetchRound, resumeRound, submitGuess
 const { GameScreen } = await import("../../../src/components/GameScreen");
 const { SONG_RETRY_DELAYS_MS, SONG_UNAVAILABLE_MESSAGE } = await import("../../../src/hooks/useGame");
 
-const NOW = new Date("2026-10-01T10:00:00Z");
-const TODAY = "2026-10-01";
-const DAY = "2026-09-26";
+const NOW = new Date("2026-10-20T10:00:00Z");
+const TODAY = "2026-10-20";
+const DAY = "2026-10-15";
 
 function tokens(text: string, revealed = false) {
   return text.split(" ").flatMap((word, index) => {
@@ -133,17 +133,17 @@ describe("the archives screen", () => {
     await mount("/archives");
     const list = await screen.findByRole("list");
     expect(within(list).getAllByRole("listitem")).toHaveLength(30);
-    // 2026-09-12 to 2026-10-01: the game's first 20 days.
+    // 2026-10-01 to 2026-10-20: the game's first 20 days.
     expect(screen.getByText("0 chanson trouvée sur 20")).toBeTruthy();
-    expect(screen.getByRole("img", { name: /^Vendredi 11 septembre : pas de chanson/ })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: /^Vendredi 11 septembre/ })).toBeNull();
-    expect(cover(/^Samedi 12 septembre : à découvrir/)).toBeTruthy();
+    expect(screen.getByRole("img", { name: /^Mercredi 30 septembre : pas de chanson/ })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /^Mercredi 30 septembre/ })).toBeNull();
+    expect(cover(/^Jeudi 1er octobre : à découvrir/)).toBeTruthy();
   });
 
   it("shows nothing of a song the player hasn't played", async () => {
     await mount("/archives");
     await screen.findByRole("list");
-    expect(cover(/^Samedi 26 septembre : à découvrir$/).textContent).not.toMatch(/refuge|xxx/);
+    expect(cover(/^Jeudi 15 octobre : à découvrir$/).textContent).not.toMatch(/refuge|xxx/);
     expect(fetchRound).not.toHaveBeenCalledWith(expect.anything(), DAY);
   });
 
@@ -152,9 +152,9 @@ describe("the archives screen", () => {
     await screen.findByPlaceholderText("Propose un mot…");
     await openArchives();
     await act(async () => {
-      fireEvent.click(cover(/^Samedi 26 septembre/));
+      fireEvent.click(cover(/^Jeudi 15 octobre/));
     });
-    await screen.findByText("Samedi 26 septembre");
+    await screen.findByText("Jeudi 15 octobre");
 
     await act(async () => {
       window.history.back();
@@ -167,7 +167,7 @@ describe("the archives screen", () => {
   // archives); the header's button always goes to today's song.
   it("closes from the header's button to today's song, even from a day of the archives, and Back reopens it", async () => {
     await mount(`/archives/${DAY}`);
-    await screen.findByText("Samedi 26 septembre");
+    await screen.findByText("Jeudi 15 octobre");
     await openArchives();
 
     await act(async () => {
@@ -175,7 +175,7 @@ describe("the archives screen", () => {
     });
     expect(window.location.pathname).toBe("/");
     expect(await screen.findByPlaceholderText("Propose un mot…")).toBeTruthy();
-    expect(screen.queryByText("Samedi 26 septembre")).toBeNull();
+    expect(screen.queryByText("Jeudi 15 octobre")).toBeNull();
 
     await act(async () => {
       const popped = new Promise((resolve) => window.addEventListener("popstate", resolve, { once: true }));
@@ -197,7 +197,7 @@ describe("the archives screen", () => {
   });
 
   it("turns an address it doesn't serve into the archives", async () => {
-    await mount("/archives/2026-09-11");
+    await mount("/archives/2026-09-30");
     expect(await screen.findByRole("heading", { name: "Les 30 derniers jours" })).toBeTruthy();
     expect(window.location.pathname).toBe("/archives");
   });
@@ -223,11 +223,11 @@ describe("the header's logo", () => {
 
   it("goes from a day of the archives to today's song", async () => {
     await mount(`/archives/${DAY}`);
-    await screen.findByText("Samedi 26 septembre");
+    await screen.findByText("Jeudi 15 octobre");
     await clickLogo();
     expect(window.location.pathname).toBe("/");
     await screen.findByPlaceholderText("Propose un mot…");
-    expect(screen.queryByText("Samedi 26 septembre")).toBeNull();
+    expect(screen.queryByText("Jeudi 15 octobre")).toBeNull();
     expect(fetchRound).toHaveBeenLastCalledWith(expect.anything(), undefined);
   });
 });
@@ -237,9 +237,9 @@ describe("a day of the archives", () => {
     await mount(`/archives/${DAY}`);
     await screen.findByPlaceholderText("Propose un mot…");
     expect(fetchRound).toHaveBeenCalledWith(expect.anything(), DAY);
-    expect(screen.getByText("Samedi 26 septembre")).toBeTruthy();
+    expect(screen.getByText("Jeudi 15 octobre")).toBeTruthy();
     expect(screen.getByText("Archives · il y a 5 jours")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Jour suivant : Dimanche 27 septembre" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Jour suivant : Vendredi 16 octobre" })).toBeTruthy();
     expect(screen.queryByText("Chercher à plusieurs")).toBeNull();
   });
 
@@ -256,7 +256,7 @@ describe("a day of the archives", () => {
     expect(loadArchive()[DAY]).toMatchObject({ tries: 1, victory: false });
 
     await openArchives();
-    expect(cover(/^Samedi 26 septembre : en cours/)).toBeTruthy();
+    expect(cover(/^Jeudi 15 octobre : en cours/)).toBeTruthy();
   });
 
   it("resumes from its saved state, without starting it afresh", async () => {
@@ -323,16 +323,16 @@ describe("a day of the archives", () => {
     submitGuess.mockResolvedValueOnce(won(DAY, "novembre"));
     await propose("novembre");
 
-    expect(screen.getByText("Chanson du samedi 26 septembre, trouvée en 1 essai.")).toBeTruthy();
+    expect(screen.getByText("Chanson du jeudi 15 octobre, trouvée en 1 essai.")).toBeTruthy();
     expect(screen.queryByText(/Prochaine chanson dans/)).toBeNull();
-    expect(screen.getByText("Mercredi 30 septembre")).toBeTruthy();
+    expect(screen.getByText("Lundi 19 octobre")).toBeTruthy();
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Jouer la chanson du mercredi 30 septembre" }));
+      fireEvent.click(screen.getByRole("button", { name: "Jouer la chanson du lundi 19 octobre" }));
     });
-    expect(window.location.pathname).toBe("/archives/2026-09-30");
-    await screen.findByText("Mercredi 30 septembre");
-    expect(fetchRound).toHaveBeenCalledWith(expect.anything(), "2026-09-30");
+    expect(window.location.pathname).toBe("/archives/2026-10-19");
+    await screen.findByText("Lundi 19 octobre");
+    expect(fetchRound).toHaveBeenCalledWith(expect.anything(), "2026-10-19");
   });
 
   it("is a cover with its title once won", async () => {
@@ -342,7 +342,7 @@ describe("a day of the archives", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Toutes les archives" }));
     });
-    expect(cover(/^Samedi 26 septembre : Le refuge de novembre, Anaïs Verger, trouvée en 1 essai$/)).toBeTruthy();
+    expect(cover(/^Jeudi 15 octobre : Le refuge de novembre, Anaïs Verger, trouvée en 1 essai$/)).toBeTruthy();
     expect(screen.getByText("Le refuge de novembre")).toBeTruthy();
   });
 });
@@ -352,7 +352,7 @@ describe("today's victory", () => {
     await mount();
     submitGuess.mockResolvedValueOnce(won(TODAY, "novembre"));
     await propose("novembre");
-    // Every past day of the window that had a song: 2026-09-12 to 2026-09-30.
+    // Every past day of the window that had a song: 2026-10-01 to 2026-10-19.
     expect(screen.getByText("En attendant, 19 chansons des 30 derniers jours t'attendent.")).toBeTruthy();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Voir les archives" }));

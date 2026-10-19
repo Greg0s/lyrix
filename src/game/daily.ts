@@ -8,10 +8,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const ARCHIVE_DAYS = 30;
 
 /**
- * The first UTC day the game had a song (worker/src/catalog.ts's schedule
+ * The first UTC day the game had a song (worker/src/catalog.ts's first month
  * starts on it): the archives show older days as unavailable.
  */
-export const FIRST_SONG_DAY = "2026-09-12";
+export const FIRST_SONG_DAY = "2026-10-01";
 
 /** The UTC day `date` falls on, as YYYY-MM-DD: how every day-based thing in the game is keyed. */
 export function utcDay(date: Date = new Date()): string {
