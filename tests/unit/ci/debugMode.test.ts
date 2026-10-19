@@ -49,11 +49,20 @@ describe("the Worker configuration that gets deployed", () => {
   // logged: that is how production went without scores from the feature's
   // first commit until this binding was added (docs/LEARNINGS.md, 2026-09-29).
   it("binds exactly one real namespace, SIMILARITY, and never the local-only one", () => {
-    const namespaces = read(DEPLOY_CONFIG).kv_namespaces;
+    const namespaces = read(DEPLOY_CONFIG).kv_namespaces.filter((namespace) => namespace.binding !== "SONGS");
     expect(namespaces).toHaveLength(1);
     expect(namespaces[0].binding).toBe(SIMILARITY_BINDING);
     expect(namespaces[0].id).toMatch(/^[0-9a-f]{32}$/);
     expect(namespaces[0].id).not.toBe(read(DEBUG_CONFIG).kv_namespaces[0].id);
+  });
+
+  // Unbound, a new isolate has to reach LRCLIB for the day's song, and a day
+  // LRCLIB is down can't be played (docs/LEARNINGS.md, 2026-10-18).
+  it("binds the SONGS namespace, a real one of its own", () => {
+    const namespaces = read(DEPLOY_CONFIG).kv_namespaces;
+    const songs = namespaces.find((namespace) => namespace.binding === "SONGS");
+    expect(songs?.id).toMatch(/^[0-9a-f]{32}$/);
+    expect(new Set(namespaces.map((namespace) => namespace.id)).size).toBe(namespaces.length);
   });
 
   // wrangler warns on every `deploy` run against a configuration that defines

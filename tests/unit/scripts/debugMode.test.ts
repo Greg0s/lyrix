@@ -11,7 +11,7 @@ import {
   readTableFile,
   tablePath,
 } from "../../../scripts/lib/debugMode";
-import { catalog, FALLBACK_SONG_ID } from "../../../worker/src/catalog";
+import { catalog, DEV_STANDIN_SONG_ID } from "../../../worker/src/catalog";
 import { SIMILARITY_TABLE_VERSION } from "../../../worker/src/similarity";
 
 /** The one table checked into the repository, kept current by tests/unit/ci/debugMode.test.ts. */
@@ -120,7 +120,7 @@ describe("what goes into the local namespace", () => {
     const ids = everySongId();
 
     expect(ids).toEqual(expect.arrayContaining(catalog.map((entry) => entry.id)));
-    expect(ids).toContain(FALLBACK_SONG_ID);
+    expect(ids).toContain(DEV_STANDIN_SONG_ID);
     expect(new Set(ids).size).toBe(ids.length);
   });
 });

@@ -9,7 +9,7 @@ import { buildRoundView, type RoundEnv } from "./round";
  * seal a state and serialize tens of kilobytes again; it is now done once per
  * song, day and configuration in an isolate, and the same body served after.
  * Keyed by the song object (see songs.ts): a song resolved again, or the
- * emergency song standing in, gets its own.
+ * dev stand-in, gets its own.
  */
 let freshRounds = new WeakMap<Song, Map<string, string>>();
 

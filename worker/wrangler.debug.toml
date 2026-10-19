@@ -56,3 +56,7 @@ binding = "SIMILARITY"
 # configuration ever be handed to `wrangler deploy` by accident, Cloudflare
 # rejects it instead of publishing a Worker bound to something unexpected.
 id = "local-debug-dev-only"
+
+# As in wrangler.toml.
+[observability]
+enabled = true

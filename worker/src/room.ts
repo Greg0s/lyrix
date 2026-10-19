@@ -4,6 +4,7 @@ import {
   roomExpiresAt,
   ROOM_CLOSE_EXPIRED,
   ROOM_CLOSE_LEFT,
+  ROOM_CLOSE_TRY_AGAIN,
   ROOM_CLOSE_UNKNOWN,
   ROOM_PING,
   ROOM_PONG,
@@ -25,7 +26,7 @@ import { normalize } from "../../src/game/normalize";
 import { revealedPercent } from "../../src/game/progress";
 import type { RoundView, Song } from "../../src/game/types";
 import { buildRoundView, evaluateGuess, MAX_WORD_LENGTH, parseGuessWord, type RoundEnv } from "./round";
-import { getSongById, getSongOfDay } from "./songs";
+import { getSongById, getSongOfDay, SongUnavailableError } from "./songs";
 import { openState } from "./state";
 
 /**
@@ -322,7 +323,21 @@ export class Room {
     this.#broadcast(room, event);
     // And the round as it stands, to the new socket alone: whatever it missed
     // while away, a (re)connection catches up on in one message.
-    const message = await this.#roundMessage(room).catch(() => null);
+    let message: RoomRoundMessage | null = null;
+    try {
+      message = await this.#roundMessage(room);
+    } catch (error) {
+      // LRCLIB couldn't give the song: the client reconnects, with its
+      // backoff, and asks again (src/hooks/useRoom.ts).
+      if (error instanceof SongUnavailableError) {
+        try {
+          socket.close(ROOM_CLOSE_TRY_AGAIN, "the song is unavailable, try again");
+        } catch {
+          // Already closed.
+        }
+        return;
+      }
+    }
     if (message) {
       try {
         socket.send(JSON.stringify(message));
@@ -466,19 +481,28 @@ export class Room {
       if (legacy && roundDay(legacy) === day) round = { ...legacy, day };
     }
     if (!round) {
-      const pinned = await getSongOfDay(dayStart(day));
+      const pinned = await getSongOfDay(dayStart(day), this.env);
       // Another request may have pinned it while the song was being resolved.
       round = this.#rounds.get(day) ?? { songId: pinned.id, day, guesses: [] };
     }
-    const fresh = !this.#rounds.has(day);
+    // Memoized per isolate (songs.ts): after the first guess, this costs nothing.
+    let song = await getSongById(round.songId, this.env);
+    if (!song) {
+      // Pinned to a song nobody serves any more: the made-up one production
+      // used to stand in with while LRCLIB was down (docs/LEARNINGS.md,
+      // 2026-10-18). The day's real song takes its place, from scratch.
+      song = await getSongOfDay(dayStart(day), this.env);
+      round = { songId: song.id, day, guesses: [] };
+    }
+    // Another request may have read or pinned the same round meanwhile: that one is kept.
+    const kept = this.#rounds.get(day);
+    if (kept && kept.songId === round.songId) round = kept;
+    const fresh = kept !== round;
     if (fresh) this.#rounds.set(day, round);
     if (!(room.days ?? []).includes(day)) {
       room.days = [...(room.days ?? []), day];
       await this.#save(room);
     }
-    // Memoized per isolate (songs.ts): after the first guess, this costs nothing.
-    const song = await getSongById(round.songId);
-    if (!song) throw new Error("the room's song can't be resolved");
     // Stored with its summary: a day the room opened but didn't guess on yet
     // used to keep it in memory only, and left the group's collection once
     // the object woke from hibernation.

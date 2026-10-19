@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { dayStart, isDayKey, isPlayableDay, utcDay } from "../../src/game/daily";
 import type { GuessResult } from "../../src/game/types";
@@ -13,12 +13,26 @@ import {
   type RoundEnv,
 } from "./round";
 import { roomRoutes, type RoomsEnv } from "./roomRoutes";
-import { getSongById, getSongOfDay } from "./songs";
+import { getSongById, getSongOfDay, SongUnavailableError } from "./songs";
 import { openState } from "./state";
 
 type Env = RoundEnv & RoomsEnv;
 
 const app = new Hono<{ Bindings: Env }>();
+
+/** How long a client is asked to wait before trying again a song LRCLIB couldn't give. */
+const SONG_RETRY_AFTER_SECONDS = 5;
+
+/**
+ * The answer when the song couldn't be had right now (songs.ts): a 503 the
+ * client tries again, never another song, and never "invalid state", which
+ * would make it start the day afresh (src/hooks/useGame.ts, fetchDay).
+ */
+function songUnavailable(c: Context<{ Bindings: Env }>, error: unknown): Response {
+  if (!(error instanceof SongUnavailableError)) throw error;
+  c.header("Retry-After", String(SONG_RETRY_AFTER_SECONDS));
+  return c.json({ error: "the song is unavailable, try again" }, 503);
+}
 
 // Pages and the Worker sit on different origins (see the deploy job in
 // .github/workflows/ci.yml), so POST /api/guess is a cross-origin request with
@@ -61,7 +75,12 @@ app.get("/api/round", async (c) => {
     return c.json({ error: "no round for that day" }, 404);
   }
   const day = requested ?? utcDay();
-  const song = await getSongOfDay(dayStart(day));
+  let song;
+  try {
+    song = await getSongOfDay(dayStart(day), c.env);
+  } catch (error) {
+    return songUnavailable(c, error);
+  }
   return c.body(await freshRoundBody(song, c.env, day), 200, { "Content-Type": "application/json" });
 });
 
@@ -110,7 +129,12 @@ app.post("/api/round/resume", async (c) => {
     return c.json({ error: "those states are not of the same round" }, 400);
   }
 
-  const song = await getSongById(first.songId);
+  let song;
+  try {
+    song = await getSongById(first.songId, c.env);
+  } catch (error) {
+    return songUnavailable(c, error);
+  }
   if (!song) {
     return c.json({ error: "invalid or expired round state" }, 400);
   }
@@ -144,7 +168,12 @@ app.post("/api/guess", async (c) => {
     return c.json({ error: "invalid or expired round state" }, 400);
   }
 
-  const song = await getSongById(payload.songId);
+  let song;
+  try {
+    song = await getSongById(payload.songId, c.env);
+  } catch (error) {
+    return songUnavailable(c, error);
+  }
   if (!song) {
     return c.json({ error: "invalid or expired round state" }, 400);
   }

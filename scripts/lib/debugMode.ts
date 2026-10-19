@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
-import { catalog, FALLBACK_SONG_ID } from "../../worker/src/catalog";
+import { catalog, DEV_STANDIN_SONG_ID } from "../../worker/src/catalog";
 import { parseSimilarityTable, SIMILARITY_TABLE_VERSION, type SimilarityTable } from "../../worker/src/similarity";
 
 /**
@@ -65,6 +65,8 @@ export function wranglerDevArgs(
   // No SIMILARITY_SAMPLE, on purpose: this mode exists to see the real table,
   // and a silent fall back to the placeholder would look exactly like it.
   if (options.reveal) args.push("--var", "DEV_REVEAL_LYRICS:1");
+  // Local only, as for dev:worker: a stand-in song rather than a 503 when LRCLIB is out of reach.
+  args.push("--var", "DEV_STANDIN_SONG:1");
   return args;
 }
 
@@ -176,10 +178,10 @@ export function bulkEntries(json: string, songIds: readonly string[]): { key: st
 }
 
 /**
- * Every song id the Worker can put in play: the catalog, plus the song it falls
- * back to when LRCLIB can't be reached at all. Used to store one table under all
+ * Every song id the Worker can put in play: the catalog, plus the stand-in a
+ * dev Worker plays when LRCLIB can't be reached at all. Used to store one table under all
  * of them, so a run doesn't depend on which song today happens to be.
  */
 export function everySongId(): string[] {
-  return [...catalog.map((entry) => entry.id), FALLBACK_SONG_ID];
+  return [...catalog.map((entry) => entry.id), DEV_STANDIN_SONG_ID];
 }
