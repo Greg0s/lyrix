@@ -266,58 +266,58 @@ describe("GET /api/round?day=", () => {
   }
 
   it("names the day of today's round when none is asked for", async () => {
-    at("2026-10-20T10:00:00Z");
+    at("2026-11-08T10:00:00Z");
     const round = await getRound();
-    expect(round.day).toBe("2026-10-20");
-    expect(await songIdOf(round)).toBe(pickDailyEntry(new Date("2026-10-20T00:00:00Z")).id);
+    expect(round.day).toBe("2026-11-08");
+    expect(await songIdOf(round)).toBe(pickDailyEntry(new Date("2026-11-08T00:00:00Z")).id);
   });
 
   it("serves a day the archives hold, on the song it had", async () => {
-    at("2026-10-01T10:00:00Z");
-    const res = await roundOf("2026-09-26");
+    at("2026-10-20T10:00:00Z");
+    const res = await roundOf("2026-10-15");
     expect(res.status).toBe(200);
     const round = (await res.json()) as RoundView;
-    expect(round.day).toBe("2026-09-26");
-    expect(await songIdOf(round)).toBe("avenir");
+    expect(round.day).toBe("2026-10-15");
+    expect(await songIdOf(round)).toBe("femme-liberee");
     expect(allTokens(round).filter((t) => t.isWord).every((t) => !t.revealed)).toBe(true);
   });
 
   it("keeps the round on its day through a guess", async () => {
-    at("2026-10-01T10:00:00Z");
-    const round = (await (await roundOf("2026-09-26")).json()) as RoundView;
+    at("2026-10-20T10:00:00Z");
+    const round = (await (await roundOf("2026-10-15")).json()) as RoundView;
     const { status, body } = await guess(round.state, "xylophoneinexistant");
     expect(status).toBe(200);
-    expect(body.day).toBe("2026-09-26");
+    expect(body.day).toBe("2026-10-15");
   });
 
   it("serves the oldest day of the window and nothing before it", async () => {
-    at("2026-11-15T10:00:00Z");
-    expect((await roundOf("2026-10-17")).status).toBe(200);
-    expect((await roundOf("2026-10-16")).status).toBe(404);
+    at("2026-12-04T10:00:00Z");
+    expect((await roundOf("2026-11-05")).status).toBe(200);
+    expect((await roundOf("2026-11-04")).status).toBe(404);
   });
 
   it("never serves a day to come", async () => {
-    at("2026-10-01T23:59:59Z");
-    expect((await roundOf("2026-10-02")).status).toBe(404);
-    expect((await roundOf("2027-10-01")).status).toBe(404);
+    at("2026-10-20T23:59:59Z");
+    expect((await roundOf("2026-10-21")).status).toBe(404);
+    expect((await roundOf("2027-10-20")).status).toBe(404);
   });
 
   it("has nothing for a day before the game had songs", async () => {
-    at("2026-10-01T10:00:00Z");
-    expect((await roundOf("2026-09-11")).status).toBe(404);
-    expect((await roundOf("2026-09-12")).status).toBe(200);
+    at("2026-10-20T10:00:00Z");
+    expect((await roundOf("2026-09-30")).status).toBe(404);
+    expect((await roundOf("2026-10-01")).status).toBe(200);
   });
 
   it("refuses anything that isn't a calendar day", async () => {
-    at("2026-10-01T10:00:00Z");
-    for (const day of ["2026-02-30", "2026-9-26", "yesterday", "", "2026-09-26T00:00:00Z"]) {
+    at("2026-10-20T10:00:00Z");
+    for (const day of ["2026-02-30", "2026-9-26", "yesterday", "", "2026-10-15T00:00:00Z"]) {
       expect((await roundOf(day)).status, day).toBe(400);
     }
   });
 
   it("names nothing of the song before victory", async () => {
-    at("2026-10-01T10:00:00Z");
-    const round = (await (await roundOf("2026-09-26")).json()) as RoundView;
+    at("2026-10-20T10:00:00Z");
+    const round = (await (await roundOf("2026-10-15")).json()) as RoundView;
     const song = await playedSong(round);
     const miss = await guess(round.state, "xylophoneinexistant");
     const sent = [round, miss.body].map((body) => JSON.stringify(body)).join("\n");
@@ -325,7 +325,7 @@ describe("GET /api/round?day=", () => {
   });
 
   it("keeps the song of every day of the window resolved, once each", async () => {
-    at("2026-10-11T10:00:00Z");
+    at("2026-10-30T10:00:00Z");
     const fetched = vi.mocked(fetch);
     const rounds: RoundView[] = [];
     for (const day of archiveDays()) {
@@ -341,18 +341,18 @@ describe("GET /api/round?day=", () => {
   });
 
   it("takes a state sealed before the archives as a round of today", async () => {
-    at("2026-10-01T10:00:00Z");
+    at("2026-10-20T10:00:00Z");
     const song = await playedSong(await getRound());
     const legacy = await sealState({ songId: song.id, foundKeys: [] }, env.STATE_SECRET);
     const { status, body } = await guess(legacy, "xylophoneinexistant");
     expect(status).toBe(200);
-    expect(body.day).toBe("2026-10-01");
+    expect(body.day).toBe("2026-10-20");
   });
 });
 
 describe("POST /api/round/resume", () => {
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-01T10:00:00Z") });
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-20T10:00:00Z") });
   });
 
   afterEach(() => {
@@ -377,15 +377,15 @@ describe("POST /api/round/resume", () => {
   }
 
   it("rebuilds a saved day's view from its state alone", async () => {
-    const played = (await guess((await dayRound("2026-09-26")).state, "ligne")).body;
+    const played = (await guess((await dayRound("2026-10-15")).state, "ligne")).body;
     const { status, body } = await resume({ states: [played.state] });
     expect(status).toBe(200);
-    expect(body.day).toBe("2026-09-26");
+    expect(body.day).toBe("2026-10-15");
     expect(revealedKeys(body)).toEqual(["ligne"]);
   });
 
   it("puts together what several states of the same round found", async () => {
-    const start = await dayRound("2026-09-26");
+    const start = await dayRound("2026-10-15");
     const mine = (await guess(start.state, "ligne")).body;
     const theirs = (await guess(start.state, "refrain")).body;
     const { status, body } = await resume({ states: [mine.state, theirs.state] });
@@ -394,7 +394,7 @@ describe("POST /api/round/resume", () => {
   });
 
   it("wins the round when the states together hold the whole title", async () => {
-    const start = await dayRound("2026-09-26");
+    const start = await dayRound("2026-10-15");
     const song = await playedSong(start);
     const titleWords = tokenize(song.title).filter((t) => t.isWord);
     const states = await Promise.all(titleWords.map(async (word) => (await guess(start.state, word.text)).body.state));
@@ -405,35 +405,35 @@ describe("POST /api/round/resume", () => {
   });
 
   it("refuses states of two different rounds", async () => {
-    const one = await dayRound("2026-09-26");
-    const other = await dayRound("2026-09-27");
+    const one = await dayRound("2026-10-15");
+    const other = await dayRound("2026-10-16");
     expect((await resume({ states: [one.state, other.state] })).status).toBe(400);
   });
 
   it("refuses a state it didn't seal", async () => {
-    const song = await playedSong(await dayRound("2026-09-26"));
-    const forged = await sealState({ songId: song.id, foundKeys: ["ligne"], day: "2026-09-26" }, "not-the-secret");
+    const song = await playedSong(await dayRound("2026-10-15"));
+    const forged = await sealState({ songId: song.id, foundKeys: ["ligne"], day: "2026-10-15" }, "not-the-secret");
     expect((await resume({ states: [forged] })).status).toBe(400);
   });
 
   it("files a state sealed before the archives under the day it is told", async () => {
-    const song = await playedSong(await dayRound("2026-09-30"));
+    const song = await playedSong(await dayRound("2026-10-19"));
     const legacy = await sealState({ songId: song.id, foundKeys: ["ligne"] }, env.STATE_SECRET);
-    const { status, body } = await resume({ states: [legacy], day: "2026-09-30" });
+    const { status, body } = await resume({ states: [legacy], day: "2026-10-19" });
     expect(status).toBe(200);
-    expect(body.day).toBe("2026-09-30");
-    expect((await openState(body.state, env.STATE_SECRET))?.day).toBe("2026-09-30");
+    expect(body.day).toBe("2026-10-19");
+    expect((await openState(body.state, env.STATE_SECRET))?.day).toBe("2026-10-19");
   });
 
   it("refuses a malformed request", async () => {
-    const { state } = await dayRound("2026-09-26");
+    const { state } = await dayRound("2026-10-15");
     for (const body of [{}, { states: [] }, { states: "x" }, { states: [1] }, { states: [state, state, state, state, state] }, { states: [state], day: "hier" }]) {
       expect((await resume(body)).status, JSON.stringify(body).slice(0, 40)).toBe(400);
     }
   });
 
   it("names nothing of the song before victory", async () => {
-    const start = await dayRound("2026-09-26");
+    const start = await dayRound("2026-10-15");
     const song = await playedSong(start);
     const { body } = await resume({ states: [start.state] });
     expect(titleLeaks(JSON.stringify(body), song)).toEqual([]);
