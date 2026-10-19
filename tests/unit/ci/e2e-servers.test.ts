@@ -197,7 +197,7 @@ describe("Playwright e2e web servers", () => {
     expect(forwardedFlag(build, "--outDir")).toBe(PREVIEW_OUT_DIR);
     expect(forwardedFlag(preview, "--outDir")).toBe(PREVIEW_OUT_DIR);
     expect(PREVIEW_OUT_DIR).not.toBe("dist");
-    const ignored = readFileSync(new URL("../../../.gitignore", import.meta.url), "utf-8").split("\n");
+    const ignored = readFileSync(new URL("../../../.gitignore", import.meta.url), "utf-8").split(/\r?\n/);
     expect(ignored).toContain(PREVIEW_OUT_DIR);
   });
 });

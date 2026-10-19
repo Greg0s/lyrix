@@ -86,7 +86,7 @@ describe("the built service worker", () => {
   it("is never kept by a cache on its way from Pages", () => {
     const rules = read("public/_headers")
       .toString("utf8")
-      .split("\n")
+      .split(/\r?\n/)
       .filter((line) => line.trim() !== "" && !line.trim().startsWith("#"));
     const at = rules.indexOf(SERVICE_WORKER_PATH);
     expect(at).toBeGreaterThanOrEqual(0);

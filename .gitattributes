@@ -1,0 +1,4 @@
+# Every text file is checked out with LF, whatever core.autocrlf says: tests
+# read checked-in files and compare them with what scripts write, in LF, as CI
+# on Linux does (tests/unit/ci/lineEndings.test.ts).
+* text=auto eol=lf
