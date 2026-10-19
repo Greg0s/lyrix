@@ -90,6 +90,24 @@ test("shows feedback for a guess that is not in the lyrics", async ({ page }) =>
   await expect(page.getByText("n’y est pas")).toBeVisible();
 });
 
+// Regression test: under StrictMode (the dev server these specs run on), the
+// round was asked for twice, and the second answer landed over the first,
+// wiping a word typed as soon as the dock showed: a guess right after
+// page.goto() then never went (~1 run in 20, docs/LEARNINGS.md 2026-10-19).
+test("asks for today's round once, keeping a word typed as soon as the dock shows", async ({ page }) => {
+  const roundRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "GET" && new URL(request.url()).pathname === "/api/round") roundRequests.push(request.url());
+  });
+  await page.goto("/");
+  const input = page.getByPlaceholder("Propose un mot…");
+
+  await input.fill("xylophoneinexistant");
+  await page.waitForLoadState("networkidle");
+  await expect(input).toHaveValue("xylophoneinexistant");
+  expect(roundRequests).toHaveLength(1);
+});
+
 test("agrees in number between found and tried counts in the progress card", async ({ page }) => {
   await page.goto("/");
   const input = page.getByPlaceholder("Propose un mot…");

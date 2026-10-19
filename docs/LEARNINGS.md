@@ -464,3 +464,13 @@ Separately, the archives bug in a room: they show a day as the player got it, al
 Regression tests: "a song LRCLIB can't give right now" in `tests/unit/worker/guess.test.ts` and `tests/unit/worker/room.test.ts`; "keeps its progress and tries again by itself while its song is unavailable" (`archives.test.tsx`); "keeps a day the player found alone as they found it, while the room plays it" (`rooms.test.tsx`); "binds the SONGS namespace" (`tests/unit/ci/debugMode.test.ts`).
 
 **Takeaway**: the second time an outage was read as a refusal (see 2026-10-05, a timeout). Now a rule in CLAUDE.md: a dependency that didn't answer is a 503, never an empty result, a substitute, or a 400.
+
+## 2026-10-19 — A word typed as soon as the round showed was wiped, in dev and e2e only
+
+Found while bumping wrangler: e2e specs that guess right after `page.goto("/")` failed now and then (1 run in 144 on wrangler 4.86, about 1 in 20 on 4.151.1, whose first `/api/round` is a little slower), with no `/api/guess` sent and an empty input. The dock only shows once a round is there, so nothing could be typed "before the round": the round arrived twice. Under `<StrictMode>` (`main.tsx`; the dev server every spec but `pwa.spec.ts` runs on), `useGame`'s mount effect runs, is cleaned up, and runs again. The first `loadDay` took the prefetched round (`roundPrefetch.ts`), a promise that knows nothing of the abort signal, so the cleanup didn't stop it: it landed and showed the round. The second, finding no prefetch left, asked `/api/round` again, and its answer landed over the first one, clearing `inputValue` (and any guess made meanwhile, its feedback, its tried word, its saved progress). Production mounts once, so players never met it.
+
+Fixed in `useGame.ts`: a load that was superseded never lands, whatever answered it (`controller.signal.aborted` after `fetchDay`); a load superseded while it waits on the prefetch gives it back at once (`restorePrefetchedRound`), so dev asks for today's round once, like production; and a round landing on the same day no longer clears what the player is typing (a day switch already does). The e2e specs were left guessing right after `goto`: that's what a player does, and a wait for `/api/round` would have hidden this bug.
+
+Regression tests: "loading a round a newer load superseded" (`tests/unit/components/gameScreen.test.tsx`, under `<StrictMode>`), and "asks for today's round once, keeping a word typed as soon as the dock shows" (`tests/e2e/play.spec.ts`), both failing without the fix.
+
+**Takeaway**: a promise shared outside React (a prefetch, a cache) ignores the `AbortSignal` its consumer passes. A load guarded only by `prev.day !== target` still lands when superseded on the same day; check the controller.
