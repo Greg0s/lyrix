@@ -32,7 +32,9 @@ function pngSize(buf: Buffer): { width: number; height: number } {
 
 describe("favicon", () => {
   it("keeps the committed SVG in sync with the logo mark and tokens.css", () => {
-    expect(read("public/favicon.svg").toString("utf8")).toBe(faviconSvg(colors, { rounded: true }));
+    // The generator writes LF; a checkout made with core.autocrlf=true has the file in CRLF.
+    const committed = read("public/favicon.svg").toString("utf8").replace(/\r\n/g, "\n");
+    expect(committed).toBe(faviconSvg(colors, { rounded: true }));
   });
 
   it("draws with the mark's palette", () => {
