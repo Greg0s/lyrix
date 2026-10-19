@@ -1,9 +1,7 @@
 import { parseArgs } from "node:util";
 import { catalog, type CatalogEntry } from "../worker/src/catalog";
-import { LrclibUnavailableError } from "../worker/src/lrclib";
-import { resolveFromLrclib } from "../worker/src/resolveSong";
 import {
-  auditSong,
+  auditEntry,
   duplicateCatalogIds,
   failureAdvice,
   formatAudit,
@@ -38,13 +36,7 @@ async function audit(entries: CatalogEntry[], delayMs: number): Promise<CatalogA
   const audits: CatalogAudit[] = [];
   for (const [index, entry] of entries.entries()) {
     if (index > 0) await sleep(delayMs);
-    let result: CatalogAudit;
-    try {
-      result = auditSong(entry, await resolveFromLrclib(entry));
-    } catch (error) {
-      if (!(error instanceof LrclibUnavailableError)) throw error;
-      result = auditSong(entry, null, error.reason);
-    }
+    const result = await auditEntry(entry);
     console.log(formatAudit(result));
     audits.push(result);
   }

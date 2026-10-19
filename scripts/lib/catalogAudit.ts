@@ -1,13 +1,15 @@
 import { tokenize } from "../../src/game/tokenize";
 import type { Song } from "../../src/game/types";
 import type { CatalogEntry } from "../../worker/src/catalog";
+import { LrclibUnavailableError } from "../../worker/src/lrclib";
+import { resolveFromLrclib } from "../../worker/src/resolveSong";
 
 /**
  * What one catalog entry looks like once LRCLIB has been asked for it. The
  * catalog is hand-written, LRCLIB is crowd-sourced, and nothing in the test
  * suite can tell you whether the two still agree — that needs the network.
- * check-catalog.ts does the asking; everything here is pure, so the reporting
- * itself stays unit-tested.
+ * check-catalog.ts drives the asking (auditEntry); everything else here is
+ * pure, so the reporting itself stays unit-tested.
  */
 export interface CatalogAudit {
   id: string;
@@ -64,6 +66,24 @@ export function auditSong(entry: CatalogEntry, song: Song | null, unavailable?: 
   return { id: entry.id, label, resolved: true, sections: song.sections.length, words, warnings };
 }
 
+/**
+ * Asks LRCLIB about one entry, through the Worker's own path, and audits the
+ * answer. A request LRCLIB didn't answer (a 503 under load, a timeout) is kept
+ * apart from an answer with nothing usable: only the second says anything
+ * about the entry. Any other error is a bug, and is thrown.
+ */
+export async function auditEntry(
+  entry: CatalogEntry,
+  resolve: (entry: CatalogEntry) => Promise<Song | null> = resolveFromLrclib
+): Promise<CatalogAudit> {
+  try {
+    return auditSong(entry, await resolve(entry));
+  } catch (error) {
+    if (!(error instanceof LrclibUnavailableError)) throw error;
+    return auditSong(entry, null, error.reason);
+  }
+}
+
 const ID_COLUMN = 26;
 const WARNING_INDENT = " ".repeat("  FAIL  ".length + ID_COLUMN);
 
@@ -72,7 +92,7 @@ export function formatAudit(audit: CatalogAudit): string {
   const head = audit.resolved
     ? `  ok    ${id} ${audit.sections} sections, ${audit.words} words`
     : audit.unavailable !== undefined
-      ? `  FAIL  ${id} LRCLIB didn't answer (${audit.unavailable})`
+      ? `  FAIL  ${id} LRCLIB didn't answer (${audit.unavailable}), retry later`
       : `  FAIL  ${id} no usable lyrics on LRCLIB`;
   return [head, ...audit.warnings.map((warning) => `${WARNING_INDENT} ! ${warning}`)].join("\n");
 }
