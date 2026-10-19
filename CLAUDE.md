@@ -12,7 +12,7 @@ A free web game inspired by Pedantix, built around song lyrics instead of Wikipe
 
 ## Current Phase: MVP (no 3D)
 
-The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header, one song card whose hidden words are accent bars, a sticky guess dock, and a side column (progress, tried words). The archives follow the "Lyrix Archives" mockup's "Collection" variant (1c, as integrated in "Lyrix v4"): a cover per song found, an empty slot per day still to play. Short CSS animations only, all disabled under `prefers-reduced-motion` — no 3D. Do not add 3D dependencies (`three`, `@react-three/fiber`, `@react-three/drei`) unless explicitly asked; 3D is a planned post-MVP phase (see "Out of Scope"). MVP scope: masked lyrics (blanks matching word length, punctuation/line breaks preserved), a text input that reveals every occurrence of a correctly guessed word, and a win state once the title is fully uncovered.
+The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header, one song card whose hidden words are accent bars, a sticky guess dock, and a side column (progress, tried words, hints). The archives follow the "Lyrix Archives" mockup's "Collection" variant (1c, as integrated in "Lyrix v4"): a cover per song found, an empty slot per day still to play. Short CSS animations only, all disabled under `prefers-reduced-motion` — no 3D. Do not add 3D dependencies (`three`, `@react-three/fiber`, `@react-three/drei`) unless explicitly asked; 3D is a planned post-MVP phase (see "Out of Scope"). MVP scope: masked lyrics (blanks matching word length, punctuation/line breaks preserved), a text input that reveals every occurrence of a correctly guessed word, and a win state once the title is fully uncovered.
 
 ## Tech Stack
 
@@ -100,6 +100,7 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 
 - **Anti-cheat is a hard requirement**, even in the MVP: the Worker is the only thing that knows the actual lyrics. It receives a guessed word and returns which positions match — never the full text before the round is won. The one exception is `DEV_REVEAL_LYRICS` (`worker/src/index.ts`), which attaches each hidden word's real text as `devHint` for local debugging (`WordToken.tsx`); wired only into `dev:worker`/`dev:all`/`test:e2e`, never in `wrangler.toml` or production.
 - **The "show all lyrics" checkbox reuses that same mechanism, gated on `victory` instead of a dev flag.** Once `RoundView.victory` is true — recomputed by the Worker itself from sealed state, never client-supplied — `buildRoundView` attaches every still-hidden lyrics word's real text as `DisplayToken.revealHint`, riding along on the normal round/guess response (no extra endpoint or round trip). The checkbox itself is local, unsigned UI state owned by `GameScreen`, rendered only once won (`TitleGuess`); `WordToken` shows `revealHint` in place of a blank only while checked, ahead of a close-guess placement and the dev hint.
+- **Hints** (`src/game/hints.ts`, `docs/superpowers/specs/2026-10-19-song-hints-design.md`, decided with the developer): three per song, the same every day — *Époque*, *Type d'artiste*, *Style* — and one more may be revealed at 20, 35 and 50 guesses (`HINT_THRESHOLDS`), the player picking which. Unlocking never reveals: a hint shows only once picked, or once the round is won. Their text lives in `worker/src/songFacts.ts` alone, curated by hand: a song added to the catalog gets its facts in the same commit, and no hint may share a word with its song's title or artist (`tests/unit/worker/songFacts.test.ts`). The guess count (`tried`: every guess the Worker answered, found or not) and the hints revealed are sealed in the round state, which `POST /api/round/hint` checks a reveal against; a state sealed before hints counts its found words. In a room, hints are the group's: unlocked on its guesses, revealed by any member for everyone (`/api/rooms/:code/hint`), `RoomRound.hints` naming who. The day's entry in `roundStorage` keeps the round's hints, since today's view is only rewritten when words are revealed.
 - **The win is celebrated once, live** (#42): the title's words pop in turn, the victory panel comes in after them, and confetti (`Celebration.tsx`) bursts from the title — only when the answer to a guess of the player's own completes the title of the round on screen (`useGame`'s `celebration`). Never for a round that comes back won (storage, a room's round on connection), a teammate's win, or "Afficher la réponse". The confetti is portalled into `<body>` (the song card keeps a transform, and `position: fixed` inside it would be fixed to the card), lets every click through, is `aria-hidden`, and isn't rendered at all under reduced motion.
 - **French text matching**: normalize both the guess and the stored lyrics before comparing (case/accent-insensitive, œ/æ spelled out) and account for elisions ("j'aime" vs "je aime", "qu'il", "l'amour"). `LETTER_CLASS` (`src/game/tokenize.ts`) must cover every letter French lyrics use. A run of digits is a word too.
 - **Search and link previews**: `index.html` carries the description, canonical URL, Open Graph/Twitter tags and schema.org JSON-LD (`WebSite` + `VideoGame`), all as absolute `https://lyrix-eyg.pages.dev/` URLs, in step with `public/robots.txt` and `public/sitemap.xml` (`tests/unit/ci/richSnippets.test.ts`). Never add a rating or review to the JSON-LD that no real player gave. If the production domain changes, change every one of them together.
@@ -188,7 +189,10 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                                       # sorted by score, crediting the embedding model;
                                       # "Mots du groupe" in a room, a colour dot per chip
                                       # (collapsed by default below 880px)
-    Modal.tsx, HowToPlay.tsx   # dialog shell (Escape/backdrop, exit animation); the rules' page (/comment-jouer):
+    HintsCard.tsx, HintSheet.tsx, HintIcon.tsx  # "Indices" card under "Tes mots" (collapsed below 880px,
+                              # like it); the sheet the dock's "Choisir" opens on a phone; pictograms
+    Modal.tsx, HowToPlay.tsx   # dialog shell (Escape/backdrop, exit animation; a bottom sheet below 880px
+                              # as the "sheet" variant); the rules' page (/comment-jouer):
                               # a short summary with sample close-guess bars, and a FAQ (native <details>) beside it from 880px
     MultiplayerModal.tsx      # rooms (#29): "Créer un salon" / "Rejoindre" tabs, or the room once in one;
                               # opened on "Rejoindre" by an invite link (GameScreen reads the path)
@@ -219,6 +223,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     similarity.ts, functionWords.ts, slots.ts  # 0-100 proximity scale; excluded function words;
                                                 # addressing hidden words by position
     delta.ts                    # applying a guess's delta to the view, line by line; revealed counts
+    hints.ts                    # the three hints: ids, labels, thresholds, what may be revealed, the card's wording
     room.ts                     # rooms' wire contract: codes, pseudos, close codes, room round, message
                                  # parsing; invite link paths
     archive.ts, frenchDates.ts  # the archives' days (status, what's left to find, a cover's title size);
@@ -240,7 +245,9 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                                     # isolate memo, SONGS KV, day pins, fallback chain (only on an answer
                                     # with no lyrics), SongUnavailableError -> 503; dev stand-in song
   similarity.ts, sampleSimilarity.ts # reads the precomputed KV table per guess; dev/e2e placeholder
-  state.ts                            # AES-GCM-sealed round state (songId + foundKeys + day) via Web Crypto
+  songFacts.ts                        # each song's decade, artist type and style: the hints' text, server-only
+  state.ts                            # AES-GCM-sealed round state (songId + foundKeys + day + guess count +
+                                      # hints revealed) via Web Crypto
 /worker
   wrangler.toml              # Worker config: ROOMS Durable Object + migration, room rate limits,
                               # SIMILARITY binding (commented)

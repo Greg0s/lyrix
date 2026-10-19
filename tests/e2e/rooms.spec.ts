@@ -287,6 +287,29 @@ test("plays the day's round together: every find and every miss reaches the whol
   await expect(guest.getByRole("button", { name: "Afficher la réponse" })).toBeVisible();
 });
 
+test("shares the room's hints: unlocked on the group's guesses, revealed for everyone by whoever picks", async ({
+  browser,
+}) => {
+  const host = await openGame(browser);
+  const guest = await openGame(browser);
+  const code = await createRoom(host, "Camille");
+  await joinRoom(guest, code, "Léo");
+  await expect(feedback(host)).toHaveText("Léo a rejoint le salon.");
+
+  // Nobody's lyrics: ten each, twenty for the group.
+  for (const letter of "abcdefghij") {
+    await guess(host, `zq${letter}xw`);
+    await guess(guest, `zq${letter}yv`);
+  }
+  const hostHints = host.getByRole("region", { name: "Indices" });
+  await expect(hostHints.getByText("1 à choisir")).toBeVisible();
+
+  await guest.getByRole("region", { name: "Indices" }).getByRole("button", { name: /Style/ }).click();
+
+  await expect(feedback(host)).toHaveText(/^Léo a révélé l'indice Style : .+\.$/);
+  await expect(hostHints.locator(".lyrix-hint.is-revealed")).toContainText("choisi par Léo");
+});
+
 test("catches a player up on the room's round after a reload, and gives the solo round back on leaving, with the room's finds in it", async ({
   browser,
 }) => {
