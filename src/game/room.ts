@@ -1,6 +1,7 @@
 import { isDayKey, msUntilNextSong } from "./daily";
+import { isHintId } from "./hints";
 import { parseNearSlots } from "./slots";
-import type { DisplayToken, NearSlot, RoundView } from "./types";
+import type { DisplayToken, HintId, NearSlot, RoundView } from "./types";
 
 /**
  * Rooms ("salons", issue #29): a group of players looking for the day's song
@@ -110,9 +111,21 @@ export interface RoomGuess {
  * guess made so far, newest first. A room's guesses only ever grow, so how
  * many there are orders two of these that arrived out of order.
  */
+/** A hint revealed in a room: for everyone, by whoever picked it. */
+export interface RoomHint {
+  id: HintId;
+  by: RoomMember;
+}
+
 export interface RoomRound {
   round: RoundView;
   guesses: RoomGuess[];
+  /**
+   * The hints revealed so far, in the order chosen, with who picked each (the
+   * round's own `hints` holds their text). A reveal adds one without a guess,
+   * so two rounds with as many guesses are ordered by how many hints they hold.
+   */
+  hints?: RoomHint[];
   /**
    * Once the group has found the song: the key of the guess that completed the
    * title. Its player found it; everyone else is offered the answer or to keep
@@ -128,6 +141,8 @@ export interface RoomRoundMessage extends RoomRound {
   type: "round";
   /** The key of the guess this message announces; absent on a (re)connection. */
   latest?: string;
+  /** The hint this message announces a member revealed. */
+  latestHint?: HintId;
 }
 
 /**
@@ -391,6 +406,12 @@ export function parseRoomDaySummary(value: unknown): RoomDaySummary | null {
   };
 }
 
+export function parseRoomHint(value: unknown): RoomHint | null {
+  if (!isRecord(value) || !isHintId(value.id)) return null;
+  const by = parseRoomMember(value.by);
+  return by ? { id: value.id, by } : null;
+}
+
 function parseRoomRound(value: Record<string, unknown>): RoomRound | null {
   if (!isRoundView(value.round) || !Array.isArray(value.guesses)) return null;
   const guesses: RoomGuess[] = [];
@@ -403,9 +424,14 @@ function parseRoomRound(value: Record<string, unknown>): RoomRound | null {
   const days = Array.isArray(value.days)
     ? value.days.map(parseRoomDaySummary).filter((summary): summary is RoomDaySummary => summary !== null)
     : undefined;
+  // A malformed hint is dropped too: the round's own hints still show its text.
+  const hints = Array.isArray(value.hints)
+    ? value.hints.map(parseRoomHint).filter((hint): hint is RoomHint => hint !== null)
+    : undefined;
   return {
     round: value.round,
     guesses,
+    ...(hints && hints.length > 0 ? { hints } : {}),
     ...(typeof value.winningKey === "string" ? { winningKey: value.winningKey } : {}),
     ...(days ? { days } : {}),
   };
@@ -420,7 +446,12 @@ export function parseRoomRoundMessage(value: unknown): RoomRoundMessage | null {
   if (!isRecord(value) || value.type !== "round") return null;
   const parsed = parseRoomRound(value);
   if (!parsed) return null;
-  return typeof value.latest === "string" ? { type: "round", ...parsed, latest: value.latest } : { type: "round", ...parsed };
+  return {
+    type: "round",
+    ...parsed,
+    ...(typeof value.latest === "string" ? { latest: value.latest } : {}),
+    ...(isHintId(value.latestHint) ? { latestHint: value.latestHint } : {}),
+  };
 }
 
 export function parseRoomGuessResult(value: unknown): RoomGuessResult | null {

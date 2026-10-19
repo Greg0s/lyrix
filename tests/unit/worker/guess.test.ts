@@ -592,10 +592,12 @@ describe("POST /api/guess — proximity score", () => {
     const { body } = await guess(round.state, "xylophoneinexistant", scoring);
 
     // The response may only ever grow by numbers: a score, and positions with
-    // a score each. No neighbour word, no vector, no table excerpt.
+    // a score each. No neighbour word, no vector, no table excerpt. Hints
+    // ride along as a guess count, with no text before one is revealed.
     expect(Object.keys(body).sort()).toEqual([
       "day",
       "found",
+      "hints",
       "key",
       "near",
       "score",
@@ -604,6 +606,7 @@ describe("POST /api/guess — proximity score", () => {
       "title",
       "victory",
     ]);
+    expect(body.hints).toEqual({ tried: 1, used: [], values: {} });
     expect(body.near.length).toBeGreaterThan(0);
     for (const slot of body.near) {
       expect(Object.keys(slot).sort()).toEqual(["position", "score"]);

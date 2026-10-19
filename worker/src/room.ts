@@ -13,6 +13,7 @@ import {
   type RoomEvent,
   type RoomGuess,
   type RoomGuessResult,
+  type RoomHint,
   type RoomMember,
   type RoomMessage,
   type RoomRound,
@@ -21,13 +22,22 @@ import {
   type RoomSnapshot,
 } from "../../src/game/room";
 import { dayStart, isPlayableDay, utcDay } from "../../src/game/daily";
+import { canReveal, isHintId } from "../../src/game/hints";
 import { buildTitleView, isVictory } from "../../src/game/mask";
 import { normalize } from "../../src/game/normalize";
 import { revealedPercent } from "../../src/game/progress";
-import type { RoundView, Song } from "../../src/game/types";
-import { buildRoundView, evaluateGuess, MAX_WORD_LENGTH, parseGuessWord, type RoundEnv } from "./round";
+import type { HintId, RoundView, Song } from "../../src/game/types";
+import {
+  buildRoundView,
+  evaluateGuess,
+  MAX_WORD_LENGTH,
+  NO_HINT_PROGRESS,
+  parseGuessWord,
+  roundHints,
+  type RoundEnv,
+} from "./round";
 import { getSongById, getSongOfDay, SongUnavailableError } from "./songs";
-import { openState } from "./state";
+import { hintProgressOf, openState, type HintProgress } from "./state";
 
 /**
  * One room ("salon", issue #29) per Durable Object, addressed by its code
@@ -84,6 +94,8 @@ interface RoundRecord {
   winningKey?: string;
   /** What the group's collection shows of this day, written with each guess (never rebuilt per broadcast). */
   summary?: RoomDaySummary;
+  /** The hints the group revealed, in the order chosen, and who picked each. */
+  hints?: RoomHint[];
 }
 
 interface SocketAttachment {
@@ -173,6 +185,18 @@ function foundKeys(round: RoundRecord): Set<string> {
   return new Set(round.guesses.filter((guess) => guess.found).map((guess) => guess.key));
 }
 
+/** The room's hint progress: every guess of the group counts, and a hint anyone revealed is everyone's. */
+function hintProgress(round: RoundRecord): HintProgress {
+  return { tried: round.guesses.length, used: (round.hints ?? []).map((hint) => hint.id) };
+}
+
+/** Both progresses at once: the larger guess count, and every hint either revealed. */
+function mergedProgress(a: HintProgress, b: HintProgress): HintProgress {
+  const used: HintId[] = [...a.used];
+  for (const id of b.used) if (!used.includes(id)) used.push(id);
+  return { tried: Math.max(a.tried, b.tried), used };
+}
+
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
@@ -187,10 +211,10 @@ export class Room {
   #room: RoomRecord | null | undefined;
   // The rounds read or pinned so far, by day.
   readonly #rounds = new Map<string, RoundRecord>();
-  // The last view built of each round, and how many guesses it was built at:
-  // a duplicate guess, a (re)connection or a move to a day already played
-  // answers with it rather than mask the whole song and seal a state again.
-  readonly #views = new WeakMap<RoundRecord, { guesses: number; view: RoundView }>();
+  // The last view built of each round, and how many guesses and hints it was
+  // built at: a duplicate guess, a (re)connection or a move to a day already
+  // played answers with it rather than mask the whole song and seal a state again.
+  readonly #views = new WeakMap<RoundRecord, { guesses: number; hints: number; view: RoundView }>();
 
   constructor(
     private readonly ctx: RoomContext,
@@ -214,6 +238,7 @@ export class Room {
     if (route === "POST /leave") return this.#leave(await readBody(request));
     if (route === "POST /guess") return this.#guess(await readBody(request));
     if (route === "POST /alone") return this.#alone(await readBody(request));
+    if (route === "POST /hint") return this.#hint(await readBody(request));
     if (route === "POST /day") return this.#setDay(await readBody(request));
     return json({ error: "not found" }, 404);
   }
@@ -392,8 +417,9 @@ export class Room {
     round.guesses.unshift(guess);
     if (!wonBefore && isVictory(song, foundKeys(round))) round.winningKey = guess.key;
     const guesses = round.guesses.length;
-    const view = await buildRoundView(song, foundKeys(round), this.env, roundDay(round));
-    this.#views.set(round, { guesses, view });
+    const hints = round.hints?.length ?? 0;
+    const view = await buildRoundView(song, foundKeys(round), this.env, roundDay(round), hintProgress(round));
+    this.#views.set(round, { guesses, hints, view });
     this.#summarizeFrom(round, song, view);
     await this.ctx.storage.put(roundKey(roundDay(round)), round);
 
@@ -435,9 +461,54 @@ export class Room {
     const own = typeof state === "string" ? await openState(state, this.env.STATE_SECRET) : null;
     // Only the player's own progress on this same song: a found word of theirs
     // is theirs to keep, the winning one included.
-    if (own && own.songId === song.id) for (const key of own.foundKeys) keys.add(key);
-    const view: RoundView = await buildRoundView(song, keys, this.env, roundDay(round));
+    const mine = own && own.songId === song.id ? own : null;
+    if (mine) for (const key of mine.foundKeys) keys.add(key);
+    // The hints the group revealed stay revealed, the player's own too.
+    const progress = mergedProgress(hintProgress(round), mine ? hintProgressOf(mine) : NO_HINT_PROGRESS);
+    const view: RoundView = await buildRoundView(song, keys, this.env, roundDay(round), progress);
     return json(view, 200);
+  }
+
+  /**
+   * Reveals one of the round's hints for the whole room, checked like a solo
+   * reveal (index.ts) on the group's guesses. Same answers as #guess for a
+   * stranger or a room that moved day; a hint already revealed answers the
+   * round as it stands. Everyone else is sent the round, naming the hint.
+   */
+  async #hint({ token, hint, day, tab }: Record<string, unknown>): Promise<Response> {
+    const room = await this.#load();
+    const member = room && typeof token === "string" ? room.members.find((m) => m.token === token) : undefined;
+    if (!room || !member) return json({ error: "not a member of a live room" }, 404);
+    if (!isHintId(hint)) return json({ error: "hint must be one of the song's hints" }, 400);
+    if (day !== undefined && day !== roomDay(room)) return json({ error: "the room has moved to another day" }, 409);
+
+    let loaded: { round: RoundRecord; song: Song };
+    try {
+      loaded = await this.#loadRound(room, roomDay(room));
+    } catch {
+      return json({ error: "the song is unavailable, try again" }, 503);
+    }
+    const { round, song } = loaded;
+    const progress = hintProgress(round);
+    if (!roundHints(song, progress, false)) return json({ error: "this song has no hints" }, 404);
+    if (isVictory(song, foundKeys(round))) return json({ error: "the round is already won" }, 409);
+    if (progress.used.includes(hint)) return json(await this.#roundOf(room, round, song), 200);
+    if (!canReveal(progress, hint)) return json({ error: "no hint is unlocked yet" }, 409);
+
+    // Nothing awaited between the checks above and this write: two members
+    // picking at once can't both use up the same threshold.
+    round.hints = [...(round.hints ?? []), { id: hint, by: publicMember(member) }];
+    const guesses = round.guesses.length;
+    const hints = round.hints.length;
+    const view = await buildRoundView(song, foundKeys(round), this.env, roundDay(round), hintProgress(round));
+    this.#views.set(round, { guesses, hints, view });
+    await this.ctx.storage.put(roundKey(roundDay(round)), round);
+
+    const current = await this.#roundOf(room, round, song, view);
+    const message: RoomRoundMessage = { type: "round", ...current, latestHint: hint };
+    // Not to the tab that revealed it: this answer brings it the round (see #guess).
+    this.#send(JSON.stringify(message), (ws) => isTabOf(ws, member, tab));
+    return json(current, 200);
   }
 
   /**
@@ -525,10 +596,11 @@ export class Room {
   async #viewOf(round: RoundRecord, song: Song): Promise<RoundView> {
     const last = this.#views.get(round);
     const guesses = round.guesses.length;
-    if (last && last.guesses === guesses) return last.view;
+    const hints = round.hints?.length ?? 0;
+    if (last && last.guesses === guesses && last.hints === hints) return last.view;
     // Counted before the await: a guess landing meanwhile makes this view stale, not current.
-    const view = await buildRoundView(song, foundKeys(round), this.env, roundDay(round));
-    this.#views.set(round, { guesses, view });
+    const view = await buildRoundView(song, foundKeys(round), this.env, roundDay(round), hintProgress(round));
+    this.#views.set(round, { guesses, hints, view });
     return view;
   }
 
@@ -582,6 +654,7 @@ export class Room {
     return {
       round: view ?? (await this.#viewOf(round, song)),
       guesses: round.guesses,
+      ...(round.hints && round.hints.length > 0 ? { hints: round.hints } : {}),
       ...(round.winningKey !== undefined ? { winningKey: round.winningKey } : {}),
       days: await this.#summaries(room),
     };
