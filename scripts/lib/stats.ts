@@ -119,6 +119,13 @@ export function statsQueries(days: number): StatsQuery[] {
         `GROUP BY day, outcome, song ORDER BY day DESC, outcome`,
     },
     {
+      title: "Errors in players' browsers (the Worker's logs keep their stacks for a few days)",
+      sql:
+        `SELECT ${col("error", "message")} AS message, ${col("error", "source")} AS source, ${col("error", "line")} AS line, ` +
+        `${col("error", "page")} AS page, ${count} AS times FROM ${DATASET} ${where("error", days)} ` +
+        `GROUP BY message, source, line, page ORDER BY times DESC LIMIT 15`,
+    },
+    {
       title: "Rooms",
       sql:
         `SELECT ${col("room", "action")} AS action, ${count} AS times, ${average(col("room", "members"))} AS members ` +

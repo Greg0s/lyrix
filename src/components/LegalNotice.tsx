@@ -123,6 +123,13 @@ export function LegalNotice({ onClose, contact = CONTACT_EMAIL }: LegalNoticePro
               journaux techniques du serveur, qui servent à diagnostiquer une panne, sont effacés au bout de quelques
               jours.
             </dd>
+            <dt>Les erreurs du jeu</dt>
+            <dd>
+              Si le jeu rencontre une erreur dans ton navigateur, il envoie au serveur le message d'erreur, l'endroit du
+              code concerné et l'écran où elle s'est produite, pour qu'elle soit corrigée. Rien qui te concerne&nbsp;: ni
+              identifiant, ni ce que tu as tapé, ni le code d'un salon. Ces rapports sont effacés des journaux du serveur
+              au bout de quelques jours et comptés anonymement avec les statistiques ci-dessous.
+            </dd>
             <dt>Aucun service tiers</dt>
             <dd>
               Le site ne charge rien depuis un autre service&nbsp;: ni police, ni script, ni traceur. Aucune donnée

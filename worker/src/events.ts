@@ -3,7 +3,8 @@
  * dataset, worker/wrangler.toml) and read back by `npm run stats`
  * (scripts/stats.ts): audience (a visit's report, POST /api/visit) and play
  * (a round started, won, a hint revealed, a room created or joined), and
- * the songs prepared ahead of their day (worker/src/prepare.ts).
+ * the songs prepared ahead of their day (worker/src/prepare.ts), and the
+ * errors players' browsers report (worker/src/clientError.ts).
  *
  * Nothing in them tells one player from another: no IP address, no
  * identifier, no pseudo, no word typed. Only what the request itself was
@@ -36,6 +37,8 @@ export const EVENT_FIELDS = {
   room: { blobs: ["action"], doubles: ["members"] },
   /** A day's song prepared ahead (worker/src/prepare.ts): ready, played on a fallback, missing, or LRCLIB down. */
   prepare: { blobs: ["day", "outcome", "song"], doubles: ["ahead"] },
+  /** An error a player's browser met (worker/src/clientError.ts): what and where, never who. */
+  error: { blobs: ["kind", "page", "message", "source"], doubles: ["line"] },
 } as const;
 
 export type EventName = keyof typeof EVENT_FIELDS;

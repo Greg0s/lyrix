@@ -227,3 +227,41 @@ describe("a solo round's statistics", () => {
     expect(events.of("start")).toEqual([{ mode: "solo", kind: "archive", day: "2026-10-01" }]);
   });
 });
+
+describe("POST /api/client-error", () => {
+  function send(body: string) {
+    return app.request("/api/client-error", { method: "POST", headers: { "Content-Type": "text/plain" }, body }, env);
+  }
+
+  it("logs the error with its stack, and counts it", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const report = {
+      kind: "rejection",
+      message: "TypeError: x is undefined",
+      source: "/assets/index-abc.js",
+      line: 12,
+      column: 340,
+      stack: "TypeError: x is undefined\nat f (/assets/index-abc.js:12:340)",
+      page: "today",
+    };
+    expect((await send(JSON.stringify(report))).status).toBe(204);
+
+    expect(error).toHaveBeenCalledWith(
+      "client rejection on today: TypeError: x is undefined at /assets/index-abc.js:12:340\nTypeError: x is undefined\nat f (/assets/index-abc.js:12:340)"
+    );
+    expect(events.of("error")).toEqual([
+      { kind: "rejection", page: "today", message: "TypeError: x is undefined", source: "/assets/index-abc.js", line: 12 },
+    ]);
+    error.mockRestore();
+  });
+
+  it("answers 204 to anything else, and neither logs nor counts it", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const body of ["", "nope", "{}", JSON.stringify({ kind: "error", message: "" })]) {
+      expect((await send(body)).status).toBe(204);
+    }
+    expect(error).not.toHaveBeenCalled();
+    expect(events.points).toEqual([]);
+    error.mockRestore();
+  });
+});

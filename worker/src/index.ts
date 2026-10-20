@@ -4,6 +4,7 @@ import { dayStart, isDayKey, isPlayableDay, utcDay } from "../../src/game/daily"
 import { canReveal, isHintId } from "../../src/game/hints";
 import type { GuessResult, HintAnswer, HintId } from "../../src/game/types";
 import { recordEvent, roundKind, type EventsEnv } from "./events";
+import { clientErrorRoutes } from "./clientError";
 import { freshRoundBody } from "./freshRound";
 import { prepareSongs } from "./prepare";
 import { isVictory } from "../../src/game/mask";
@@ -283,6 +284,9 @@ app.post("/api/round/hint", async (c) => {
 
 // A page's audience report (src/stats.ts), counted (events.ts).
 app.route("/api/visit", visitRoutes);
+
+// An error a player's browser met (src/errorReport.ts), logged and counted.
+app.route("/api/client-error", clientErrorRoutes);
 
 // Rooms ("salons", issue #29), and the round each plays together (#30).
 app.route("/api/rooms", roomRoutes);
