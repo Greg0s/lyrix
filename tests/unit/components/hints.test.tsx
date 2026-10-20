@@ -152,6 +152,12 @@ describe("the hints card", () => {
     expect(wordTokenRenders.count).toBe(0);
   });
 
+  it("comes after the \"Chercher à plusieurs\" card, not before it", async () => {
+    await mountGame({ tried: 13, used: [], values: {} });
+    const promo = screen.getByRole("button", { name: /Chercher à plusieurs/ });
+    expect(promo.compareDocumentPosition(card()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("is not shown for a round without hints", async () => {
     fetchRound.mockResolvedValue({ ...round(reached), hints: undefined });
     await act(async () => {

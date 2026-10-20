@@ -484,6 +484,12 @@
 
 /* ---------- Page layout ---------- */
 
+/*
+ * One gap between every card of the page, whichever way they are laid out:
+ * between the song card and the side column, between the side column's
+ * cards, and between the song card, the day bar and the dock. Change them
+ * together (tests/unit/ci/layoutGap.test.ts).
+ */
 .lyrix-main {
   width: 100%;
   max-width: 680px;
@@ -491,13 +497,13 @@
   padding: 20px 16px 32px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .lyrix-game-col {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   min-width: 0;
 }
 
@@ -514,29 +520,30 @@
     padding: 40px 32px 48px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 300px;
-    gap: 32px;
+    gap: 24px;
     align-items: start;
   }
 
+  .lyrix-game-col,
+  .lyrix-aside {
+    gap: 24px;
+  }
+
   /*
-   * Sticky, and scrolling on its own when taller than the screen: the hints
-   * card sits at its bottom, under "Tes mots", and must stay within reach
-   * on a laptop, a room's card above it all included.
+   * Sticky under the header while it fits on the screen. Taller (a laptop,
+   * a long "Tes mots", a room's card above it all), it scrolls with the page
+   * until its bottom is in view, then sticks there: never a scrollbar of its
+   * own, never a card cut off. Its height comes from trackStickyHeight
+   * (src/hooks/stickyFit.ts).
    */
   .lyrix-aside {
     order: 0;
     position: sticky;
-    top: 96px;
-    max-height: calc(100dvh - 96px - 24px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-border-strong) transparent;
+    top: min(96px, calc(100dvh - var(--sticky-height, 0px) - 24px));
   }
 
   .lyrix-main.has-day-bar {
     grid-template-rows: auto 1fr;
-    row-gap: 20px;
   }
 
   .lyrix-main.has-day-bar .lyrix-day-bar {

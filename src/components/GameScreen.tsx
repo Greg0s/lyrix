@@ -3,6 +3,7 @@ import { daysToFind, groupEntry, nextDayToFind, type ArchiveEntry } from "../gam
 import { revealedPercent } from "../game/progress";
 import { parseInvitePath } from "../game/room";
 import { closestGuessBySlot, createNearPlacer } from "../game/slots";
+import { trackStickyHeight } from "../hooks/stickyFit";
 import { SONG_UNAVAILABLE_MESSAGE, useGame, type Feedback } from "../hooks/useGame";
 import { useOnline } from "../hooks/useOnline";
 import { useRoom } from "../hooks/useRoom";
@@ -362,13 +363,15 @@ export function GameScreen() {
         />
       </div>
 
-      <aside className="lyrix-aside">
+      <aside className="lyrix-aside" ref={trackStickyHeight}>
         {/* The room's card goes with the room's day; another day is played alone meanwhile. */}
         {room.view && (roomDay === null ? day === null : (day ?? utcDay()) === roomDay) ? (
           <RoomCard room={room.view} onLeave={room.leave} />
         ) : null}
         <ProgressCard percent={percent} foundCount={foundCount} triedCount={triedWords.length} />
         <TriedWords triedWords={triedWords} group={group} />
+        {/* Where it was before the hints card came: right under "Tes mots", not below the hints. */}
+        {room.view || day !== null ? null : <MultiplayerPromo onOpen={openMultiplayer} />}
         {round.hints ? (
           <HintsCard
             hints={round.hints}
@@ -378,7 +381,6 @@ export function GameScreen() {
             onReveal={game.revealHint}
           />
         ) : null}
-        {room.view || day !== null ? null : <MultiplayerPromo onOpen={openMultiplayer} />}
       </aside>
     </main>
   );
