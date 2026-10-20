@@ -2,7 +2,8 @@
  * The game's statistics, written to Workers Analytics Engine (the EVENTS
  * dataset, worker/wrangler.toml) and read back by `npm run stats`
  * (scripts/stats.ts): audience (a visit's report, POST /api/visit) and play
- * (a round started, won, a hint revealed, a room created or joined).
+ * (a round started, won, a hint revealed, a room created or joined), and
+ * the songs prepared ahead of their day (worker/src/prepare.ts).
  *
  * Nothing in them tells one player from another: no IP address, no
  * identifier, no pseudo, no word typed. Only what the request itself was
@@ -33,6 +34,8 @@ export const EVENT_FIELDS = {
   hint: { blobs: ["mode", "kind", "hint"], doubles: ["tries"] },
   /** A room created or joined, and how many members it has then. */
   room: { blobs: ["action"], doubles: ["members"] },
+  /** A day's song prepared ahead (worker/src/prepare.ts): ready, played on a fallback, missing, or LRCLIB down. */
+  prepare: { blobs: ["day", "outcome", "song"], doubles: ["ahead"] },
 } as const;
 
 export type EventName = keyof typeof EVENT_FIELDS;

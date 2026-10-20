@@ -74,3 +74,10 @@ enabled = true
 [[analytics_engine_datasets]]
 binding = "EVENTS"
 dataset = "lyrix_events"
+
+# Scheduled runs (worker/src/prepare.ts): every 6 hours, the songs of today
+# and the week after it are resolved from LRCLIB and kept in SONGS ahead of
+# their day, so midnight never waits on LRCLIB. Repeated in
+# wrangler.debug.toml (tests/unit/ci/debugMode.test.ts).
+[triggers]
+crons = ["17 */6 * * *"]

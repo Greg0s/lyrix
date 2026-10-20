@@ -65,3 +65,7 @@ enabled = true
 [[analytics_engine_datasets]]
 binding = "EVENTS"
 dataset = "lyrix_events"
+
+# As in wrangler.toml.
+[triggers]
+crons = ["17 */6 * * *"]

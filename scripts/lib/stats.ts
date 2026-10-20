@@ -112,6 +112,13 @@ export function statsQueries(days: number): StatsQuery[] {
         `GROUP BY hint, mode ORDER BY reveals DESC`,
     },
     {
+      title: "Songs prepared ahead of their day (ready, fallback, missing, unavailable: LRCLIB down)",
+      sql:
+        `SELECT ${col("prepare", "day")} AS day, ${col("prepare", "outcome")} AS outcome, ${col("prepare", "song")} AS song, ` +
+        `${count} AS runs FROM ${DATASET} ${where("prepare", days)} ` +
+        `GROUP BY day, outcome, song ORDER BY day DESC, outcome`,
+    },
+    {
       title: "Rooms",
       sql:
         `SELECT ${col("room", "action")} AS action, ${count} AS times, ${average(col("room", "members"))} AS members ` +
