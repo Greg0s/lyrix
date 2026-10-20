@@ -357,6 +357,8 @@ export function GameScreen() {
         ) : null}
         <ProgressCard percent={percent} foundCount={foundCount} triedCount={triedWords.length} />
         <TriedWords triedWords={triedWords} group={group} />
+        {/* Where it was before the hints card came: right under "Tes mots", not below the hints. */}
+        {room.view || day !== null ? null : <MultiplayerPromo onOpen={openMultiplayer} />}
         {round.hints ? (
           <HintsCard
             hints={round.hints}
@@ -366,7 +368,6 @@ export function GameScreen() {
             onReveal={game.revealHint}
           />
         ) : null}
-        {room.view || day !== null ? null : <MultiplayerPromo onOpen={openMultiplayer} />}
       </aside>
     </main>
   );

@@ -7,7 +7,7 @@ interface MultiplayerPromoProps {
 }
 
 /**
- * The dashed "Chercher à plusieurs" card at the bottom of the side column; opens the multiplayer dialog.
+ * The dashed "Chercher à plusieurs" card of the side column, under "Tes mots"; opens the multiplayer dialog.
  * Hidden while in a room, and once the player closes it: for the day, or for the month after five times (promoStorage).
  * That is its own state: closing it re-renders nothing else.
  */
