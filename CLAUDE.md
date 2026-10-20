@@ -23,6 +23,7 @@ The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header
 - **Database**: none. Cloudflare D1 is reserved for a later phase (accounts, leaderboard) — do not add it now. Workers KV holds only the precomputed similarity tables (see below) and the songs resolved from LRCLIB (`SONGS`), not application data.
 - **Rooms** ("salons", #29): one SQLite-backed Durable Object per room code (`worker/src/room.ts`), members kept live over hibernatable WebSockets, everything deleted at the next UTC midnight. Creating and joining are rate-limited per client with the Workers Rate Limiting binding (`worker/src/roomRoutes.ts`). Each room also plays a round together (#30): today's song, or a day of the archives any member takes the room to; its object holds the room's guesses, one round per day, and sends every member the same masked view.
 - **Semantic proximity scoring**: French word embeddings, precomputed offline into a per-song score table — see `docs/SIMILARITY.md`.
+- **Statistics**: Workers Analytics Engine (the `EVENTS` dataset, `lyrix_events`), written by the Worker (`worker/src/events.ts`) and read back with `npm run stats` (`scripts/stats.ts`, the SQL API). No analytics service, script or dashboard of anyone else's.
 - **Installable (PWA, #79)**: `public/manifest.webmanifest` and a hand-written service worker (`src/serviceWorker/sw.ts`, about 2 kB), bundled on its own into `/sw.js` by a Vite plugin (`scripts/lib/serviceWorker.ts`) that writes the build's file list in. No `vite-plugin-pwa`/Workbox.
 - **Planned, not yet in scope**: `@react-three/fiber`/`@react-three/drei` for in-game 3D; word-usage counter.
 
@@ -32,6 +33,7 @@ The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header
 - Run: `npm run dev:all` (Vite + `wrangler dev` side by side; `/api/*` is proxied to the Worker)
 - Test: `npm test` (lint + typecheck + Vitest), `npm run test:e2e` (Playwright)
 - Debug mode — play against real proximity scores instead of the dev placeholder: `npm run dev:debug`
+- Statistics (visits, play) of the last 7 days: `npm run stats` (`-- --days 30` for more); needs `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in `.env` (`.env.example`)
 - Knowledge graph refresh after code changes: `npm run graph:update` (see "graphify" below)
 - There is no Prettier config or dependency: never run `npx prettier --write` here — its defaults reformat every file it touches. Match the surrounding style by hand.
 - In a cloud session, the pre-installed Chromium is not the build the pinned `@playwright/test` expects, so every e2e test fails at launch ("Executable doesn't exist"). Run the suite through a throwaway, uncommitted config that re-exports `playwright.config.ts` with `use.launchOptions.executablePath: "/opt/pw-browsers/chromium"` — kept in the scratchpad, it must be a `.mts` file and set each `webServer`'s `cwd` to the repository (see `docs/LEARNINGS.md`, 2026-10-07). LRCLIB is unreachable there too, so the Worker serves its dev stand-in song (`DEV_STANDIN_SONG`) — which is why e2e specs read the day's title off the round's dev hints (`tests/e2e/titleWords.ts`), never from `catalog`: the round doesn't name its song (#40).
@@ -105,6 +107,7 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 - **The win is celebrated once, live** (#42): the title's words pop in turn, the victory panel comes in after them, and confetti (`Celebration.tsx`) bursts from the title — only when the answer to a guess of the player's own completes the title of the round on screen (`useGame`'s `celebration`). Never for a round that comes back won (storage, a room's round on connection), a teammate's win, or "Afficher la réponse". The confetti is portalled into `<body>` (the song card keeps a transform, and `position: fixed` inside it would be fixed to the card), lets every click through, is `aria-hidden`, and isn't rendered at all under reduced motion.
 - **French text matching**: normalize both the guess and the stored lyrics before comparing (case/accent-insensitive, œ/æ spelled out) and account for elisions ("j'aime" vs "je aime", "qu'il", "l'amour"). `LETTER_CLASS` (`src/game/tokenize.ts`) must cover every letter French lyrics use. A run of digits is a word too.
 - **No consent banner, so nothing that would need one** (decided with the developer, ahead of the public launch): no cookie, nothing stored on the device but what the game itself needs, and nothing fetched from a third party, fonts included — they are the site's own (`src/styles/fonts.css`, `src/assets/fonts/`, under their OFL), since Google Fonts handed every visitor's IP address to Google (`docs/LEARNINGS.md`, 2026-10-20). `tests/e2e/privacy.spec.ts` plays a round on the production build and fails on a request to any other host. The legal notice and privacy policy (`/mentions-legales`, `LegalNotice.tsx`, `src/legal.ts`) describe what the code keeps, sends and loads: a change to any of those changes that page, and `LEGAL_UPDATED`, in the same commit. The publisher is a private individual who names only the host (LCEN). Its contact is `CONTACT_EMAIL`: none yet, the developer will add one (decided with them), and until then the page leaves out the sentences that would name it.
+- **Statistics are counts, never people** (decided with the developer): the audience measurement stays within the CNIL's exemption from consent. No identifier is ever made, read or sent, so no two events can be linked; no IP address, User-Agent, pseudo, room code or typed word is recorded (the Worker keeps a device's kind and the country Cloudflare gives). A page sends one report when it is hidden (`src/stats.ts`, `POST /api/visit`, text/plain so there is no preflight: one Worker request per report on a plan that counts them), never when the player opted out on the legal page (`lyrix:no-stats`) or the browser sends Do Not Track or Global Privacy Control. Play is counted by the Worker on the requests it already answers: a solo round's first guess, a win, a hint, a room created or joined — never one data point per guess (100,000 a day on the free plan). Fields are positional (`EVENT_FIELDS`): never reorder or rename one that has shipped, only add at the end; the stats script reads its columns from the same table (`columnOf`). Unbound, nothing is recorded and the game is unchanged.
 - **Search and link previews**: `index.html` carries the description, canonical URL, Open Graph/Twitter tags and schema.org JSON-LD (`WebSite` + `VideoGame`), all as absolute `https://lyrix-eyg.pages.dev/` URLs, in step with `public/robots.txt` and `public/sitemap.xml` (`tests/unit/ci/richSnippets.test.ts`). Never add a rating or review to the JSON-LD that no real player gave. If the production domain changes, change every one of them together.
 - **Theming**: light and dark palettes, both in `src/styles/tokens.css` (dark under `:root[data-theme="dark"]`). The manifest's `theme_color` and `background_color` are the light `--color-page-bg`, like index.html's `theme-color` (`tests/unit/ci/manifest.test.ts`). Components use tokens only, never a raw colour, and a text token is never a surface: dark fills use `--color-solid*` and stay dark in both themes (text on them is `--color-on-ink*`), bright fills take `--color-on-bright` text. The theme follows the system until the player picks one with the header's toggle (`src/theme.ts`, stored in localStorage); `index.html`'s inline script applies it before first paint and must stay in step with `initialTheme()` (`tests/unit/theme.test.ts`).
 - **Rooms** (#29): a room knows its code, its members, and its round. Its wire contract, codes (`ABCDEFGHJKMNPQRSTUVWXYZ23456789`, 6 characters) and pseudo sanitizing live in `src/game/room.ts`, shared by both sides. Two rules keep codes from being enumerated: every join attempt is rate-limited, and no other route may answer differently for a live code than for a dead one (an unknown token and an unknown room close the socket the same way, and get the same 404 from `/guess`; leave always answers 204). A pseudo is personal data: stored only in its room's Durable Object, deleted with the room, never logged.
@@ -147,6 +150,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   routes.ts              # the screens' addresses: / (today), /archives, /archives/<day>, /comment-jouer,
                           # /mentions-legales
   legal.ts               # the legal page's facts: contact (CONTACT_EMAIL), host, last update
+  stats.ts               # the audience report: counts screens, sends it on hiding the tab; the opt-out
   roundPrefetch.ts       # today's round, asked for by main.tsx before React renders (fresh loads only)
   pwa.ts                 # registers the service worker (production builds only); OFFLINE_MESSAGE
   reducedMotion.ts       # prefersReducedMotion(), for motion decided in script (confetti, the logo's exit)
@@ -229,6 +233,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                                                 # addressing hidden words by position
     delta.ts                    # applying a guess's delta to the view, line by line; revealed counts
     hints.ts                    # the three hints: ids, labels, thresholds, what may be revealed, the card's wording
+    visit.ts                    # the audience report's contract: screens, campaign fields, cleaning them
     room.ts                     # rooms' wire contract: codes, pseudos, close codes, room round, message
                                  # parsing; invite link paths
     archive.ts, frenchDates.ts  # the archives' days (status, what's left to find, a cover's title size);
@@ -252,17 +257,18 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                                     # with no lyrics), SongUnavailableError -> 503; dev stand-in song
   similarity.ts, sampleSimilarity.ts # reads the precomputed KV table per guess; dev/e2e placeholder
   songFacts.ts                        # each song's decade, artist type and style: the hints' text, server-only
+  events.ts, visit.ts                 # statistics: the events' fields (EVENT_FIELDS), recordEvent; POST /api/visit
   state.ts                            # AES-GCM-sealed round state (songId + foundKeys + day + guess count +
                                       # hints revealed) via Web Crypto
 /worker
   wrangler.toml              # Worker config: ROOMS Durable Object + migration, room rate limits,
-                              # SIMILARITY binding (commented)
+                              # SIMILARITY and SONGS namespaces, EVENTS dataset
   wrangler.debug.toml         # same Worker + a local-only SIMILARITY namespace (npm run dev:debug)
 /scripts                     # Node tooling via tsx, never bundled into the Worker
-  ensure-dev-vars.ts, check-catalog.ts, convert-embeddings.ts, build-similarity-table.ts,
+  ensure-dev-vars.ts, check-catalog.ts, stats.ts, convert-embeddings.ts, build-similarity-table.ts,
   dev-debug.ts, inspect-similarity-table.ts, build-favicon.ts, graph-update.ts
   /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, debugMode.ts, devVars.ts, catalogAudit.ts,
-       favicon.ts, socialImage.ts, invitePage.ts (+ its Vite plugin), apiPreconnect.ts (Vite plugin:
+       favicon.ts, socialImage.ts, stats.ts (the stats script's queries and tables), invitePage.ts (+ its Vite plugin), apiPreconnect.ts (Vite plugin:
        index.html preconnects to the API's origin in production), serviceWorker.ts (Vite plugin:
        /sw.js, bundled on its own as a classic script, with the build's file list), graphFixes.ts,
        graphSeed.ts

@@ -5,6 +5,7 @@ import { normalize } from "../../src/game/normalize";
 import { MAX_PROXIMITY_SCORE } from "../../src/game/similarity";
 import { wordPositions } from "../../src/game/slots";
 import type { GuessDelta, HintId, NearSlot, RevealedSlot, RoundHints, RoundView, Song } from "../../src/game/types";
+import type { EventsEnv } from "./events";
 import { proximityHint, type SimilarityEnv } from "./similarity";
 import { hintValues } from "./songFacts";
 import type { SongsEnv } from "./songs";
@@ -18,7 +19,7 @@ import { sealState, type HintProgress } from "./state";
  * the player gets to see.
  */
 
-export interface RoundEnv extends SimilarityEnv, SongsEnv {
+export interface RoundEnv extends SimilarityEnv, SongsEnv, EventsEnv {
   STATE_SECRET: string;
   /**
    * Dev/e2e only, never set in production: makes every still-hidden word's

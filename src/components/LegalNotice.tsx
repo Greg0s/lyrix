@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { dayStart } from "../game/daily";
 import { CONTACT_EMAIL, HOST, LEGAL_UPDATED } from "../legal";
+import { browserRefusesTracking, isStatsOptedOut, setStatsOptedOut } from "../stats";
 
 interface LegalNoticeProps {
   /** Leaves the page for today's song. */
@@ -16,6 +18,27 @@ function Contact({ email }: { email: string }) {
   return <a href={`mailto:${email}`}>{email}</a>;
 }
 
+/** "Ne pas compter mes visites": the player's opposition to the audience measurement (src/stats.ts), on this device. */
+function StatsOptOut() {
+  const [optedOut, setOptedOut] = useState(isStatsOptedOut);
+  const [refusedByBrowser] = useState(() => browserRefusesTracking());
+  const toggle = () => {
+    setStatsOptedOut(!optedOut);
+    setOptedOut(!optedOut);
+  };
+  return (
+    <>
+      <label className="lyrix-checkbox">
+        <input type="checkbox" checked={optedOut || refusedByBrowser} disabled={refusedByBrowser} onChange={toggle} />
+        Ne pas compter mes visites sur cet appareil
+      </label>
+      {refusedByBrowser ? (
+        <p>Ton navigateur demande déjà à ne pas être suivi&nbsp;: tes visites ne sont pas comptées.</p>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * The legal notice and the privacy policy, a page of their own
  * (/mentions-legales), linked from every screen's footer. Every word of it
@@ -28,7 +51,7 @@ export function LegalNotice({ onClose, contact = CONTACT_EMAIL }: LegalNoticePro
       <article className="lyrix-card lyrix-legal">
         <h1 className="lyrix-help-title">Mentions légales et confidentialité</h1>
         <p className="lyrix-help-lead">
-          Lyrix est un jeu gratuit, sans compte, sans publicité, sans cookie et sans mesure d'audience.
+          Lyrix est un jeu gratuit, sans compte, sans publicité et sans cookie.
         </p>
 
         <section aria-labelledby="lyrix-legal-publisher">
@@ -75,8 +98,8 @@ export function LegalNotice({ onClose, contact = CONTACT_EMAIL }: LegalNoticePro
           <dl className="lyrix-legal-list">
             <dt>Ta partie, sur ton appareil</dt>
             <dd>
-              Ta progression, tes archives, ton thème et le salon où tu joues sont enregistrés dans le stockage local de
-              ton navigateur, pour que tu retrouves ta partie. Ce stockage est indispensable au jeu que tu demandes, il
+              Ta progression, tes archives, ton thème, le salon où tu joues et, si tu l'as fait, ton refus d'être
+              compté sont enregistrés dans le stockage local de ton navigateur, pour que tu retrouves ta partie. Ce stockage est indispensable au jeu que tu demandes, il
               ne sert à rien d'autre et ne demande donc pas de consentement. Tu l'effaces en effaçant les données du site
               dans ton navigateur.
             </dd>
@@ -95,7 +118,8 @@ export function LegalNotice({ onClose, contact = CONTACT_EMAIL }: LegalNoticePro
             <dt>Ton adresse IP</dt>
             <dd>
               Comme tout site, Lyrix la reçoit à chaque requête. Elle sert à t'envoyer les pages, à protéger le site des
-              abus et à limiter le nombre de salons créés ou rejoints par minute&nbsp;; Lyrix ne la conserve pas. Les
+              abus et à limiter le nombre de salons créés ou rejoints par minute&nbsp;; Lyrix ne la conserve pas, pas même
+              pour la mesure d'audience. Les
               journaux techniques du serveur, qui servent à diagnostiquer une panne, sont effacés au bout de quelques
               jours.
             </dd>
@@ -111,6 +135,26 @@ export function LegalNotice({ onClose, contact = CONTACT_EMAIL }: LegalNoticePro
             {HOST.name}, est établi aux États-Unis et adhère au Data Privacy Framework UE–États-Unis, qui encadre ce
             transfert.
           </p>
+        </section>
+
+        <section aria-labelledby="lyrix-legal-audience">
+          <h2 id="lyrix-legal-audience">Mesure d'audience</h2>
+          <p>
+            Pour savoir combien de personnes jouent et d'où elles viennent, ton navigateur envoie au serveur du jeu, quand
+            tu quittes la page, un relevé de ta visite&nbsp;: les écrans vus, le nom du site qui t'a amené ici, la
+            campagne du lien suivi (ses paramètres utm), et si Lyrix est ouvert en application. Le serveur y ajoute ton
+            pays et ton type d'appareil (mobile, tablette ou ordinateur), déduits de la requête. Les parties sont
+            comptées aussi&nbsp;: leur début, leur fin, le nombre d'essais et d'indices, les salons créés et rejoints.
+          </p>
+          <p>
+            Aucun identifiant n'est créé ni lu&nbsp;: une visite ne peut être reliée à aucune autre, ni à toi, ni suivie
+            d'un site à l'autre. Ces statistiques anonymes ne servent qu'à l'éditeur, sont conservées par{" "}
+            {HOST.name} et effacées au bout de quelques mois. Ainsi limitée, cette mesure est dispensée de consentement
+            (article 82 de la loi Informatique et Libertés, lignes directrices de la CNIL), mais tu peux t'y opposer.
+            Rien n'est envoyé si ton navigateur demande à ne pas être suivi (Do Not Track, Global Privacy Control), ni
+            si tu coches cette case&nbsp;:
+          </p>
+          <StatsOptOut />
         </section>
 
         <section aria-labelledby="lyrix-legal-requests">

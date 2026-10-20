@@ -3,13 +3,16 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { registerServiceWorker } from "./pwa";
 import { prefetchTodayRound } from "./roundPrefetch";
+import { startVisit } from "./stats";
 import "./styles/fonts.css";
 import "./styles/tokens.css";
 import "./styles/global.css";
 import "./styles/game.css";
 
-// Before React renders anything: see roundPrefetch.ts.
+// Before React renders anything: see roundPrefetch.ts. The visit is read off
+// the address before GameScreen rewrites an invite link's (stats.ts).
 prefetchTodayRound();
+startVisit();
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {

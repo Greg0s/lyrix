@@ -2330,6 +2330,32 @@
   font-weight: 600;
 }
 
+/* The audience measurement's opt-out (LegalNotice.tsx): a sunken row, like the rules' example. */
+.lyrix-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--color-sunken);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lyrix-checkbox input {
+  flex-shrink: 0;
+  accent-color: var(--accent-solid);
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.lyrix-checkbox:has(input:disabled) {
+  cursor: default;
+  color: var(--color-ink-muted);
+}
+
 .lyrix-legal .lyrix-legal-updated {
   font-size: 0.85rem;
   color: var(--color-ink-muted);
