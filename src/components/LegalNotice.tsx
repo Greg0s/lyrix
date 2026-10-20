@@ -4,14 +4,16 @@ import { CONTACT_EMAIL, HOST, LEGAL_UPDATED } from "../legal";
 interface LegalNoticeProps {
   /** Leaves the page for today's song. */
   onClose: () => void;
+  /** Where to write, CONTACT_EMAIL unless a test says otherwise; with none, no sentence names one. */
+  contact?: string | null;
 }
 
 const updatedLabel = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeZone: "UTC" }).format(
   dayStart(LEGAL_UPDATED)
 );
 
-function Contact() {
-  return <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>;
+function Contact({ email }: { email: string }) {
+  return <a href={`mailto:${email}`}>{email}</a>;
 }
 
 /**
@@ -20,7 +22,7 @@ function Contact() {
  * must stay true of the code: a change to what the game keeps, sends or
  * loads changes this page in the same commit (src/legal.ts).
  */
-export function LegalNotice({ onClose }: LegalNoticeProps) {
+export function LegalNotice({ onClose, contact = CONTACT_EMAIL }: LegalNoticeProps) {
   return (
     <main className="lyrix-legal-page">
       <article className="lyrix-card lyrix-legal">
@@ -33,8 +35,13 @@ export function LegalNotice({ onClose }: LegalNoticeProps) {
           <h2 id="lyrix-legal-publisher">Éditeur</h2>
           <p>
             Lyrix est édité à titre non professionnel par un particulier, qui a communiqué son identité à l'hébergeur
-            ci-dessous (article 6 de la loi pour la confiance dans l'économie numérique). Pour le joindre&nbsp;:{" "}
-            <Contact />.
+            ci-dessous (article 6 de la loi pour la confiance dans l'économie numérique).
+            {contact ? (
+              <>
+                {" "}
+                Pour le joindre&nbsp;: <Contact email={contact} />.
+              </>
+            ) : null}
           </p>
         </section>
 
@@ -50,8 +57,14 @@ export function LegalNotice({ onClose }: LegalNoticeProps) {
           <h2 id="lyrix-legal-rights">Paroles et droits d'auteur</h2>
           <p>
             Les paroles appartiennent à leurs auteurs, compositeurs et éditeurs. Elles proviennent de{" "}
-            <a href="https://lrclib.net">LRCLIB</a>, une base de paroles collaborative, et ne servent qu'au jeu. Un ayant
-            droit qui souhaite le retrait d'une chanson peut écrire à <Contact />&nbsp;: elle sera retirée sans délai.
+            <a href="https://lrclib.net">LRCLIB</a>, une base de paroles collaborative, et ne servent qu'au jeu.
+            {contact ? (
+              <>
+                {" "}
+                Un ayant droit qui souhaite le retrait d'une chanson peut écrire à <Contact email={contact} />
+                &nbsp;: elle sera retirée sans délai.
+              </>
+            ) : null}
           </p>
           <p>Les polices Bricolage Grotesque et Figtree sont diffusées sous licence SIL Open Font License&nbsp;1.1.</p>
         </section>
@@ -104,7 +117,13 @@ export function LegalNotice({ onClose }: LegalNoticeProps) {
           <h2 id="lyrix-legal-requests">Tes droits</h2>
           <p>
             Tu peux demander l'accès à tes données, leur rectification ou leur effacement, en limiter le traitement ou
-            t'y opposer, en écrivant à <Contact />. Sans compte, Lyrix ne sait pas relier une donnée à toi&nbsp;: il te
+            t'y opposer
+            {contact ? (
+              <>
+                , en écrivant à <Contact email={contact} />
+              </>
+            ) : null}
+            . Sans compte, Lyrix ne sait pas relier une donnée à toi&nbsp;: il te
             sera peut-être demandé de quoi la retrouver, comme le code d'un salon. Tu peux aussi adresser une
             réclamation à la <a href="https://www.cnil.fr">CNIL</a>.
           </p>

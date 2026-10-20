@@ -36,9 +36,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # The legal page's contact must reach someone (src/legal.ts): a
-      # placeholder there fails the deploy, never the tests of a change.
-      - run: npm run legal:check
       - run: npm run build
         env:
           # Pages (lyrix-eyg.pages.dev) and the Worker (lyrix-api.lyrix.workers.dev) are

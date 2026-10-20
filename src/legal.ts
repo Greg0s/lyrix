@@ -10,11 +10,10 @@
 
 /**
  * Where players and rights holders write: a GDPR request, a song to take
- * down. A placeholder (`.invalid`, a domain that never exists) until the
- * developer picks the address; the deploy refuses to ship it
- * (`npm run legal:check`, scripts/check-legal.ts).
+ * down. None yet, the developer will add one (decided with them): until
+ * then, the page leaves out the sentences that would name it.
  */
-export const CONTACT_EMAIL = "contact@lyrix.invalid";
+export const CONTACT_EMAIL: string | null = null;
 
 /** The day the legal page last changed what it says, shown on it. */
 export const LEGAL_UPDATED = "2026-10-20";
@@ -26,12 +25,3 @@ export const HOST = {
   phone: "+1 (650) 319-8930",
   url: "https://www.cloudflare.com",
 } as const;
-
-/** Domains reserved for examples and tests (RFC 2606, RFC 6761): an address on one reaches no one. */
-const RESERVED_DOMAIN = /(^|\.)(invalid|test|example|localhost)$|^example\.(com|net|org)$/i;
-
-/** Whether `email` is an address a player could actually write to, not a placeholder. */
-export function isPublishableContact(email: string): boolean {
-  const match = /^[^\s@]+@([^\s@]+\.[a-z]{2,})$/i.exec(email);
-  return match !== null && !RESERVED_DOMAIN.test(match[1]);
-}

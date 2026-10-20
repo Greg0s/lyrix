@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CELEBRATION_MS } from "../../../src/components/confetti";
 import { utcDay } from "../../../src/game/daily";
 import type { GuessDelta, GuessResult, RoundView } from "../../../src/game/types";
-import { CONTACT_EMAIL } from "../../../src/legal";
 import { flushSavedRound, saveRound } from "../../../src/roundStorage";
 
 /**
@@ -735,7 +734,7 @@ describe("the legal notice", () => {
     expect(footerLink()).toBeNull();
   });
 
-  it("names the host and a contact, says what is kept, and goes back to the round", async () => {
+  it("names the host, says what is kept, and goes back to the round", async () => {
     window.history.replaceState(null, "", "/mentions-legales");
     await act(async () => {
       render(<GameScreen />);
@@ -744,9 +743,6 @@ describe("the legal notice", () => {
       expect(screen.getByRole("heading", { level: 2, name: heading })).toBeTruthy();
     }
     expect(screen.getAllByText(/Cloudflare, Inc\./).length).toBeGreaterThan(0);
-    const contacts = screen.getAllByRole("link", { name: CONTACT_EMAIL });
-    expect(contacts.length).toBeGreaterThan(0);
-    for (const contact of contacts) expect(contact.getAttribute("href")).toBe(`mailto:${CONTACT_EMAIL}`);
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Retour au jeu" }));
