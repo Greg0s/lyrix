@@ -715,6 +715,51 @@ describe("the rules' page", () => {
   });
 });
 
+describe("the legal notice", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  const footerLink = () => screen.queryByRole("link", { name: "Mentions légales et confidentialité" });
+
+  it("is linked from the round's foot, and opens at its own address", async () => {
+    await mountGame();
+    const link = footerLink();
+    expect(link?.getAttribute("href")).toBe("/mentions-legales");
+
+    await act(async () => {
+      fireEvent.click(link as HTMLElement);
+    });
+    expect(window.location.pathname).toBe("/mentions-legales");
+    expect(screen.getByRole("heading", { level: 1, name: "Mentions légales et confidentialité" })).toBeTruthy();
+    // No link to the page on the page itself.
+    expect(footerLink()).toBeNull();
+  });
+
+  it("names the host, says what is kept, and goes back to the round", async () => {
+    window.history.replaceState(null, "", "/mentions-legales");
+    await act(async () => {
+      render(<GameScreen />);
+    });
+    for (const heading of ["Éditeur", "Hébergement", "Paroles et droits d'auteur", "Tes données", "Tes droits"]) {
+      expect(screen.getByRole("heading", { level: 2, name: heading })).toBeTruthy();
+    }
+    expect(screen.getAllByText(/Cloudflare, Inc\./).length).toBeGreaterThan(0);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Retour au jeu" }));
+    });
+    expect(await screen.findByPlaceholderText("Propose un mot…")).toBeTruthy();
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("is linked from the other pages too", async () => {
+    await mountGame();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Comment jouer" }));
+    });
+    expect(footerLink()).toBeTruthy();
+  });
+});
+
 describe("the dialogs (v3 header)", () => {
   it("gives the input back on Escape", async () => {
     const input = await mountGame();

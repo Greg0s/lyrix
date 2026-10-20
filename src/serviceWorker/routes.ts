@@ -26,10 +26,6 @@ export const CACHE_PREFIX = "lyrix-";
  */
 export const NAVIGATION_TIMEOUT_MS = 3_000;
 
-/** Google Fonts: the stylesheet index.html links, and the font files it points to. */
-export const FONT_STYLESHEET_ORIGIN = "https://fonts.googleapis.com";
-export const FONT_FILE_ORIGIN = "https://fonts.gstatic.com";
-
 /**
  * Paths the worker never answers, page or not: the API, the only source of
  * truth on a round (and the day's song turns at UTC midnight), and invite
@@ -41,18 +37,16 @@ export const NETWORK_ONLY_PATHS: readonly string[] = ["/api", INVITE_PATH.replac
 /** A build's files and the version they make up, written into the worker by the build. */
 export interface Precache {
   version: string;
-  /** Absolute paths: the app shell, the bundled scripts and styles, the icons and the manifest. */
+  /** Absolute paths: the app shell, the bundled scripts, styles and fonts, the icons and the manifest. */
   urls: string[];
 }
 
 /**
  * - network: left alone, as if there were no worker;
  * - page: an address of the app, from the network, or the app shell when it can't answer;
- * - precached: a file of this build, from the cache;
- * - font-stylesheet: from the cache, refreshed in the background;
- * - font-file: from the cache once fetched (its address changes with its content).
+ * - precached: a file of this build, from the cache (the web fonts among them: src/styles/fonts.css).
  */
-export type Strategy = "network" | "page" | "precached" | "font-stylesheet" | "font-file";
+export type Strategy = "network" | "page" | "precached";
 
 /** What a strategy needs of a request: a fetch event's Request has all of it. */
 export interface RequestShape {
@@ -69,8 +63,6 @@ function under(path: string, prefix: string): boolean {
 export function strategyFor(request: RequestShape, origin: string, precached: ReadonlySet<string>): Strategy {
   if (request.method !== "GET") return "network";
   const url = new URL(request.url);
-  if (url.origin === FONT_STYLESHEET_ORIGIN) return "font-stylesheet";
-  if (url.origin === FONT_FILE_ORIGIN) return "font-file";
   // The API in production, among others: on its own origin, out of the worker's reach.
   if (url.origin !== origin) return "network";
   if (NETWORK_ONLY_PATHS.some((prefix) => under(url.pathname, prefix))) return "network";

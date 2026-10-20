@@ -65,3 +65,19 @@ id = "4987d2487c7e43b395ea4f6569d66af2"
 # in wrangler.debug.toml (tests/unit/ci/debugMode.test.ts).
 [observability]
 enabled = true
+
+# The game's statistics (worker/src/events.ts): visits (POST /api/visit) and
+# play (rounds started and won, hints, rooms), anonymous, read back with
+# `npm run stats`. Workers Analytics Engine, free on the Workers Free plan up
+# to 100,000 data points written a day; the dataset is created by the first
+# write. Repeated in wrangler.debug.toml (tests/unit/ci/debugMode.test.ts).
+[[analytics_engine_datasets]]
+binding = "EVENTS"
+dataset = "lyrix_events"
+
+# Scheduled runs (worker/src/prepare.ts): every 6 hours, the songs of today
+# and the week after it are resolved from LRCLIB and kept in SONGS ahead of
+# their day, so midnight never waits on LRCLIB. Repeated in
+# wrangler.debug.toml (tests/unit/ci/debugMode.test.ts).
+[triggers]
+crons = ["17 */6 * * *"]

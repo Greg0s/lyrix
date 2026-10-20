@@ -60,3 +60,12 @@ id = "local-debug-dev-only"
 # As in wrangler.toml.
 [observability]
 enabled = true
+
+# As in wrangler.toml.
+[[analytics_engine_datasets]]
+binding = "EVENTS"
+dataset = "lyrix_events"
+
+# As in wrangler.toml.
+[triggers]
+crons = ["17 */6 * * *"]

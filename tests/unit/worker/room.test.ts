@@ -22,6 +22,7 @@ import type { DisplayToken, RoundView } from "../../../src/game/types";
 import app from "../../../worker/src/index";
 import { pickDailyEntry } from "../../../worker/src/catalog";
 import { Room, type RoomContext, type RoomSocket } from "../../../worker/src/room";
+import type { EventsDataset } from "../../../worker/src/events";
 import type { RateLimiter, RoomNamespace } from "../../../worker/src/roomRoutes";
 import { resetSimilarityMemo } from "../../../worker/src/similarity";
 import { getSongById, resetSongMemo } from "../../../worker/src/songs";
@@ -185,6 +186,7 @@ let env: {
   ROOMS: FakeRooms;
   ROOM_CREATE_LIMIT: FakeLimiter;
   ROOM_JOIN_LIMIT: FakeLimiter;
+  EVENTS?: EventsDataset;
 };
 
 beforeEach(() => {
@@ -1274,5 +1276,46 @@ describe("a room's hints", () => {
 
     const view = (await (await alone(host)).json()) as RoundView;
     expect(view.hints).toEqual({ tried: 24, used: ["era"], values: { era: "Années 90" } });
+  });
+});
+
+describe("a room's statistics", () => {
+  type Point = Parameters<EventsDataset["writeDataPoint"]>[0];
+  let points: Point[];
+
+  beforeEach(() => {
+    points = [];
+    env.EVENTS = { writeDataPoint: (point) => points.push(point) };
+  });
+
+  const of = (event: string) => points.filter((point) => point.blobs?.[0] === event);
+
+  it("count a room created and joined, with how many members it then has, and never a pseudo", async () => {
+    const host = await createRoom("Camille");
+    await joinRoom(host.room.code, "Léo");
+    await joinRoom(host.room.code, "Inès");
+
+    expect(of("room").map((point) => [point.blobs?.[1], point.doubles?.[0]])).toEqual([
+      ["create", 1],
+      ["join", 2],
+      ["join", 3],
+    ]);
+    expect(JSON.stringify(points)).not.toMatch(/Camille|Léo|Inès|ABCDEFGHJKMNPQRSTUVWXYZ/);
+    expect(JSON.stringify(points)).not.toContain(host.room.code);
+  });
+
+  it("count the room's win once, with every guess the group made", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await guessIn(host, "xylophone");
+    await winTogether(host, guest);
+    await guessIn(guest, "encore");
+
+    const wins = of("win");
+    expect(wins).toHaveLength(1);
+    expect(wins[0].blobs?.slice(1, 4)).toEqual(["room", "today", utcDay()]);
+    expect(wins[0].doubles).toEqual([5, 0]);
+    // A solo round's first guess is counted as a start; a room's are not.
+    expect(of("start")).toEqual([]);
   });
 });

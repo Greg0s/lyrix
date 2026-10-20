@@ -1,0 +1,28 @@
+name: Canary
+
+# Every day just after UTC midnight, when the song changes: is the production
+# site up, and does the Worker hand out today's round (scripts/lib/canary.ts)?
+# A failure fails this workflow, and GitHub emails the repository's owner.
+# It only reads: it never plays a round, which would be counted as a player's.
+# GitHub turns scheduled workflows off in a repository with no commit for 60
+# days; "Run workflow" turns this one back on.
+on:
+  schedule:
+    - cron: "17 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  production:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run canary
+        env:
+          # The same addresses the deploy job ships to (ci.yml).
+          CANARY_SITE_URL: https://lyrix-eyg.pages.dev
+          CANARY_API_URL: https://lyrix-api.lyrix.workers.dev

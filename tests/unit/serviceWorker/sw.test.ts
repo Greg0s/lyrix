@@ -10,9 +10,6 @@ import { NAVIGATION_TIMEOUT_MS, type Precache } from "../../../src/serviceWorker
 const ORIGIN = "https://lyrix.test";
 const PRECACHE: Precache = { version: "v2", urls: ["/", "/assets/index-abc.js", "/icon-192.png"] };
 const SHELL_CACHE = "lyrix-shell-v2";
-const FONT_CACHE = "lyrix-fonts-v2";
-const FONT_CSS = "https://fonts.googleapis.com/css2?family=Figtree&display=swap";
-const FONT_FILE = "https://fonts.gstatic.com/s/figtree/v5/abc.woff2";
 
 const absolute = (input: RequestInfo | URL) => new URL(input instanceof Request ? input.url : String(input), ORIGIN).toString();
 
@@ -147,11 +144,12 @@ describe("the service worker", () => {
   });
 
   it("deletes every other version's caches once in charge, and takes the open pages", async () => {
-    for (const name of ["lyrix-shell-v1", "lyrix-fonts-v1", SHELL_CACHE, FONT_CACHE, "another-app"]) await storage.open(name);
+    // lyrix-fonts-*: where versions that fetched Google Fonts kept them.
+    for (const name of ["lyrix-shell-v1", "lyrix-fonts-v1", "lyrix-fonts-v2", SHELL_CACHE, "another-app"]) await storage.open(name);
 
     await lifecycle("activate");
 
-    expect((await storage.keys()).sort()).toEqual(["another-app", FONT_CACHE, SHELL_CACHE].sort());
+    expect((await storage.keys()).sort()).toEqual(["another-app", SHELL_CACHE].sort());
     expect(scope.clients.claim).toHaveBeenCalledOnce();
   });
 
@@ -221,28 +219,5 @@ describe("the service worker", () => {
     expect(await answerText(request("/assets/index-abc.js"))).toBe("console.log('app')");
     expect(await answerText(request("/icon-192.png"))).toBe("png");
     expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("keeps the font stylesheet, and refreshes it behind the copy it serves", async () => {
-    await installed();
-    serve(FONT_CSS, "first");
-    expect(await answerText(request(FONT_CSS))).toBe("first");
-
-    serve(FONT_CSS, "second");
-    const { answer, settled } = fetchEvent(request(FONT_CSS));
-    expect(await (await answer)?.text()).toBe("first");
-    await settled();
-
-    goOffline();
-    expect(await answerText(request(FONT_CSS))).toBe("second");
-  });
-
-  it("keeps a font file once fetched", async () => {
-    await installed();
-    serve(FONT_FILE, "woff2");
-    expect(await answerText(request(FONT_FILE))).toBe("woff2");
-
-    goOffline();
-    expect(await answerText(request(FONT_FILE))).toBe("woff2");
   });
 });

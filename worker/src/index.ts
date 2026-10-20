@@ -3,7 +3,10 @@ import { cors } from "hono/cors";
 import { dayStart, isDayKey, isPlayableDay, utcDay } from "../../src/game/daily";
 import { canReveal, isHintId } from "../../src/game/hints";
 import type { GuessResult, HintAnswer, HintId } from "../../src/game/types";
+import { recordEvent, roundKind, type EventsEnv } from "./events";
+import { clientErrorRoutes } from "./clientError";
 import { freshRoundBody } from "./freshRound";
+import { prepareSongs } from "./prepare";
 import { isVictory } from "../../src/game/mask";
 import {
   buildGuessDelta,
@@ -16,8 +19,9 @@ import {
   type RoundEnv,
 } from "./round";
 import { roomRoutes, type RoomsEnv } from "./roomRoutes";
-import { getSongById, getSongOfDay, SongUnavailableError } from "./songs";
+import { getSongById, getSongOfDay, SongUnavailableError, type SongsEnv } from "./songs";
 import { hintProgressOf, openState, type HintProgress } from "./state";
+import { visitRoutes } from "./visit";
 
 type Env = RoundEnv & RoomsEnv;
 
@@ -193,12 +197,22 @@ app.post("/api/guess", async (c) => {
   // Every guess answered counts towards the next hint, found or not.
   const before = hintProgressOf(payload);
   const progress: HintProgress = { tried: before.tried + 1, used: before.used };
+  const won = isVictory(song, new Set(foundKeys));
+
+  // Statistics (events.ts): a round's first guess, and the one that wins it.
+  // A state sent again counts again, the Worker keeping none; rare enough
+  // not to skew a count.
+  const kind = roundKind(day, utcDay());
+  if (before.tried === 0) recordEvent(c.env, "start", { mode: "solo", kind, day });
+  if (won && !isVictory(song, new Set(payload.foundKeys))) {
+    recordEvent(c.env, "win", { mode: "solo", kind, day, song: song.id, tries: progress.tried, hints: progress.used.length });
+  }
 
   // A client that asked for it gets what the guess changed rather than the
   // whole round, short of a win: a won round's view carries the artist and
   // every hidden word's revealHint. One that didn't ask (a tab still running
   // an older build) gets the full view, as it always has, for ever.
-  if (delta === true && !isVictory(song, new Set(foundKeys))) {
+  if (delta === true && !won) {
     return c.json(await buildGuessDelta(song, foundKeys, outcome, c.env, day, progress));
   }
 
@@ -260,6 +274,7 @@ app.post("/api/round/hint", async (c) => {
   }
   const next: HintProgress = { tried: progress.tried, used: [...progress.used, hint] };
   const day = payload.day ?? utcDay();
+  recordEvent(c.env, "hint", { mode: "solo", kind: roundKind(day, utcDay()), hint, tries: progress.tried });
   const answer: HintAnswer = {
     state: await sealRound(song, payload.foundKeys, c.env, day, next),
     hints: roundHints(song, next, false) ?? current,
@@ -267,9 +282,23 @@ app.post("/api/round/hint", async (c) => {
   return c.json(answer);
 });
 
+// A page's audience report (src/stats.ts), counted (events.ts).
+app.route("/api/visit", visitRoutes);
+
+// An error a player's browser met (src/errorReport.ts), logged and counted.
+app.route("/api/client-error", clientErrorRoutes);
+
 // Rooms ("salons", issue #29), and the round each plays together (#30).
 app.route("/api/rooms", roomRoutes);
 
-export default app;
+export default {
+  fetch: app.fetch,
+  /** The app's own in-process requests, for the tests (Hono's app.request). */
+  request: app.request,
+  /** The scheduled runs (worker/wrangler.toml's [triggers]): the days to come get their songs ahead of time. */
+  scheduled(_controller: ScheduledController, env: SongsEnv & EventsEnv, ctx: ExecutionContext): void {
+    ctx.waitUntil(prepareSongs(env));
+  },
+};
 // The room's Durable Object class, which the runtime looks up by name (see worker/wrangler.toml).
 export { Room } from "./room";

@@ -9,7 +9,7 @@ import {
 
 /**
  * The service worker (#79): keeps this build's app shell (index.html, its
- * scripts and styles, the icons, the manifest) and the web fonts, so the
+ * scripts, styles and fonts, the icons, the manifest), so the
  * game opens straight away and still opens with no network, where the app
  * says it is offline.
  *
@@ -30,7 +30,6 @@ declare const __LYRIX_PRECACHE__: Precache;
 
 const { version, urls } = __LYRIX_PRECACHE__;
 const SHELL_CACHE = `${CACHE_PREFIX}shell-${version}`;
-const FONT_CACHE = `${CACHE_PREFIX}fonts-${version}`;
 const precached = new Set(urls);
 
 /** A navigation can't be answered with a redirected response; a copy of its body can. */
@@ -60,7 +59,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      const current = new Set([SHELL_CACHE, FONT_CACHE]);
+      const current = new Set([SHELL_CACHE]);
       for (const name of await caches.keys()) {
         if (name.startsWith(CACHE_PREFIX) && !current.has(name)) await caches.delete(name);
       }
@@ -92,25 +91,13 @@ async function page(request: Request): Promise<Response> {
 /** Fetches `request` and keeps the response in `cache`. */
 async function fetchAndKeep(cache: Cache, request: Request): Promise<Response> {
   const response = await fetch(request);
-  // The font stylesheet is fetched without CORS, so its response is opaque
-  // and can't tell an error from a success: kept all the same, and replaced
-  // by the next fetch of it.
-  if (response.ok || response.type === "opaque") await cache.put(request, response.clone());
+  if (response.ok) await cache.put(request, response.clone());
   return response;
 }
 
 async function fromCache(cacheName: string, request: Request, options?: CacheQueryOptions): Promise<Response> {
   const cache = await caches.open(cacheName);
   return (await cache.match(request, options)) ?? fetchAndKeep(cache, request);
-}
-
-async function refreshedInBackground(event: FetchEvent, cacheName: string): Promise<Response> {
-  const cache = await caches.open(cacheName);
-  const cached = await cache.match(event.request);
-  const fresh = fetchAndKeep(cache, event.request);
-  if (!cached) return fresh;
-  event.waitUntil(fresh.catch(() => undefined));
-  return cached;
 }
 
 function respond(strategy: Exclude<Strategy, "network">, event: FetchEvent): Promise<Response> {
@@ -120,10 +107,6 @@ function respond(strategy: Exclude<Strategy, "network">, event: FetchEvent): Pro
     case "precached":
       // Kept under its bare address, by a request with no headers a response could vary on.
       return fromCache(SHELL_CACHE, event.request, { ignoreVary: true });
-    case "font-stylesheet":
-      return refreshedInBackground(event, FONT_CACHE);
-    case "font-file":
-      return fromCache(FONT_CACHE, event.request);
   }
 }
 

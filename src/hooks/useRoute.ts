@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isArchivesPath, parseRoute, routePath, sameRoute, type Route } from "../routes";
+import { countView } from "../stats";
 
 interface Shown {
   route: Route;
@@ -42,6 +43,7 @@ export function useRoute(): { route: Route; gameDay: string | null; navigate: (t
     const follow = () => {
       current.current = parseRoute(window.location.pathname);
       const route = current.current;
+      countView(route);
       setShown((previous) => show(route, previous.gameDay));
     };
     window.addEventListener("popstate", follow);
@@ -51,6 +53,7 @@ export function useRoute(): { route: Route; gameDay: string | null; navigate: (t
   const navigate = useCallback((to: Route) => {
     if (sameRoute(current.current, to)) return;
     current.current = to;
+    countView(to);
     window.history.pushState(null, "", routePath(to));
     // A new screen starts at its top, as a page would.
     document.documentElement.scrollTop = 0;

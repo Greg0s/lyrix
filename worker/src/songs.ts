@@ -241,6 +241,32 @@ async function pinnedSongId(day: string, env: SongsEnv): Promise<string | null> 
   }
 }
 
+/** What a day's rotation gives: its song, and the entries passed over for want of usable lyrics on LRCLIB. */
+export interface DayPick {
+  song: Song;
+  passedOver: CatalogEntry[];
+}
+
+/**
+ * The song a day would play if it were played now, without pinning it: the
+ * day's pick or, when LRCLIB has no usable lyrics for it, the next entry of
+ * the rotation that has. Null when no entry within reach has any. Throws
+ * SongUnavailableError when LRCLIB can't be asked.
+ */
+export async function pickOfDay(date: Date, env: SongsEnv = {}): Promise<DayPick | null> {
+  const attempts = catalogRotation(date).slice(0, MAX_FALLBACK_ATTEMPTS + 1);
+  const passedOver: CatalogEntry[] = [];
+  // Sequential on purpose - LRCLIB asks clients to send requests one at a
+  // time rather than in parallel (see https://lrclib.net/docs), and we want
+  // to stop at the first success rather than racing speculative lookups.
+  for (const entry of attempts) {
+    const song = await getSongById(entry.id, env);
+    if (song) return { song, passedOver };
+    passedOver.push(entry);
+  }
+  return null;
+}
+
 /**
  * The song of the UTC day `date` falls on: the day's pick or, when LRCLIB has
  * no usable lyrics for it, the next entry of the day's rotation that has.
@@ -257,26 +283,26 @@ export async function getSongOfDay(date: Date = new Date(), env: SongsEnv = {}):
     if (song) return song;
   }
 
-  const attempts = catalogRotation(date).slice(0, MAX_FALLBACK_ATTEMPTS + 1);
-  // Sequential on purpose - LRCLIB asks clients to send requests one at a
-  // time rather than in parallel (see https://lrclib.net/docs), and we want
-  // to stop at the first success rather than racing speculative lookups.
-  for (const entry of attempts) {
-    let song: Song | null;
-    try {
-      song = await getSongById(entry.id, env);
-    } catch (error) {
-      if (error instanceof SongUnavailableError && env.DEV_STANDIN_SONG === "1") return STANDIN_SONG;
-      throw error;
+  let pick: DayPick | null;
+  try {
+    pick = await pickOfDay(date, env);
+  } catch (error) {
+    if (error instanceof SongUnavailableError && env.DEV_STANDIN_SONG === "1") return STANDIN_SONG;
+    throw error;
+  }
+  if (pick) {
+    const { song } = pick;
+    if (pinned !== song.id) {
+      daySongIds.set(day, song.id);
+      await store(env, dayKey(day), song.id);
     }
-    if (song) {
-      if (pinned !== song.id) {
-        daySongIds.set(day, song.id);
-        await store(env, dayKey(day), song.id);
-      }
-      return song;
-    }
+    return song;
   }
   if (env.DEV_STANDIN_SONG === "1") return STANDIN_SONG;
   throw new SongUnavailableError(`no song of ${day}'s rotation has usable lyrics on LRCLIB`);
+}
+
+/** Whether a day already has its song (its pin), without resolving anything. */
+export async function isDayPinned(day: string, env: SongsEnv = {}): Promise<boolean> {
+  return (await pinnedSongId(day, env)) !== null;
 }

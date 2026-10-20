@@ -123,18 +123,14 @@
       })();
     </script>
     <!--
-      Linked here rather than @imported from global.css, so the font request
-      starts as soon as the HTML is parsed instead of waiting for the app's
-      stylesheet to arrive. preconnect opens the two connections Google Fonts
-      needs (the stylesheet host, then the font files' own host) while the
-      stylesheet is still in flight.
+      The fonts are the site's own (src/styles/fonts.css), never Google
+      Fonts': a font from Google's servers hands each visitor's IP address
+      to Google (tests/unit/ci/fonts.test.ts). Their latin subsets, which
+      every page uses, are asked for as soon as the HTML is parsed instead of
+      once the stylesheet has arrived and the page laid out.
     -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap"
-    />
+    <link rel="preload" href="/src/assets/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/src/assets/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin />
   </head>
   <body>
     <div id="root"></div>

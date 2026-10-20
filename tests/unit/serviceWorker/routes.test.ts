@@ -64,11 +64,11 @@ describe("the service worker's routes", () => {
     }
   });
 
-  it("keeps the web fonts, and no other origin's files", () => {
+  it("keeps no other origin's files: the web fonts are this build's own (src/styles/fonts.css)", () => {
     expect(strategy("https://fonts.googleapis.com/css2?family=Figtree:wght@400&display=swap", { mode: "no-cors" })).toBe(
-      "font-stylesheet"
+      "network"
     );
-    expect(strategy("https://fonts.gstatic.com/s/figtree/v5/abc.woff2")).toBe("font-file");
+    expect(strategy("https://fonts.gstatic.com/s/figtree/v5/abc.woff2")).toBe("network");
     expect(strategy("https://lrclib.net/api/search?q=x")).toBe("network");
     expect(strategy("https://example.com/assets/index-abc123.js")).toBe("network");
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ARCHIVES, HELP, isPageRoute, parseRoute, routePath, TODAY } from "../../src/routes";
+import { ARCHIVES, HELP, isPageRoute, LEGAL, parseRoute, routePath, TODAY } from "../../src/routes";
 
 const NOW = new Date("2026-10-20T10:00:00Z");
 
@@ -15,6 +15,12 @@ describe("parseRoute", () => {
     expect(parseRoute("/comment-jouer", NOW)).toEqual(HELP);
     expect(parseRoute("/comment-jouer/", NOW)).toEqual(HELP);
     expect(parseRoute("/comment-jouerxyz", NOW)).toEqual(TODAY);
+  });
+
+  it("reads the legal notice's page", () => {
+    expect(parseRoute("/mentions-legales", NOW)).toEqual(LEGAL);
+    expect(parseRoute("/mentions-legales/", NOW)).toEqual(LEGAL);
+    expect(parseRoute("/mentions-legalesxyz", NOW)).toEqual(TODAY);
   });
 
   it("takes today's own day for today's song", () => {
@@ -35,7 +41,7 @@ describe("parseRoute", () => {
 
 describe("routePath", () => {
   it("round-trips with parseRoute", () => {
-    for (const route of [TODAY, ARCHIVES, HELP, { name: "day" as const, day: "2026-10-15" }]) {
+    for (const route of [TODAY, ARCHIVES, HELP, LEGAL, { name: "day" as const, day: "2026-10-15" }]) {
       expect(parseRoute(routePath(route), NOW)).toEqual(route);
     }
   });
@@ -45,6 +51,7 @@ describe("isPageRoute", () => {
   it("tells the pages shown over a round from the rounds themselves", () => {
     expect(isPageRoute(ARCHIVES)).toBe(true);
     expect(isPageRoute(HELP)).toBe(true);
+    expect(isPageRoute(LEGAL)).toBe(true);
     expect(isPageRoute(TODAY)).toBe(false);
     expect(isPageRoute({ name: "day", day: "2026-10-15" })).toBe(false);
   });

@@ -36,6 +36,7 @@ import {
   roundHints,
   type RoundEnv,
 } from "./round";
+import { recordEvent, roundKind } from "./events";
 import { getSongById, getSongOfDay, SongUnavailableError } from "./songs";
 import { hintProgressOf, openState, type HintProgress } from "./state";
 
@@ -264,6 +265,7 @@ export class Room {
     };
     await this.#save(room);
     await this.ctx.storage.setAlarm(room.expiresAt);
+    recordEvent(this.env, "room", { action: "create", members: room.members.length });
     return json(this.#entry(room, host), 201);
   }
 
@@ -275,6 +277,7 @@ export class Room {
     room.nextNumber += 1;
     room.members.push(member);
     await this.#save(room);
+    recordEvent(this.env, "room", { action: "join", members: room.members.length });
     // Everyone else hears about the new member once they connect (admit), so
     // the notice and the member showing up in their list arrive together.
     return json(this.#entry(room, member), 201);
@@ -418,6 +421,10 @@ export class Room {
     if (!wonBefore && isVictory(song, foundKeys(round))) round.winningKey = guess.key;
     const guesses = round.guesses.length;
     const hints = round.hints?.length ?? 0;
+    if (round.winningKey === guess.key) {
+      const day = roundDay(round);
+      recordEvent(this.env, "win", { mode: "room", kind: roundKind(day, utcDay()), day, song: song.id, tries: guesses, hints });
+    }
     const view = await buildRoundView(song, foundKeys(round), this.env, roundDay(round), hintProgress(round));
     this.#views.set(round, { guesses, hints, view });
     this.#summarizeFrom(round, song, view);
@@ -499,6 +506,7 @@ export class Room {
     // picking at once can't both use up the same threshold.
     round.hints = [...(round.hints ?? []), { id: hint, by: publicMember(member) }];
     const guesses = round.guesses.length;
+    recordEvent(this.env, "hint", { mode: "room", kind: roundKind(roundDay(round), utcDay()), hint, tries: guesses });
     const hints = round.hints.length;
     const view = await buildRoundView(song, foundKeys(round), this.env, roundDay(round), hintProgress(round));
     this.#views.set(round, { guesses, hints, view });
