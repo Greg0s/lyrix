@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { registerServiceWorker } from "./pwa";
 import { prefetchTodayRound } from "./roundPrefetch";
+import "./styles/fonts.css";
 import "./styles/tokens.css";
 import "./styles/global.css";
 import "./styles/game.css";

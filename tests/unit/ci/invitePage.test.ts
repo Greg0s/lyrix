@@ -37,7 +37,7 @@ describe("the invite page", () => {
 
   it("is otherwise the game itself: same title, script, theme boot and fonts", () => {
     expect(html.match(/<title>.*<\/title>/)?.[0]).toBe(indexHtml.match(/<title>.*<\/title>/)?.[0]);
-    for (const piece of ['<script type="module" src="/src/main.tsx">', 'id="lyrix-theme-boot"', "fonts.googleapis.com/css2"]) {
+    for (const piece of ['<script type="module" src="/src/main.tsx">', 'id="lyrix-theme-boot"', 'rel="preload" href="/src/assets/fonts/']) {
       expect(html).toContain(piece);
     }
   });
