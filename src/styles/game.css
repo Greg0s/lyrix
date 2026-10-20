@@ -519,19 +519,16 @@
   }
 
   /*
-   * Sticky, and scrolling on its own when taller than the screen: the hints
-   * card sits at its bottom, under "Tes mots", and must stay within reach
-   * on a laptop, a room's card above it all included.
+   * Sticky under the header while it fits on the screen. Taller (a laptop,
+   * a long "Tes mots", a room's card above it all), it scrolls with the page
+   * until its bottom is in view, then sticks there: never a scrollbar of its
+   * own, never a card cut off. Its height comes from trackStickyHeight
+   * (src/hooks/stickyFit.ts).
    */
   .lyrix-aside {
     order: 0;
     position: sticky;
-    top: 96px;
-    max-height: calc(100dvh - 96px - 24px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-border-strong) transparent;
+    top: min(96px, calc(100dvh - var(--sticky-height, 0px) - 24px));
   }
 
   .lyrix-main.has-day-bar {

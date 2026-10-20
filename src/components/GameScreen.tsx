@@ -3,6 +3,7 @@ import { daysToFind, groupEntry, nextDayToFind, type ArchiveEntry } from "../gam
 import { revealedPercent } from "../game/progress";
 import { parseInvitePath } from "../game/room";
 import { closestGuessBySlot, createNearPlacer } from "../game/slots";
+import { trackStickyHeight } from "../hooks/stickyFit";
 import { SONG_UNAVAILABLE_MESSAGE, useGame, type Feedback } from "../hooks/useGame";
 import { useOnline } from "../hooks/useOnline";
 import { useRoom } from "../hooks/useRoom";
@@ -349,7 +350,7 @@ export function GameScreen() {
         />
       </div>
 
-      <aside className="lyrix-aside">
+      <aside className="lyrix-aside" ref={trackStickyHeight}>
         {/* The room's card goes with the room's day; another day is played alone meanwhile. */}
         {room.view && (roomDay === null ? day === null : (day ?? utcDay()) === roomDay) ? (
           <RoomCard room={room.view} onLeave={room.leave} />

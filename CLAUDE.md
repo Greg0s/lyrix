@@ -209,6 +209,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     useRovingBlanks.ts       # one tab stop per title/lyrics, arrow keys move between bars (#33)
     useRoute.ts               # the screen shown, in step with the address bar (History API, no router)
     useOnline.ts              # whether the device is offline (only navigator.onLine === false is)
+    stickyFit.ts              # the side column's height as a CSS variable, so it sticks by its bottom when taller
+                              # than the screen (a ResizeObserver, no React state)
     useRoom.ts                # room state, its WebSocket (reconnect with backoff, keep-alive); room
                               # events reach the dock's feedback line through useGame's announce(),
                               # round messages go to useGame's receiveRoomRound()
