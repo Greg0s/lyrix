@@ -80,6 +80,7 @@ Never test manually when it can be scripted instead — this applies to the deve
 - Before marking a task done, run the relevant test script(s) yourself and report the result. If a check isn't yet scripted, write that script first.
 - Every bug fix adds a regression test that would have caught it, in the same commit as the fix.
 - CI (`.github/workflows/ci.yml`) runs the full suite on every push/PR, and deploys on merge to `main`.
+- **Production is checked every day** (`.github/workflows/canary.yml`, 00:17 UTC, `npm run canary`): the site answers with the game, and the Worker hands out today's round. A failure fails the workflow and GitHub emails the owner. It only reads, never guesses: a guess would be counted as a player's round. Its addresses are the deployed ones (`tests/unit/ci/canary-workflow.test.ts`).
 
 ## Performance
 
@@ -269,10 +270,10 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                               # SIMILARITY and SONGS namespaces, EVENTS dataset, scheduled runs
   wrangler.debug.toml         # same Worker + a local-only SIMILARITY namespace (npm run dev:debug)
 /scripts                     # Node tooling via tsx, never bundled into the Worker
-  ensure-dev-vars.ts, check-catalog.ts, stats.ts, convert-embeddings.ts, build-similarity-table.ts,
+  ensure-dev-vars.ts, check-catalog.ts, stats.ts, canary.ts, convert-embeddings.ts, build-similarity-table.ts,
   dev-debug.ts, inspect-similarity-table.ts, build-favicon.ts, graph-update.ts
   /lib/embeddings.ts, vocabulary.ts, similarityTable.ts, debugMode.ts, devVars.ts, catalogAudit.ts,
-       favicon.ts, socialImage.ts, stats.ts (the stats script's queries and tables), invitePage.ts (+ its Vite plugin), apiPreconnect.ts (Vite plugin:
+       favicon.ts, socialImage.ts, stats.ts (the stats script's queries and tables), canary.ts (the daily production checks), invitePage.ts (+ its Vite plugin), apiPreconnect.ts (Vite plugin:
        index.html preconnects to the API's origin in production), serviceWorker.ts (Vite plugin:
        /sw.js, bundled on its own as a classic script, with the build's file list), graphFixes.ts,
        graphSeed.ts
