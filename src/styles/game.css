@@ -484,6 +484,12 @@
 
 /* ---------- Page layout ---------- */
 
+/*
+ * One gap between every card of the page, whichever way they are laid out:
+ * between the song card and the side column, between the side column's
+ * cards, and between the song card, the day bar and the dock. Change them
+ * together (tests/unit/ci/layoutGap.test.ts).
+ */
 .lyrix-main {
   width: 100%;
   max-width: 680px;
@@ -491,13 +497,13 @@
   padding: 20px 16px 32px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .lyrix-game-col {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   min-width: 0;
 }
 
@@ -514,8 +520,13 @@
     padding: 40px 32px 48px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 300px;
-    gap: 32px;
+    gap: 24px;
     align-items: start;
+  }
+
+  .lyrix-game-col,
+  .lyrix-aside {
+    gap: 24px;
   }
 
   /*
@@ -536,7 +547,6 @@
 
   .lyrix-main.has-day-bar {
     grid-template-rows: auto 1fr;
-    row-gap: 20px;
   }
 
   .lyrix-main.has-day-bar .lyrix-day-bar {
