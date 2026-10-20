@@ -11,7 +11,7 @@ import { OFFLINE_MESSAGE } from "../pwa";
 import { isAnswerRevealed } from "../roomStorage";
 import { loadArchive } from "../roundStorage";
 import { utcDay } from "../game/daily";
-import { ARCHIVES, HELP, isPageRoute, TODAY } from "../routes";
+import { ARCHIVES, HELP, isPageRoute, LEGAL, TODAY } from "../routes";
 import { AppHeader } from "./AppHeader";
 import { ArchivesScreen } from "./ArchivesScreen";
 import { DayBar } from "./DayBar";
@@ -21,11 +21,13 @@ import { GuessForm, type GuessFeedback } from "./GuessForm";
 import { HintSheet } from "./HintSheet";
 import { HintsCard } from "./HintsCard";
 import { HowToPlay } from "./HowToPlay";
+import { LegalNotice } from "./LegalNotice";
 import { LyricsBody } from "./LyricsBody";
 import { MultiplayerModal } from "./MultiplayerModal";
 import { MultiplayerPromo } from "./MultiplayerPromo";
 import { ProgressCard } from "./ProgressCard";
 import { RoomCard } from "./RoomCard";
+import { RouteLink } from "./RouteLink";
 import { TitleGuess } from "./TitleGuess";
 import { TriedWords } from "./TriedWords";
 
@@ -220,16 +222,27 @@ export function GameScreen() {
       ) : null}
     </>
   );
+  // Every screen links the legal notice but the notice itself.
+  const footer =
+    route.name === "legal" ? null : (
+      <footer className="lyrix-footer">
+        <RouteLink to={LEGAL} onNavigate={navigate}>
+          Mentions légales et confidentialité
+        </RouteLink>
+      </footer>
+    );
   const shell = (content: ReactNode) => (
     <div className="lyrix-app">
       {header}
       {content}
+      {footer}
       {dialogs}
     </div>
   );
 
   if (route.name === "archives") return shell(<ArchivesScreen onNavigate={navigate} group={groupDays} />);
   if (route.name === "help") return shell(<HowToPlay onClose={goToday} />);
+  if (route.name === "legal") return shell(<LegalNotice onClose={goToday} />);
 
   if (game.error && !round) {
     return shell(

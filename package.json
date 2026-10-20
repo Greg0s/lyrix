@@ -19,6 +19,7 @@
     "graph:update": "tsx scripts/graph-update.ts",
     "deploy": "vite build && wrangler pages deploy dist",
     "deploy:worker": "wrangler deploy --config worker/wrangler.toml",
+    "legal:check": "tsx scripts/check-legal.ts",
     "deploy:check": "wrangler deploy --dry-run --config worker/wrangler.toml",
     "similarity:convert": "tsx scripts/convert-embeddings.ts",
     "similarity:build": "tsx scripts/build-similarity-table.ts",

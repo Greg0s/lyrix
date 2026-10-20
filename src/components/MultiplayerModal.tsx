@@ -149,19 +149,25 @@ function RoomForms({ invite, currentRoom, onCreate, onJoin, onJoined }: RoomForm
       </div>
 
       <form className="lyrix-mp-form" onSubmit={(event) => void submit(event)} noValidate>
-        <label className="lyrix-field">
-          <span>Ton pseudo</span>
-          <input
-            type="text"
-            className="lyrix-field-input"
-            value={pseudo}
-            onChange={(event) => setPseudo(event.target.value)}
-            placeholder="Ex. Camille"
-            maxLength={PSEUDO_MAX_LENGTH}
-            autoComplete="nickname"
-            spellCheck={false}
-          />
-        </label>
+        <div className="lyrix-field">
+          <label className="lyrix-field">
+            <span>Ton pseudo</span>
+            <input
+              type="text"
+              className="lyrix-field-input"
+              value={pseudo}
+              onChange={(event) => setPseudo(event.target.value)}
+              placeholder="Ex. Camille"
+              maxLength={PSEUDO_MAX_LENGTH}
+              autoComplete="nickname"
+              spellCheck={false}
+              aria-describedby="lyrix-pseudo-hint"
+            />
+          </label>
+          <small id="lyrix-pseudo-hint" className="lyrix-field-hint">
+            Visible des seuls membres du salon, effacé avec lui au changement de chanson.
+          </small>
+        </div>
 
         {/* Both panes stay laid out, stacked in one cell, so the dialog is as tall as the taller one
             whichever tab is open: switching tabs never resizes it, and so never moves it. */}

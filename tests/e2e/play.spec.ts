@@ -203,6 +203,21 @@ test("closes the rules to today's song when they were opened from a link", async
   await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
 });
 
+test("links the legal notice from the round's foot, out from under the guess dock on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/");
+  await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
+
+  // A click fails on a link another element covers: the sticky dock, here.
+  await page.getByRole("link", { name: "Mentions légales et confidentialité" }).click();
+  await expect(page).toHaveURL(/\/mentions-legales$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Mentions légales et confidentialité" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  await page.getByRole("button", { name: "Retour au jeu" }).click();
+  await expect(page).toHaveURL(/\/$/);
+});
+
 test("shows an error message when a guess fails to submit, and recovers on the next one", async ({ page }) => {
   await page.route("**/api/guess", (route) => route.abort("failed"));
 
