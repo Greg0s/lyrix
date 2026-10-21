@@ -805,7 +805,7 @@ describe("the dialogs (v3 header)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Jouer à plusieurs" }));
     expect(screen.getByRole("dialog", { name: "Jouer à plusieurs" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "Créer un salon" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: "Rejoindre" }).getAttribute("aria-selected")).toBe("true");
     expect(wordTokenRenders.count).toBe(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Fermer" }));

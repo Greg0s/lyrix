@@ -495,6 +495,7 @@ describe("the multiplayer dialog", () => {
     await mountGame();
     const dialog = openDialog();
 
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Créer un salon" }));
     fireEvent.change(within(dialog).getByLabelText("Ton pseudo"), { target: { value: "  Camille 🎤 " } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Créer le salon" }));
 
@@ -512,16 +513,17 @@ describe("the multiplayer dialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("shows « Rejoindre » first, on the left, ahead of « Créer un salon »", async () => {
+  it("shows « Rejoindre » first, on the left, ahead of « Créer un salon », and opens on it", async () => {
     await mountGame();
     const dialog = openDialog();
 
     const tabs = within(dialog).getAllByRole("tab").map((tab) => tab.textContent);
     expect(tabs).toEqual(["Rejoindre", "Créer un salon"]);
+    expect(within(dialog).getByRole("tab", { name: "Rejoindre" }).getAttribute("aria-selected")).toBe("true");
     // The indicator sits under the selected tab: the second one while creating.
-    expect(dialog.querySelector(".lyrix-tabs")?.classList.contains("is-second")).toBe(true);
-    fireEvent.click(within(dialog).getByRole("tab", { name: "Rejoindre" }));
     expect(dialog.querySelector(".lyrix-tabs")?.classList.contains("is-second")).toBe(false);
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Créer un salon" }));
+    expect(dialog.querySelector(".lyrix-tabs")?.classList.contains("is-second")).toBe(true);
   });
 
   it("joins a room: closes, and the dock says whose room it is", async () => {
@@ -612,6 +614,7 @@ describe("the multiplayer dialog", () => {
     await mountGame();
     const dialog = openDialog();
 
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Créer un salon" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Créer le salon" }));
 
     await waitFor(() =>
@@ -692,7 +695,7 @@ describe("an invite link", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Jouer à plusieurs" }));
 
-    expect(within(dialog()).getByRole("tab", { name: "Créer un salon" }).getAttribute("aria-selected")).toBe("true");
+    expect((within(dialog()).getByLabelText("Code du salon") as HTMLInputElement).value).toBe("");
   });
 
   it("does nothing for the room the player is already in", async () => {

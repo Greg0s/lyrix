@@ -17,7 +17,7 @@ interface MultiplayerModalProps {
   room: RoomView | null;
   /**
    * The code of the invite link the page was opened with, if any: the dialog
-   * opens on "Rejoindre" with it typed in — even in another room, which
+   * opens on "Rejoindre" (as it always does) with it typed in — even in another room, which
    * joining it leaves.
    */
   invite: string | null;
@@ -90,7 +90,7 @@ interface RoomFormsProps {
 }
 
 function RoomForms({ invite, currentRoom, onCreate, onJoin, onJoined }: RoomFormsProps) {
-  const [tab, setTab] = useState<Tab>(invite ? "join" : "create");
+  const [tab, setTab] = useState<Tab>("join");
   const [pseudo, setPseudo] = useState("");
   const [code, setCode] = useState(invite ?? "");
   const [pending, setPending] = useState(false);
@@ -126,7 +126,8 @@ function RoomForms({ invite, currentRoom, onCreate, onJoin, onJoined }: RoomForm
 
   return (
     <div className="lyrix-mp">
-      {/* "Rejoindre" comes first, on the left: most players open this dialog to join a friend's room. */}
+      {/* "Rejoindre" comes first, on the left, and is open by default: most players open this dialog to
+          join a friend's room. */}
       <div className={`lyrix-tabs${tab === "create" ? " is-second" : ""}`} role="tablist">
         <span className="lyrix-tabs-indicator" aria-hidden="true" />
         <button
