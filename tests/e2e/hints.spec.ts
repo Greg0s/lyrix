@@ -1,12 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * Hints (src/game/hints.ts), on whatever song the day plays: unlocked at 20
+ * Hints (src/game/hints.ts), on whatever song the day plays: unlocked at 50
  * guesses, revealed only when picked, kept across a reload. The words guessed
  * are nobody's lyrics, so the round is never won on the way.
  */
 
-const NONSENSE = Array.from("abcdefghijklmnopqrst", (letter) => `zq${letter}xw`);
+const NONSENSE = Array.from(
+  { length: 50 },
+  (_, index) => `zq${String.fromCharCode(97 + Math.floor(index / 26), 97 + (index % 26))}xw`
+);
 
 async function guessNonsense(page: Page, count: number): Promise<void> {
   const input = page.getByPlaceholder("Propose un mot…");
@@ -17,13 +20,13 @@ async function guessNonsense(page: Page, count: number): Promise<void> {
   }
 }
 
-test("unlocks a hint at 20 guesses, reveals the one picked, and keeps it on reload", async ({ page }) => {
+test("unlocks a hint at 50 guesses, reveals the one picked, and keeps it on reload", async ({ page }) => {
   await page.goto("/");
   const card = page.getByRole("region", { name: "Indices" });
-  await expect(card.getByText("0 / 20 essais")).toBeVisible();
+  await expect(card.getByText("0 / 50 essais")).toBeVisible();
   await expect(card.getByRole("button", { name: /Révéler/ })).toHaveCount(0);
 
-  await guessNonsense(page, 20);
+  await guessNonsense(page, 50);
   await expect(page.getByText("Un indice est débloqué.")).toBeVisible();
   await expect(card.getByText("1 à choisir")).toBeVisible();
 
@@ -44,7 +47,7 @@ test.describe("on a phone", () => {
 
   test("offers the hint from the dock, in a sheet that closes once one is picked", async ({ page }) => {
     await page.goto("/");
-    await guessNonsense(page, 20);
+    await guessNonsense(page, 50);
 
     await page.getByRole("button", { name: "Choisir", exact: true }).click();
     const sheet = page.getByRole("dialog", { name: "Choisis un indice" });

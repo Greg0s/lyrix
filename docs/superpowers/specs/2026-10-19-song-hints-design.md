@@ -16,7 +16,7 @@ A player stuck on a song has nothing to go on but the lyrics they have uncovered
 ## Decisions
 
 1. **Three hints, the same three every day**: *Époque* (the decade: "Années 80"), *Type d'artiste* (solo artist man or woman, group or duo, and their country: "Une artiste belge", "Un groupe français") and *Style* (the musical genre: "Rock"). Comparable in strength, so which one to take depends on what the lyrics already told the player. Buttons show the label alone, no description.
-2. **Unlocked by guesses**: at 20, 35 and 50 guesses (`HINT_THRESHOLDS`), one more hint may be revealed, and the player chooses which among those left (3, then 2, then 1). A guess is any word the Worker answered, found or not, as the "essais" count shows it. No stronger "last resort" hint.
+2. **Unlocked by guesses**: at 50, 100 and 150 guesses (`HINT_THRESHOLDS`), one more hint may be revealed, and the player chooses which among those left (3, then 2, then 1). A guess is any word the Worker answered, found or not, as the "essais" count shows it. No stronger "last resort" hint.
 3. **Unlocking never reveals.** A hint is revealed only on the player's click; one never taken stays hidden until the round is won.
 4. **Gated by the Worker.** Hint values live in `worker/src/songFacts.ts`, never in the client bundle. A value crosses the wire only once revealed, or once the round is won (like `revealHint`). The guess count and the hints revealed are sealed in the round state, so neither can be forged.
 5. **Rooms share their hints**: unlocked on the group's guesses, revealed by any member for everyone, with who picked it.
@@ -41,7 +41,7 @@ Tests (`tests/unit/worker/songFacts.test.ts`): every catalog id has facts; no hi
 
 ## 2. Shared rules (`src/game/hints.ts`)
 
-Imported by both sides: `HINT_IDS = ["era", "artistType", "style"]` (display order), `HINT_LABELS`, `HINT_THRESHOLDS = [20, 35, 50]`, `unlockedHints(tried)`, `canReveal(hints, id)`, `parseRoundHints(value)`, and the card's wording (`hintCardText`), so the copy that depends on counts is unit-tested apart from React.
+Imported by both sides: `HINT_IDS = ["era", "artistType", "style"]` (display order), `HINT_LABELS`, `HINT_THRESHOLDS = [50, 100, 150]`, `unlockedHints(tried)`, `canReveal(hints, id)`, `parseRoundHints(value)`, and the card's wording (`hintCardText`), so the copy that depends on counts is unit-tested apart from React.
 
 ## 3. Sealed state (`worker/src/state.ts`)
 

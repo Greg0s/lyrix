@@ -215,9 +215,9 @@ describe("a solo round's statistics", () => {
 
   it("count a hint revealed, and after how many guesses", async () => {
     const { song } = await todaysRound();
-    const state = await sealState({ songId: song.id, foundKeys: [], day: utcDay(), tried: 21 }, env.STATE_SECRET);
+    const state = await sealState({ songId: song.id, foundKeys: [], day: utcDay(), tried: 51 }, env.STATE_SECRET);
     await post("/api/round/hint", { state, hint: "style" });
-    expect(events.of("hint")).toEqual([{ mode: "solo", kind: "today", hint: "style", tries: 21 }]);
+    expect(events.of("hint")).toEqual([{ mode: "solo", kind: "today", hint: "style", tries: 51 }]);
   });
 
   it("say a day of the archives is one", async () => {

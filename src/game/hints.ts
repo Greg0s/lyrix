@@ -19,7 +19,7 @@ export const HINT_LABELS: Readonly<Record<HintId, string>> = {
 };
 
 /** Guesses at which one more hint may be revealed: the first, the second, the last. */
-export const HINT_THRESHOLDS: readonly number[] = [20, 35, 50];
+export const HINT_THRESHOLDS: readonly number[] = [50, 100, 150];
 
 export function isHintId(value: unknown): value is HintId {
   return typeof value === "string" && (HINT_IDS as readonly string[]).includes(value);
@@ -106,7 +106,7 @@ export interface HintCardText {
   proud: boolean;
 }
 
-/** "20", "20 et 35", "20, 35 et 50". */
+/** "50", "50 et 100", "50, 100 et 150". */
 function listThresholds(thresholds: readonly number[]): string {
   if (thresholds.length < 2) return thresholds.join("");
   return `${thresholds.slice(0, -1).join(", ")} et ${thresholds[thresholds.length - 1]}`;

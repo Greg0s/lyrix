@@ -72,8 +72,8 @@ function card(): HTMLElement {
   return screen.getByRole("region", { name: "Indices" });
 }
 
-const reached = { tried: 20, used: [], values: {} } satisfies RoundHints;
-const revealed: HintAnswer = { state: "state-2", hints: { tried: 20, used: ["era"], values: { era: "Années 90" } } };
+const reached = { tried: 50, used: [], values: {} } satisfies RoundHints;
+const revealed: HintAnswer = { state: "state-2", hints: { tried: 50, used: ["era"], values: { era: "Années 90" } } };
 
 beforeEach(() => {
   wordTokenRenders.count = 0;
@@ -93,12 +93,12 @@ describe("the hints card", () => {
   it("shows every hint locked, and how far the first one is", async () => {
     await mountGame({ tried: 13, used: [], values: {} });
     expect(within(card()).getByText("Premier indice")).toBeTruthy();
-    expect(within(card()).getByText("13 / 20 essais")).toBeTruthy();
+    expect(within(card()).getByText("13 / 50 essais")).toBeTruthy();
     expect(within(card()).queryByRole("button", { name: /Révéler/ })).toBeNull();
   });
 
   it("offers a hint once a guess reaches a threshold, and the dock says so", async () => {
-    const input = await mountGame({ tried: 19, used: [], values: {} });
+    const input = await mountGame({ tried: 49, used: [], values: {} });
     submitGuess.mockResolvedValue(missed(reached));
     await guess(input, "orage");
 
@@ -127,17 +127,17 @@ describe("the hints card", () => {
     await act(async () => {
       fireEvent.click(within(card()).getByRole("button", { name: /Style/ }));
     });
-    submitGuess.mockResolvedValue(missed({ ...revealed.hints, tried: 21 }, "state-3"));
+    submitGuess.mockResolvedValue(missed({ ...revealed.hints, tried: 51 }, "state-3"));
     await guess(input, "orage");
 
     expect(submitGuess).toHaveBeenCalledWith("state-2", "orage");
   });
 
   it("can be picked from the dock's sheet, which closes once it is", async () => {
-    const input = await mountGame({ tried: 19, used: [], values: {} });
+    const input = await mountGame({ tried: 49, used: [], values: {} });
     submitGuess.mockResolvedValue(missed(reached));
     await guess(input, "orage");
-    revealHint.mockResolvedValue({ state: "state-2", hints: { tried: 20, used: ["style"], values: { style: "Rock" } } });
+    revealHint.mockResolvedValue({ state: "state-2", hints: { tried: 50, used: ["style"], values: { style: "Rock" } } });
     wordTokenRenders.count = 0;
 
     fireEvent.click(screen.getByRole("button", { name: "Choisir" }));
