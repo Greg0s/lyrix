@@ -52,7 +52,7 @@ npm run dev:debug
 
 ## Model licensing
 
-frWac2Vec is published under **CC BY 3.0** ([fauconnier.github.io](https://fauconnier.github.io/#data)): free to copy, redistribute and adapt with attribution. The game credits it (name, author, licence, link) under the tried-word list whenever a score is shown (`TriedWords.tsx`, checked by the e2e suite) — keep that credit if the display changes, and update it if the model is swapped.
+frWac2Vec is published under **CC BY 3.0** ([fauconnier.github.io](https://fauconnier.github.io/#data)): free to copy, redistribute and adapt with attribution. The game credits it (name, author, licence, links) on the legal page, with the site's other credits (`LegalNotice.tsx`, checked by `tests/unit/components/legalNotice.test.tsx`): the licence lets the credit sit wherever is reasonable (section 4(b)), so it needn't sit beside the scores. Keep it, and update it if the model is swapped.
 
 - The model is **not** committed, **not** vendored, and **never** downloaded automatically — fetch it by hand.
 - `data/models/` and `data/similarity/` are gitignored: neither the model nor its derived tables enter git.

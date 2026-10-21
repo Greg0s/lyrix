@@ -111,41 +111,41 @@ describe("hints in a round", () => {
   it("merges states on resume: the furthest guess count, every hint revealed", async () => {
     const { song } = await todaysRound();
     const values = hintValues(song.id);
-    const mine = await stateAfter(song, 22, ["era"]);
-    const room = await stateAfter(song, 41, ["style", "era"]);
+    const mine = await stateAfter(song, 52, ["era"]);
+    const room = await stateAfter(song, 101, ["style", "era"]);
     const { body } = await post<RoundView>("/api/round/resume", { states: [mine, room] });
-    expect(body.hints).toEqual({ tried: 41, used: ["era", "style"], values: { era: values?.era, style: values?.style } });
+    expect(body.hints).toEqual({ tried: 101, used: ["era", "style"], values: { era: values?.era, style: values?.style } });
   });
 });
 
 describe("POST /api/round/hint", () => {
   it("refuses a hint before the first threshold", async () => {
     const { song } = await todaysRound();
-    const { status } = await reveal(await stateAfter(song, 19), "era");
+    const { status } = await reveal(await stateAfter(song, 49), "era");
     expect(status).toBe(409);
   });
 
   it("reveals the hint picked at a threshold, and seals it", async () => {
     const { song } = await todaysRound();
-    const { status, body } = await reveal(await stateAfter(song, 20), "artistType");
+    const { status, body } = await reveal(await stateAfter(song, 50), "artistType");
     expect(status).toBe(200);
-    expect(body.hints).toEqual({ tried: 20, used: ["artistType"], values: { artistType: hintValues(song.id)?.artistType } });
-    expect(await openState(body.state, env.STATE_SECRET)).toMatchObject({ tried: 20, hints: ["artistType"] });
+    expect(body.hints).toEqual({ tried: 50, used: ["artistType"], values: { artistType: hintValues(song.id)?.artistType } });
+    expect(await openState(body.state, env.STATE_SECRET)).toMatchObject({ tried: 50, hints: ["artistType"] });
   });
 
   it("allows one hint per threshold reached, whichever the player picks", async () => {
     const { song } = await todaysRound();
-    expect((await reveal(await stateAfter(song, 34, ["style"]), "era")).status).toBe(409);
-    const second = await reveal(await stateAfter(song, 35, ["style"]), "era");
+    expect((await reveal(await stateAfter(song, 99, ["style"]), "era")).status).toBe(409);
+    const second = await reveal(await stateAfter(song, 100, ["style"]), "era");
     expect(second.body.hints.used).toEqual(["style", "era"]);
     // Two thresholds passed with none taken: two may be revealed, one after the other.
-    const first = await reveal(await stateAfter(song, 40), "style");
+    const first = await reveal(await stateAfter(song, 110), "style");
     expect((await reveal(first.body.state, "era")).body.hints.used).toEqual(["style", "era"]);
   });
 
   it("answers a hint already revealed with the round as it stands", async () => {
     const { song } = await todaysRound();
-    const state = await stateAfter(song, 20, ["era"]);
+    const state = await stateAfter(song, 50, ["era"]);
     const { status, body } = await reveal(state, "era");
     expect(status).toBe(200);
     expect(body.state).toBe(state);
@@ -154,10 +154,10 @@ describe("POST /api/round/hint", () => {
 
   it("refuses a forged state, a state that isn't one, and a hint that doesn't exist", async () => {
     const { song } = await todaysRound();
-    const forged = await sealState({ songId: song.id, foundKeys: [], day: utcDay(), tried: 50 }, "not-the-secret");
+    const forged = await sealState({ songId: song.id, foundKeys: [], day: utcDay(), tried: 150 }, "not-the-secret");
     expect((await reveal(forged, "era")).status).toBe(400);
     expect((await reveal("not-a-state", "era")).status).toBe(400);
-    expect((await reveal(await stateAfter(song, 50), "artist")).status).toBe(400);
+    expect((await reveal(await stateAfter(song, 150), "artist")).status).toBe(400);
   });
 
   it("refuses a hint once the round is won, whose view shows every hint", async () => {

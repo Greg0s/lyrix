@@ -1352,8 +1352,8 @@ describe("the day the room plays", () => {
 });
 
 describe("a room's hints", () => {
-  const unlocked = { tried: 20, used: [], values: {} } satisfies RoundHints;
-  const twenty = Array.from({ length: 20 }, (_, index) => roomGuess(`essai${index}`, leo, false));
+  const unlocked = { tried: 50, used: [], values: {} } satisfies RoundHints;
+  const fifty = Array.from({ length: 50 }, (_, index) => roomGuess(`essai${index}`, leo, false));
 
   function withHints(message: RoomRoundMessage, hints: RoundHints, roomHints: RoomHint[] = []): RoomRoundMessage {
     return { ...message, round: { ...message.round, hints }, ...(roomHints.length > 0 ? { hints: roomHints } : {}) };
@@ -1366,11 +1366,11 @@ describe("a room's hints", () => {
   it("are revealed for the group through the room, never the solo route", async () => {
     seedRoom();
     render(<GameScreen />);
-    latestSocket().receive(withHints(roundMessage(twenty), unlocked));
+    latestSocket().receive(withHints(roundMessage(fifty), unlocked));
     await waitFor(() => expect(screen.getByPlaceholderText(PLACEHOLDER)).toBeTruthy());
     answer(
       200,
-      withHints(roundMessage(twenty), { tried: 20, used: ["era"], values: { era: "Années 90" } }, [{ id: "era", by: camille }])
+      withHints(roundMessage(fifty), { tried: 50, used: ["era"], values: { era: "Années 90" } }, [{ id: "era", by: camille }])
     );
 
     fireEvent.click(within(hintsCard()).getByRole("button", { name: /Époque/ }));
@@ -1384,11 +1384,11 @@ describe("a room's hints", () => {
   it("are announced when a teammate reveals one, with what it says", async () => {
     seedRoom();
     render(<GameScreen />);
-    latestSocket().receive(withHints(roundMessage(twenty), unlocked));
+    latestSocket().receive(withHints(roundMessage(fifty), unlocked));
     await waitFor(() => expect(screen.getByPlaceholderText(PLACEHOLDER)).toBeTruthy());
 
     latestSocket().receive({
-      ...withHints(roundMessage(twenty), { tried: 20, used: ["style"], values: { style: "Chanson" } }, [{ id: "style", by: leo }]),
+      ...withHints(roundMessage(fifty), { tried: 50, used: ["style"], values: { style: "Chanson" } }, [{ id: "style", by: leo }]),
       latestHint: "style",
     });
 

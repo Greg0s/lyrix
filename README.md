@@ -87,7 +87,7 @@ It stands in for `npm run dev:all` for that session: same address, same API, rea
 
 Without a model it says so, names where it looked, and stops; `npm run dev:all` still plays the same game on placeholder scores. Nothing about debug mode can reach production: the binding lives in `worker/wrangler.debug.toml`, a configuration `wrangler deploy` never reads (CI dry-runs the one it does read, on every pull request). `npm run dev:all` and the test suites are untouched, and go on serving the placeholder.
 
-> **Licence.** [frWac2Vec](https://fauconnier.github.io/#data), by Jean-Philippe Fauconnier, is published under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/): it can be reused, and tables derived from it uploaded, with attribution — the game credits it under the tried-word list whenever a score is shown. It is still never committed or downloaded automatically (`data/` is gitignored). Any word2vec-format model works — see the "Semantic Proximity Scoring" section of [CLAUDE.md](CLAUDE.md).
+> **Licence.** [frWac2Vec](https://fauconnier.github.io/#data), by Jean-Philippe Fauconnier, is published under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/): it can be reused, and tables derived from it uploaded, with attribution — the game credits it on its legal page (`/mentions-legales`). It is still never committed or downloaded automatically (`data/` is gitignored). Any word2vec-format model works — see the "Semantic Proximity Scoring" section of [CLAUDE.md](CLAUDE.md).
 
 ## Playing together: rooms
 

@@ -1220,12 +1220,12 @@ describe("a room's hints", () => {
   it("unlock on the group's guesses, whoever made them", async () => {
     const host = await createRoom("Camille");
     const guest = await joinRoom(host.room.code, "Léo");
-    await missIn(host, 10);
-    await missIn(guest, 9, 10);
+    await missIn(host, 25);
+    await missIn(guest, 24, 25);
     expect((await revealIn(guest, "era")).status).toBe(409);
 
-    const last = await guessIn(host, "essai19");
-    expect(last.round.hints).toEqual({ tried: 20, used: [], values: {} });
+    const last = await guessIn(host, "essai49");
+    expect(last.round.hints).toEqual({ tried: 50, used: [], values: {} });
     expect((await revealIn(guest, "era")).status).toBe(200);
   });
 
@@ -1233,12 +1233,12 @@ describe("a room's hints", () => {
     const host = await createRoom("Camille");
     const hostSocket = await connect(host);
     const guest = await joinRoom(host.room.code, "Léo");
-    await missIn(host, 20);
+    await missIn(host, 50);
 
     const response = await revealIn(guest, "style");
     expect(response.status).toBe(200);
     const answer = parseRoomRoundAnswer(await response.json());
-    expect(answer?.round.hints).toEqual({ tried: 20, used: ["style"], values: { style: "Chanson" } });
+    expect(answer?.round.hints).toEqual({ tried: 50, used: ["style"], values: { style: "Chanson" } });
     expect(answer?.hints?.map((hint) => [hint.id, hint.by.name])).toEqual([["style", "Léo"]]);
 
     const heard = hostSocket.lastRound();
@@ -1251,7 +1251,7 @@ describe("a room's hints", () => {
   it("allow one per threshold for the whole room, and refuse a stranger like a guess does", async () => {
     const host = await createRoom("Camille");
     const guest = await joinRoom(host.room.code, "Léo");
-    await missIn(host, 20);
+    await missIn(host, 50);
     expect((await revealIn(host, "era")).status).toBe(200);
     expect((await revealIn(guest, "style")).status).toBe(409);
     // Picked twice: the round as it stands, nothing used up.
@@ -1266,7 +1266,7 @@ describe("a room's hints", () => {
   it("stay revealed for a member who keeps looking alone, and show in full once won", async () => {
     const host = await createRoom("Camille");
     const guest = await joinRoom(host.room.code, "Léo");
-    await missIn(host, 20);
+    await missIn(host, 50);
     await revealIn(guest, "era");
     await winTogether(host, guest);
 
@@ -1275,7 +1275,7 @@ describe("a room's hints", () => {
     expect((await revealIn(host, "style")).status).toBe(409);
 
     const view = (await (await alone(host)).json()) as RoundView;
-    expect(view.hints).toEqual({ tried: 24, used: ["era"], values: { era: "Années 90" } });
+    expect(view.hints).toEqual({ tried: 54, used: ["era"], values: { era: "Années 90" } });
   });
 });
 
