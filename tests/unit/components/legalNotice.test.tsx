@@ -40,6 +40,19 @@ describe("the legal notice's contact", () => {
   });
 });
 
+describe("the legal notice's credits", () => {
+  it("credits the embedding model the proximity scores come from, its author and its licence (CC BY 3.0)", () => {
+    render(<LegalNotice onClose={() => {}} contact={null} />);
+    expect(text()).toContain("calculés avec le modèle frWac2Vec de Jean-Philippe Fauconnier");
+    expect(screen.getByRole("link", { name: "frWac2Vec" }).getAttribute("href")).toBe(
+      "https://fauconnier.github.io/#data"
+    );
+    expect(screen.getByRole("link", { name: "Creative Commons Attribution 3.0" }).getAttribute("href")).toBe(
+      "https://creativecommons.org/licenses/by/3.0/deed.fr"
+    );
+  });
+});
+
 describe("the audience measurement's opt-out", () => {
   const box = () => screen.getByRole("checkbox", { name: "Ne pas compter mes visites sur cet appareil" }) as HTMLInputElement;
 

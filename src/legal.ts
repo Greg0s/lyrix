@@ -16,7 +16,7 @@
 export const CONTACT_EMAIL: string | null = null;
 
 /** The day the legal page last changed what it says, shown on it. */
-export const LEGAL_UPDATED = "2026-10-20";
+export const LEGAL_UPDATED = "2026-10-21";
 
 /** The site's host, as the LCEN requires it named: Cloudflare runs both the site (Pages) and the game's server (Workers). */
 export const HOST = {
