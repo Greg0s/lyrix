@@ -2720,6 +2720,27 @@
   font-weight: 600;
 }
 
+/*
+ * A cut name in full, under the mouse (MemberName in RoomMembers.tsx): placed on the screen above the name, over
+ * the dialog's backdrop too, on the player's colour like their avatar. Shaped like a bar's letter count (.token-peek).
+ */
+.lyrix-name-tip {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  background: var(--player, var(--accent-solid));
+  color: var(--color-on-bright);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 9px;
+  border-radius: 8px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-tip);
+  animation: lyrix-tip-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.3) forwards;
+}
+
 .lyrix-member.is-waiting {
   color: var(--color-ink-muted);
   animation: lyrix-pulse 1.8s ease-in-out infinite;
