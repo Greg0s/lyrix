@@ -514,3 +514,7 @@ The first deploy with the `EVENTS` binding was refused by Cloudflare: "You need 
 ## 2026-10-21 — A grid's `auto` column grows to its widest item, hidden ones included
 
 The multiplayer dialog scrolled sideways on a phone, even on the "Créer un salon" tab. Its two tabs' panes share one grid cell (so the dialog keeps one height), and a grid with no `grid-template-columns` gets an implicit `auto` column, sized to the min-content of every item in it — `visibility: hidden` ones too. The hidden "Rejoindre" pane's code input, wide at its 1.5rem letter-spaced font, pushed that column past the dialog. `grid-template-columns: minmax(0, 1fr)` caps it to the container. Pinned by `tests/e2e/rooms.spec.ts` ("never scrolls the dialog sideways"), at 1280px and 375px on both tabs.
+
+## 2026-10-21 — The reduced-motion switch keeps transition delays
+
+The multiplayer dialog's tabs now cross-fade their panes with transitions, the hidden one going `visibility: hidden` only once faded out (`visibility 0s linear 0.18s`). `global.css`'s reduced-motion rule turns every duration into `0.01ms`, but not `transition-delay`: left alone, the old pane would stay visible for those 0.18s, under the new one. A delayed transition needs its own reduced-motion rule setting the delay to `0s` (`.lyrix-mp-pane`, pinned by `tests/unit/ci/roomTabs.test.ts`).

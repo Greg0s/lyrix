@@ -90,6 +90,12 @@ export function LegalNotice({ onClose, contact = CONTACT_EMAIL }: LegalNoticePro
             ) : null}
           </p>
           <p>Les polices Bricolage Grotesque et Figtree sont diffusées sous licence SIL Open Font License&nbsp;1.1.</p>
+          {/* CC BY 3.0 (4.b) lets the credit sit wherever is reasonable: here, with the site's other credits. */}
+          <p>
+            Les scores de proximité des mots sont calculés avec le modèle{" "}
+            <a href="https://fauconnier.github.io/#data">frWac2Vec</a> de Jean-Philippe Fauconnier, diffusé sous licence{" "}
+            <a href="https://creativecommons.org/licenses/by/3.0/deed.fr">Creative Commons Attribution 3.0</a>.
+          </p>
         </section>
 
         <section aria-labelledby="lyrix-legal-privacy">

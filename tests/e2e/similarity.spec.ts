@@ -90,8 +90,8 @@ test("colours and ranks tried words by how close they are to the song", async ({
   await expect(
     page.getByText("Plus le score est élevé", { exact: false }),
   ).toBeVisible();
-  // CC BY 3.0: the model is credited wherever its numbers show.
-  await expect(page.getByRole("link", { name: "frWac2Vec" })).toBeVisible();
+  // The model is credited on the legal page (legalNotice.test.tsx), not here.
+  await expect(page.getByRole("link", { name: "frWac2Vec" })).toHaveCount(0);
 });
 
 test("shades each close word's bar along the chips' cold-to-hot ramp, its text always readable", async ({

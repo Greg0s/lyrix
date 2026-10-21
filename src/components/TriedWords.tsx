@@ -103,16 +103,6 @@ export const TriedWords = memo(function TriedWords({ triedWords, group }: TriedW
             </p>
           ) : null}
         </div>
-        {/* CC BY 3.0 asks for credit wherever the model's numbers are shown, which is exactly when a score is. */}
-        {anyScored ? (
-          <p className="lyrix-credit">
-            Proximités calculées avec le modèle{" "}
-            <a href="https://fauconnier.github.io/#data" target="_blank" rel="noreferrer">
-              frWac2Vec
-            </a>{" "}
-            de Jean-Philippe Fauconnier (licence CC BY 3.0).
-          </p>
-        ) : null}
       </div>
     </section>
   );

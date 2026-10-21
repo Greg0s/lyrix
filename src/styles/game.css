@@ -1585,17 +1585,6 @@
   color: var(--color-ink-muted);
 }
 
-.lyrix-credit {
-  margin: 0;
-  font-size: 0.72rem;
-  line-height: 1.4;
-  color: var(--color-ink-faint);
-}
-
-.lyrix-credit a {
-  color: inherit;
-}
-
 .lyrix-empty {
   margin: 0;
   font-size: 0.88rem;
@@ -2491,17 +2480,52 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* Switching tabs cross-fades the panes, each sliding on the side of its tab, the way the indicator
+   goes: the old pane leaves quickly, the new one comes in just after it. Transitions, not keyframes, so
+   a quick back-and-forth turns around from where it is instead of starting over. Visibility follows
+   the fade out, so the hidden pane stays out of reach once it's gone. */
 .lyrix-mp-pane {
   grid-area: 1 / 1;
   display: flex;
   flex-direction: column;
   gap: 14px;
   visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 0.1s var(--ease-out),
+    transform 0.16s var(--ease-out),
+    visibility 0s linear 0.16s;
+}
+
+/* "Rejoindre" is the first tab, on the left: hidden, its pane waits on that side; "Créer un salon"'s on
+   the right. */
+.lyrix-mp-pane.is-join {
+  transform: translateX(-24px);
+}
+
+.lyrix-mp-pane.is-create {
+  transform: translateX(24px);
 }
 
 .lyrix-mp-pane.is-active {
   visibility: visible;
-  animation: lyrix-feed 0.25s ease;
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.22s ease-out 0.09s,
+    transform 0.3s var(--ease-out) 0.09s,
+    visibility 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The global switch zeroes durations, not delays: the panes swap at once, without sliding. */
+  .lyrix-mp-pane,
+  .lyrix-mp-pane.is-join,
+  .lyrix-mp-pane.is-create,
+  .lyrix-mp-pane.is-active {
+    transform: none;
+    transition-delay: 0s;
+  }
 }
 
 /* The shorter pane's button lines up with the taller one's, at the bottom. */
@@ -2686,6 +2710,27 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+}
+
+/*
+ * A cut name in full, under the mouse (MemberName in RoomMembers.tsx): placed on the screen above the name, over
+ * the dialog's backdrop too, on the player's colour like their avatar. Shaped like a bar's letter count (.token-peek).
+ */
+.lyrix-name-tip {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  background: var(--player, var(--accent-solid));
+  color: var(--color-on-bright);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 9px;
+  border-radius: 8px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-tip);
+  animation: lyrix-tip-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.3) forwards;
 }
 
 .lyrix-member.is-waiting {

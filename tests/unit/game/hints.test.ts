@@ -18,17 +18,17 @@ function hints(tried: number, used: RoundHints["used"] = [], values: RoundHints[
 
 describe("unlocking hints", () => {
   it("allows one more hint at each threshold", () => {
-    expect(HINT_THRESHOLDS).toEqual([20, 35, 50]);
-    expect([0, 19, 20, 34, 35, 49, 50, 80].map(unlockedHints)).toEqual([0, 0, 1, 1, 2, 2, 3, 3]);
+    expect(HINT_THRESHOLDS).toEqual([50, 100, 150]);
+    expect([0, 49, 50, 99, 100, 149, 150, 200].map(unlockedHints)).toEqual([0, 0, 1, 1, 2, 2, 3, 3]);
   });
 
   it("counts the hints left to pick, whichever were picked", () => {
-    expect(availableHints(hints(20))).toBe(1);
-    expect(availableHints(hints(20, ["style"]))).toBe(0);
-    expect(availableHints(hints(40))).toBe(2);
-    expect(canReveal(hints(40, ["style"]), "era")).toBe(true);
-    expect(canReveal(hints(40, ["style"]), "style")).toBe(false);
-    expect(canReveal(hints(19), "era")).toBe(false);
+    expect(availableHints(hints(50))).toBe(1);
+    expect(availableHints(hints(50, ["style"]))).toBe(0);
+    expect(availableHints(hints(110))).toBe(2);
+    expect(canReveal(hints(110, ["style"]), "era")).toBe(true);
+    expect(canReveal(hints(110, ["style"]), "style")).toBe(false);
+    expect(canReveal(hints(49), "era")).toBe(false);
   });
 });
 
@@ -53,32 +53,32 @@ describe("the hints card", () => {
     const text = hintCardText(hints(13), solo);
     expect(hintRows(hints(13), false).map((row) => row.kind)).toEqual(["locked", "locked", "locked"]);
     expect(text).toMatchObject({ badge: null, counter: "0 / 3", intro: null, proud: false });
-    expect(text.meter).toEqual({ label: "Premier indice", from: 0, to: 20, now: 13 });
-    expect(text.footer).toBe("Un indice à 20, 35 et 50 essais : à chaque fois, tu choisis lequel.");
+    expect(text.meter).toEqual({ label: "Premier indice", from: 0, to: 50, now: 13 });
+    expect(text.footer).toBe("Un indice à 50, 100 et 150 essais : à chaque fois, tu choisis lequel.");
   });
 
   it("offers the hints left once a threshold is reached, and says when the next ones come", () => {
-    const first = hintCardText(hints(20), solo);
+    const first = hintCardText(hints(50), solo);
     expect(first).toMatchObject({ badge: "1 à choisir", intro: "Choisis l'indice à révéler.", meter: null });
-    expect(first.footer).toBe("Les suivants à 35 puis 50 essais.");
+    expect(first.footer).toBe("Les suivants à 100 puis 150 essais.");
 
-    const second = hints(35, ["era"], { era: "Années 90" });
+    const second = hints(100, ["era"], { era: "Années 90" });
     expect(hintRows(second, false).map((row) => row.kind)).toEqual(["revealed", "choice", "choice"]);
-    expect(hintCardText(second, solo)).toMatchObject({ intro: "Choisis le deuxième indice.", footer: "Le dernier à 50 essais." });
+    expect(hintCardText(second, solo)).toMatchObject({ intro: "Choisis le deuxième indice.", footer: "Le dernier à 150 essais." });
 
-    const last = hints(50, ["era", "style"], { era: "Années 90", style: "Rock" });
+    const last = hints(150, ["era", "style"], { era: "Années 90", style: "Rock" });
     expect(hintCardText(last, solo)).toMatchObject({ intro: "Il reste un dernier indice à révéler.", footer: null });
   });
 
   it("runs the meter from the last threshold to the next once a hint is taken", () => {
-    const text = hintCardText(hints(27, ["era"], { era: "Années 90" }), solo);
+    const text = hintCardText(hints(77, ["era"], { era: "Années 90" }), solo);
     expect(text).toMatchObject({ badge: null, counter: "1 / 3", footer: null });
-    expect(text.meter).toEqual({ label: "Prochain indice", from: 20, to: 35, now: 27 });
-    expect(hintCardText(hints(40, ["era", "style"]), solo).meter?.label).toBe("Dernier indice");
+    expect(text.meter).toEqual({ label: "Prochain indice", from: 50, to: 100, now: 77 });
+    expect(hintCardText(hints(110, ["era", "style"]), solo).meter?.label).toBe("Dernier indice");
   });
 
   it("keeps every row in place, a revealed value where its hint was", () => {
-    expect(hintRows(hints(20, ["style"], { style: "Rock" }), false)).toEqual([
+    expect(hintRows(hints(50, ["style"], { style: "Rock" }), false)).toEqual([
       { id: "era", label: "Époque", kind: "locked" },
       { id: "artistType", label: "Type d'artiste", kind: "locked" },
       { id: "style", label: "Style", kind: "revealed", value: "Rock" },
@@ -86,19 +86,19 @@ describe("the hints card", () => {
   });
 
   it("shows every hint once won, the unused ones marked, and how many helped", () => {
-    const won = hints(30, ["era"], { era: "Années 90", artistType: "Un groupe français", style: "Rock" });
+    const won = hints(80, ["era"], { era: "Années 90", artistType: "Un groupe français", style: "Rock" });
     expect(hintRows(won, true).map((row) => row.kind)).toEqual(["revealed", "unused", "unused"]);
     expect(hintCardText(won, { victory: true, group: false })).toMatchObject({ footer: "Trouvée avec 1 indice.", proud: false });
     expect(hintCardText(hints(12), { victory: true, group: false })).toMatchObject({ footer: "Trouvée sans indice !", proud: true });
   });
 
   it("speaks to the group in a room", () => {
-    expect(hintCardText(hints(20), { victory: false, group: true })).toMatchObject({
+    expect(hintCardText(hints(50), { victory: false, group: true })).toMatchObject({
       intro: "Pour tout le groupe : le premier qui choisit le révèle à tous.",
-      footer: "Les suivants à 35 puis 50 essais du groupe.",
+      footer: "Les suivants à 100 puis 150 essais du groupe.",
     });
     expect(hintCardText(hints(5), { victory: false, group: true }).footer).toBe(
-      "Un indice à 20, 35 et 50 essais du groupe : à chaque fois, le groupe choisit lequel."
+      "Un indice à 50, 100 et 150 essais du groupe : à chaque fois, le groupe choisit lequel."
     );
   });
 });

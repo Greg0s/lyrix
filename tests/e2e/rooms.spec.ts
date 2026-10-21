@@ -315,8 +315,8 @@ test("shares the room's hints: unlocked on the group's guesses, revealed for eve
   await joinRoom(guest, code, "Léo");
   await expect(feedback(host)).toHaveText("Léo a rejoint le salon.");
 
-  // Nobody's lyrics: ten each, twenty for the group.
-  for (const letter of "abcdefghij") {
+  // Nobody's lyrics: twenty-five each, fifty for the group.
+  for (const letter of "abcdefghijklmnopqrstuvwxy") {
     await guess(host, `zq${letter}xw`);
     await guess(guest, `zq${letter}yv`);
   }
