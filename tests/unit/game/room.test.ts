@@ -16,6 +16,7 @@ import {
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
   roomExpiresAt,
+  graphemes,
   sanitizePseudo,
   type RoomSnapshot,
 } from "../../../src/game/room";
@@ -86,8 +87,33 @@ describe("sanitizePseudo", () => {
     expect(sanitizePseudo("Zoe\u0301")).toBe("Zoé");
   });
 
-  it("drops control characters, bidi overrides, zero-width characters and emoji", () => {
-    expect(sanitizePseudo("Ca\u0000mi\u202Ell\u200Be \u{1F3A4}")).toBe("Camille");
+  it("drops control characters, bidi overrides and zero-width characters", () => {
+    expect(sanitizePseudo("Ca\u0000mi\u202Ell\u200Be")).toBe("Camille");
+  });
+
+  it("keeps punctuation and symbols", () => {
+    expect(sanitizePseudo("x_D@rk*Vador!")).toBe("x_D@rk*Vador!");
+    expect(sanitizePseudo("<L\u00E9o> & (Zo\u00E9) \u266B\u20AC")).toBe("<L\u00E9o> & (Zo\u00E9) \u266B\u20AC");
+  });
+
+  it("keeps emoji whole: skin tones, ZWJ sequences, flags, keycaps and subdivision flags", () => {
+    expect(sanitizePseudo("Camille \u{1F3A4}")).toBe("Camille \u{1F3A4}");
+    for (const emoji of ["\uD83D\uDC4D\uD83C\uDFFD", "\uD83D\uDC69\u200D\uD83D\uDCBB", "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66", "\uD83E\uDDD1\uD83C\uDFFB\u200D\u2764\uFE0F\u200D\uD83D\uDC8B\u200D\uD83E\uDDD1\uD83C\uDFFC", "\u2764\uFE0F", "\uD83C\uDDEB\uD83C\uDDF7", "1\uFE0F\u20E3", "\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC73\uDB40\uDC63\uDB40\uDC74\uDB40\uDC7F"]) {
+      expect(sanitizePseudo(`Zo\u00E9 ${emoji}`)).toBe(`Zo\u00E9 ${emoji}`);
+    }
+  });
+
+  it("drops a joiner or selector that isn't inside an emoji", () => {
+    expect(sanitizePseudo("Za\u200Dza\uFE0F")).toBe("Zaza");
+    expect(sanitizePseudo("\u{1F3A4}\u0336\u0336")).toBe("\u{1F3A4}");
+  });
+
+  it("counts an emoji as one character against the cap", () => {
+    expect(sanitizePseudo("\uD83D\uDC69\u200D\uD83D\uDCBB".repeat(20))).toBe("\uD83D\uDC69\u200D\uD83D\uDCBB".repeat(PSEUDO_MAX_LENGTH));
+  });
+
+  it("only looks at the beginning of a huge input", () => {
+    expect(sanitizePseudo(`${" ".repeat(10_000)}Camille`)).toBe("");
   });
 
   it("drops the stacked combining marks of zalgo text", () => {
@@ -110,7 +136,14 @@ describe("sanitizePseudo", () => {
 
   it("is empty when nothing usable was typed", () => {
     expect(sanitizePseudo("")).toBe("");
-    expect(sanitizePseudo("  \u{1F3A4}\u{1F3B6} ")).toBe("");
+    expect(sanitizePseudo("  ​‮ ")).toBe("");
+  });
+});
+
+describe("graphemes", () => {
+  it("splits text into the characters a reader sees", () => {
+    expect(graphemes("Zoé👩‍💻🇫🇷")).toEqual(["Z", "o", "é", "👩‍💻", "🇫🇷"]);
+    expect(graphemes("")).toEqual([]);
   });
 });
 

@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  PSEUDO_MAX_LENGTH,
   ROOM_CLOSE_EXPIRED,
   ROOM_CLOSE_LEFT,
   ROOM_CLOSE_UNKNOWN,
@@ -496,13 +497,13 @@ describe("the multiplayer dialog", () => {
     const dialog = openDialog();
 
     fireEvent.click(within(dialog).getByRole("tab", { name: "Créer un salon" }));
-    fireEvent.change(within(dialog).getByLabelText("Ton pseudo"), { target: { value: "  Camille 🎤 " } });
+    fireEvent.change(within(dialog).getByLabelText("Ton pseudo"), { target: { value: "  Camille‮ 🎤 " } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Créer le salon" }));
 
     await waitFor(() => expect(within(dialog).getByText("ABC234")).toBeTruthy());
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://localhost:3000/api/rooms");
     // Sanitized before it leaves, exactly as the room would store it.
-    expect(sentBody()).toEqual({ pseudo: "Camille" });
+    expect(sentBody()).toEqual({ pseudo: "Camille 🎤" });
     expect(within(dialog).getByRole("heading", { name: "Joueurs · 1" })).toBeTruthy();
     const me = within(dialog).getByText("Camille").closest("li") as HTMLElement;
     expect(within(me).getByText("toi")).toBeTruthy();
@@ -545,6 +546,15 @@ describe("the multiplayer dialog", () => {
     latestSocket().receive(roundMessage());
     expect(feedbackText()).toBe("Tu as rejoint le salon de Camille.");
     expect(screen.getByRole("button", { name: "Salon · 2 joueurs" })).toBeTruthy();
+  });
+
+  it("caps the pseudo field in characters as seen, an emoji counting as one", async () => {
+    await mountGame();
+    const dialog = openDialog();
+    const pseudo = within(dialog).getByLabelText("Ton pseudo") as HTMLInputElement;
+
+    fireEvent.change(pseudo, { target: { value: "👩‍💻".repeat(20) } });
+    expect(pseudo.value).toBe("👩‍💻".repeat(PSEUDO_MAX_LENGTH));
   });
 
   it("flags a code that is too short without asking the server, and shakes on every attempt", async () => {

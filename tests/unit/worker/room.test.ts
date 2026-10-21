@@ -259,7 +259,7 @@ describe("POST /api/rooms", () => {
 
   it("keeps an empty pseudo as unnamed, and sanitizes any other", async () => {
     expect((await createRoom("   ")).room.host.name).toBeNull();
-    expect((await createRoom("  Zoé \u0000 la 🎤 Star du Karaoké ")).room.host.name).toBe("Zoé la Star du K");
+    expect((await createRoom("  Zoé \u0000 la 🎤 Star du Karaoké ")).room.host.name).toBe("Zoé la 🎤 Star du");
   });
 
   it("draws another code when the first one is taken", async () => {
