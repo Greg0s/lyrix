@@ -63,6 +63,7 @@ function feedback(page: Page): Locator {
 /** Creates a room from the header, closes the dialog, and returns its code. */
 async function createRoom(page: Page, pseudo: string): Promise<string> {
   await page.getByRole("button", { name: "Jouer à plusieurs" }).click();
+  await dialog(page).getByRole("tab", { name: "Créer un salon" }).click();
   await dialog(page).getByLabel("Ton pseudo").fill(pseudo);
   await dialog(page).getByRole("button", { name: "Créer le salon" }).click();
   const code = dialog(page).locator(".lyrix-room-code");
@@ -94,20 +95,21 @@ async function settledBox(page: Page): Promise<{ x: number; y: number; width: nu
 test("switching between the create and join tabs doesn't move the dialog", async ({ browser }) => {
   const page = await openGame(browser);
   await page.getByRole("button", { name: "Jouer à plusieurs" }).click();
-  const onCreate = await settledBox(page);
-
-  await dialog(page).getByRole("tab", { name: "Rejoindre" }).click();
-  await expect(dialog(page).getByLabel("Code du salon")).toBeVisible();
-  expect(await settledBox(page)).toEqual(onCreate);
+  const onJoin = await settledBox(page);
 
   await dialog(page).getByRole("tab", { name: "Créer un salon" }).click();
   await expect(dialog(page).getByRole("button", { name: "Créer le salon" })).toBeVisible();
-  expect(await settledBox(page)).toEqual(onCreate);
+  expect(await settledBox(page)).toEqual(onJoin);
+
+  await dialog(page).getByRole("tab", { name: "Rejoindre" }).click();
+  await expect(dialog(page).getByLabel("Code du salon")).toBeVisible();
+  expect(await settledBox(page)).toEqual(onJoin);
 });
 
 test("creates a room: its code, its host, and the room everywhere on the page", async ({ browser }) => {
   const page = await openGame(browser);
   await page.getByRole("button", { name: "Jouer à plusieurs" }).click();
+  await dialog(page).getByRole("tab", { name: "Créer un salon" }).click();
   await dialog(page).getByLabel("Ton pseudo").fill("Camille");
   await dialog(page).getByRole("button", { name: "Créer le salon" }).click();
 
