@@ -2488,17 +2488,52 @@
   display: grid;
 }
 
+/* Switching tabs cross-fades the panes, each sliding on the side of its tab, the way the indicator
+   goes: the old pane leaves quickly, the new one comes in just after it. Transitions, not keyframes, so
+   a quick back-and-forth turns around from where it is instead of starting over. Visibility follows
+   the fade out, so the hidden pane stays out of reach once it's gone. */
 .lyrix-mp-pane {
   grid-area: 1 / 1;
   display: flex;
   flex-direction: column;
   gap: 14px;
   visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 0.14s ease-out,
+    transform 0.18s ease-out,
+    visibility 0s linear 0.18s;
+}
+
+/* "Rejoindre" is the first tab, on the left: hidden, its pane waits on that side; "Créer un salon"'s on
+   the right. */
+.lyrix-mp-pane.is-join {
+  transform: translateX(-24px);
+}
+
+.lyrix-mp-pane.is-create {
+  transform: translateX(24px);
 }
 
 .lyrix-mp-pane.is-active {
   visibility: visible;
-  animation: lyrix-feed 0.25s ease;
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.24s ease-out 0.06s,
+    transform 0.3s var(--ease-out) 0.06s,
+    visibility 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The global switch zeroes durations, not delays: the panes swap at once, without sliding. */
+  .lyrix-mp-pane,
+  .lyrix-mp-pane.is-join,
+  .lyrix-mp-pane.is-create,
+  .lyrix-mp-pane.is-active {
+    transform: none;
+    transition-delay: 0s;
+  }
 }
 
 /* The shorter pane's button lines up with the taller one's, at the bottom. */
