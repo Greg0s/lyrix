@@ -2500,9 +2500,9 @@
   visibility: hidden;
   opacity: 0;
   transition:
-    opacity 0.14s ease-out,
-    transform 0.18s ease-out,
-    visibility 0s linear 0.18s;
+    opacity 0.1s var(--ease-out),
+    transform 0.16s var(--ease-out),
+    visibility 0s linear 0.16s;
 }
 
 /* "Rejoindre" is the first tab, on the left: hidden, its pane waits on that side; "Créer un salon"'s on
@@ -2520,8 +2520,8 @@
   opacity: 1;
   transform: none;
   transition:
-    opacity 0.24s ease-out 0.06s,
-    transform 0.3s var(--ease-out) 0.06s,
+    opacity 0.22s ease-out 0.09s,
+    transform 0.3s var(--ease-out) 0.09s,
     visibility 0s;
 }
 
