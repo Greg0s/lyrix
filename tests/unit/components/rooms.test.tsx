@@ -512,6 +512,18 @@ describe("the multiplayer dialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
+  it("shows « Rejoindre » first, on the left, ahead of « Créer un salon »", async () => {
+    await mountGame();
+    const dialog = openDialog();
+
+    const tabs = within(dialog).getAllByRole("tab").map((tab) => tab.textContent);
+    expect(tabs).toEqual(["Rejoindre", "Créer un salon"]);
+    // The indicator sits under the selected tab: the second one while creating.
+    expect(dialog.querySelector(".lyrix-tabs")?.classList.contains("is-second")).toBe(true);
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Rejoindre" }));
+    expect(dialog.querySelector(".lyrix-tabs")?.classList.contains("is-second")).toBe(false);
+  });
+
   it("joins a room: closes, and the dock says whose room it is", async () => {
     answer(201, entry(leo.id, [camille, leo]));
     await mountGame();

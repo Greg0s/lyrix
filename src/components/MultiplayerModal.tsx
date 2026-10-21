@@ -46,8 +46,8 @@ interface FormError {
 }
 
 /**
- * "Jouer à plusieurs" (issue #29). Out of a room: the "Créer un salon" /
- * "Rejoindre" tabs. In one: its code and invite link to share, and who is
+ * "Jouer à plusieurs" (issue #29). Out of a room: the "Rejoindre" /
+ * "Créer un salon" tabs. In one: its code and invite link to share, and who is
  * there. An invite link to another room shows the forms again. Creating a
  * room keeps the dialog open on the new room; joining one closes it, and the
  * guess dock says whose room it was (see useRoom).
@@ -126,17 +126,9 @@ function RoomForms({ invite, currentRoom, onCreate, onJoin, onJoined }: RoomForm
 
   return (
     <div className="lyrix-mp">
-      <div className={`lyrix-tabs${tab === "join" ? " is-second" : ""}`} role="tablist">
+      {/* "Rejoindre" comes first, on the left: most players open this dialog to join a friend's room. */}
+      <div className={`lyrix-tabs${tab === "create" ? " is-second" : ""}`} role="tablist">
         <span className="lyrix-tabs-indicator" aria-hidden="true" />
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "create"}
-          className={tab === "create" ? "is-active" : undefined}
-          onClick={() => switchTab("create")}
-        >
-          Créer un salon
-        </button>
         <button
           type="button"
           role="tab"
@@ -145,6 +137,15 @@ function RoomForms({ invite, currentRoom, onCreate, onJoin, onJoined }: RoomForm
           onClick={() => switchTab("join")}
         >
           Rejoindre
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "create"}
+          className={tab === "create" ? "is-active" : undefined}
+          onClick={() => switchTab("create")}
+        >
+          Créer un salon
         </button>
       </div>
 
