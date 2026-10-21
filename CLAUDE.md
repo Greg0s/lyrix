@@ -197,12 +197,13 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     heatStyle.ts             # inline --heat a chip, or a close guess's bar, is shaded with
     GuessForm.tsx             # sticky guess dock: input, feedback line, shake on a miss
     ProgressCard.tsx, TriedWords.tsx  # side column: % revealed + counts; past guesses,
-                                      # sorted by score, crediting the embedding model;
+                                      # sorted by score;
                                       # "Mots du groupe" in a room, a colour dot per chip
                                       # (collapsed by default below 880px)
     HintsCard.tsx, HintSheet.tsx, HintIcon.tsx  # "Indices" card under "Tes mots" (collapsed below 880px,
                               # like it); the sheet the dock's "Choisir" opens on a phone; pictograms
-    LegalNotice.tsx           # legal notice + privacy policy (/mentions-legales), linked from every screen's footer
+    LegalNotice.tsx           # legal notice + privacy policy (/mentions-legales), linked from every screen's footer;
+                              # the credits (lyrics source, fonts, the frWac2Vec model, CC BY 3.0)
     Modal.tsx, HowToPlay.tsx   # dialog shell (Escape/backdrop, exit animation; a bottom sheet below 880px
                               # as the "sheet" variant); the rules' page (/comment-jouer):
                               # a short summary with sample close-guess bars, and a FAQ (native <details>) beside it from 880px
