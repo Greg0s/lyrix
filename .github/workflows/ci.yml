@@ -42,15 +42,17 @@ jobs:
           # different origins, so the built frontend needs the Worker's absolute URL —
           # see client.ts and the VITE_API_BASE_URL comment in .env.example.
           VITE_API_BASE_URL: https://lyrix-api.lyrix.workers.dev
-      - name: Deploy frontend to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=lyrix
+      # The Worker goes first: if Cloudflare refuses it, the step fails before the
+      # frontend ships, so players never get a build calling routes the API lacks.
       - name: Deploy Worker API
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --config worker/wrangler.toml
+      - name: Deploy frontend to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=lyrix
