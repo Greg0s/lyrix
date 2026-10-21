@@ -35,4 +35,15 @@ describe("CI deploy workflow", () => {
       configOf(/command: (deploy .*)/.exec(workflow)?.[1] ?? "")
     );
   });
+  // Regression test: Cloudflare refused a Worker deploy (Analytics Engine not yet
+  // enabled on the account) after Pages had already shipped the frontend, which
+  // left production on a build calling routes the live Worker didn't have.
+  it("deploys the Worker before the frontend", () => {
+    const worker = workflow.search(/command: deploy --config/);
+    const pages = workflow.search(/command: pages deploy/);
+
+    expect(worker).toBeGreaterThan(-1);
+    expect(pages).toBeGreaterThan(-1);
+    expect(worker, "a refused Worker deploy must stop the job before Pages ships").toBeLessThan(pages);
+  });
 });
