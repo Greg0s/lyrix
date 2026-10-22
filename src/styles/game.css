@@ -2472,9 +2472,12 @@
   text-align: center;
 }
 
-/* Both tabs' panes share one grid cell, so the dialog keeps the taller one's height on either tab. */
+/* Both tabs' panes share one grid cell, so the dialog keeps the taller one's height on either tab.
+   The column is the dialog's width, never a pane's widest content: the room code's input, wide at
+   its large letter-spaced font, would otherwise stretch it past a phone's dialog. */
 .lyrix-mp-panes {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* Switching tabs cross-fades the panes, each sliding on the side of its tab, the way the indicator

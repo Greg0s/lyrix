@@ -106,6 +106,23 @@ test("switching between the create and join tabs doesn't move the dialog", async
   expect(await settledBox(page)).toEqual(onJoin);
 });
 
+test("never scrolls the dialog sideways, on either tab, wide or narrow", async ({ browser }) => {
+  const page = await openGame(browser);
+  await page.getByRole("button", { name: "Jouer à plusieurs" }).click();
+  const overflows = async () => {
+    await settledBox(page);
+    return dialog(page).evaluate((element) => element.scrollWidth > element.clientWidth);
+  };
+
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: 812 });
+    for (const tab of ["Créer un salon", "Rejoindre"]) {
+      await dialog(page).getByRole("tab", { name: tab }).click();
+      expect(await overflows(), `${tab} at ${width}px`).toBe(false);
+    }
+  }
+});
+
 test("creates a room: its code, its host, and the room everywhere on the page", async ({ browser }) => {
   const page = await openGame(browser);
   await page.getByRole("button", { name: "Jouer à plusieurs" }).click();
