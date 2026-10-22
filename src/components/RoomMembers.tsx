@@ -1,11 +1,12 @@
 import { memo, useEffect, useState, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { memberName, type RoomMember } from "../game/room";
+import { graphemes, memberName, type RoomMember } from "../game/room";
 import type { RoomView } from "../hooks/useRoom";
 import { playerStyle } from "./playerColor";
 
+/** The name's first character as seen, so a pseudo starting with 👩‍💻 shows the whole emoji. */
 function initial(name: string): string {
-  return (Array.from(name)[0] ?? "?").toLocaleUpperCase("fr");
+  return (graphemes(name)[0] ?? "?").toLocaleUpperCase("fr");
 }
 
 interface PlayerAvatarProps {

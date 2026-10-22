@@ -1,6 +1,7 @@
 import { useId, useState, type FormEvent } from "react";
 import type { RoomFailure } from "../api/rooms";
 import {
+  graphemes,
   inviteUrl,
   isRoomCode,
   normalizeRoomCodeInput,
@@ -158,9 +159,9 @@ function RoomForms({ invite, currentRoom, onCreate, onJoin, onJoined }: RoomForm
               type="text"
               className="lyrix-field-input"
               value={pseudo}
-              onChange={(event) => setPseudo(event.target.value)}
+              // Capped in characters as seen, not maxLength's UTF-16 units: an emoji can take up to 20 of those.
+              onChange={(event) => setPseudo(graphemes(event.target.value).slice(0, PSEUDO_MAX_LENGTH).join(""))}
               placeholder="Ex. Camille"
-              maxLength={PSEUDO_MAX_LENGTH}
               autoComplete="nickname"
               spellCheck={false}
               aria-describedby="lyrix-pseudo-hint"

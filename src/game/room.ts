@@ -254,21 +254,51 @@ export function isTabId(value: unknown): value is string {
   return typeof value === "string" && TAB_ID_PATTERN.test(value);
 }
 
+/** Only this much of a typed pseudo is looked at: the rest could never fit anyway. */
+const PSEUDO_RAW_MAX_LENGTH = 512;
+/** The longest emoji sequences (a kiss with two skin tones) are 10 code points; anything longer is padding. */
+const EMOJI_MAX_CODE_POINTS = 10;
 /**
- * A pseudo as everyone else will see it: NFC, letters, digits, spaces and
- * `' ’ - _ .` only, runs of whitespace collapsed, at most PSEUDO_MAX_LENGTH
- * characters. Everything else goes, in particular control and invisible
- * characters, bidi overrides, emoji, and combining marks (which is what
- * stacks "zalgo" text over the rest of the page). Empty means unnamed.
+ * One whole emoji: a flag, a keycap, or pictographs with their skin tone and
+ * presentation selector, joined by ZWJ, a subdivision flag's tags included.
+ */
+const EMOJI =
+  /^(?:\p{Regional_Indicator}{2}|[0-9#*]️?⃣|\p{Extended_Pictographic}[️\p{Emoji_Modifier}]*(?:[\u{E0020}-\u{E007E}]+\u{E007F})?(?:‍\p{Extended_Pictographic}[️\p{Emoji_Modifier}]*)*)$/u;
+/** Everything but letters, digits, punctuation, symbols and the space: controls, invisibles, bidi overrides, marks. */
+const NOT_PRINTABLE = /[^\p{L}\p{N}\p{P}\p{S} ]/gu;
+
+const graphemeSegmenter =
+  typeof Intl.Segmenter === "function" ? new Intl.Segmenter("fr", { granularity: "grapheme" }) : null;
+
+/**
+ * `text` as the characters a reader sees: an emoji made of several code points
+ * (👩‍💻, 🇫🇷, 👍🏽) is one. Code points where the browser can't segment.
+ */
+export function graphemes(text: string): string[] {
+  if (!graphemeSegmenter) return Array.from(text);
+  return Array.from(graphemeSegmenter.segment(text), ({ segment }) => segment);
+}
+
+/**
+ * A pseudo as everyone else will see it: NFC, letters, digits, punctuation,
+ * symbols, emoji and spaces, runs of whitespace collapsed, at most
+ * PSEUDO_MAX_LENGTH characters (an emoji counting as one). Everything else
+ * goes, in particular control and invisible characters, bidi overrides, and
+ * combining marks (which is what stacks "zalgo" text over the rest of the
+ * page) — but the joiners and selectors inside a whole emoji. Empty means unnamed.
  */
 export function sanitizePseudo(raw: string): string {
-  const kept = raw
-    .normalize("NFC")
-    .replace(/\s+/gu, " ")
-    .replace(/[^\p{L}\p{N} '’\-_.]/gu, "")
+  const normalized = raw.slice(0, PSEUDO_RAW_MAX_LENGTH).normalize("NFC").replace(/\s+/gu, " ");
+  const kept = graphemes(normalized)
+    .map((grapheme) =>
+      EMOJI.test(grapheme) && Array.from(grapheme).length <= EMOJI_MAX_CODE_POINTS
+        ? grapheme
+        : grapheme.replace(NOT_PRINTABLE, "")
+    )
+    .join("")
     .replace(/ {2,}/g, " ")
     .trim();
-  return Array.from(kept).slice(0, PSEUDO_MAX_LENGTH).join("").trim();
+  return graphemes(kept).slice(0, PSEUDO_MAX_LENGTH).join("").trim();
 }
 
 /** A member's display name: their pseudo, else "Toi" for the local player and "Joueur N" for anyone else. */
