@@ -38,6 +38,7 @@ import {
 } from "./round";
 import { recordEvent, roundKind } from "./events";
 import { getSongById, getSongOfDay, SongUnavailableError } from "./songs";
+import { pickSingerName } from "./singerNames";
 import { hintProgressOf, openState, type HintProgress } from "./state";
 
 /**
@@ -153,9 +154,11 @@ function publicMember({ id, name, number }: MemberRecord): RoomMember {
   return { id, name, number };
 }
 
-function newMember(number: number, pseudo: unknown): MemberRecord {
-  const name = typeof pseudo === "string" ? sanitizePseudo(pseudo) : "";
-  return { id: randomHex(8), token: randomHex(16), name: name || null, number, announced: false };
+/** A member without a pseudo goes by a singer's name no one else in the room has. */
+function newMember(number: number, pseudo: unknown, others: readonly MemberRecord[] = []): MemberRecord {
+  const typed = typeof pseudo === "string" ? sanitizePseudo(pseudo) : "";
+  const name = typed || pickSingerName(others.map((member) => member.name));
+  return { id: randomHex(8), token: randomHex(16), name, number, announced: false };
 }
 
 function attachedMemberId(ws: RoomSocket): string | null {
@@ -273,7 +276,7 @@ export class Room {
     const room = await this.#load();
     if (!room) return json({ error: "no such room" }, 404);
 
-    const member = newMember(room.nextNumber, pseudo);
+    const member = newMember(room.nextNumber, pseudo, room.members);
     room.nextNumber += 1;
     room.members.push(member);
     await this.#save(room);

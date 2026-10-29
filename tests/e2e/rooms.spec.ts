@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import type { RoundView } from "../../src/game/types";
+import { FEMALE_SINGERS, MALE_SINGERS } from "../../worker/src/singerNames";
 import { lyricsOnlyWord, titleWords as titleWordsOf } from "./titleWords";
 
 /**
@@ -219,17 +220,23 @@ test("keeps a player in their room across a reload", async ({ browser }) => {
   await expect(feedback(host)).toHaveText("Léo a rejoint le salon.");
 });
 
-test("names a player who gave no pseudo « Toi » for themselves and « Joueur N » for the others", async ({ browser }) => {
+test("names a player who gave no pseudo after a singer, a different one for each", async ({ browser }) => {
+  const singers = [...MALE_SINGERS, ...FEMALE_SINGERS];
   const host = await openGame(browser);
   const guest = await openGame(browser);
   const code = await createRoom(host, "");
-  await expect(roomCard(host).locator(".lyrix-member-name")).toHaveText(["Toi"]);
+  const hostName = (await roomCard(host).locator(".lyrix-member-name").innerText()).trim();
+  expect(singers).toContain(hostName);
 
   await joinRoom(guest, code, "");
 
-  await expect(feedback(guest)).toHaveText("Tu as rejoint le salon de Joueur 1.");
-  await expect(feedback(host)).toHaveText("Joueur 2 a rejoint le salon.");
-  await expect(roomCard(guest).locator(".lyrix-member-name")).toHaveText(["Joueur 1", "Toi"]);
+  const names = (await roomCard(guest).locator(".lyrix-member-name").allInnerTexts()).map((name) => name.trim());
+  expect(names).toHaveLength(2);
+  expect(names[0]).toBe(hostName);
+  expect(singers).toContain(names[1]);
+  expect(names[1]).not.toBe(hostName);
+  await expect(feedback(guest)).toHaveText(`Tu as rejoint le salon de ${hostName}.`);
+  await expect(feedback(host)).toHaveText(`${names[1]} a rejoint le salon.`);
 });
 
 test("invites a player with a link: an invitation's preview, then the room's code typed in for them", async ({

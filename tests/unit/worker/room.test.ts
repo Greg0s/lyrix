@@ -22,6 +22,7 @@ import type { DisplayToken, RoundView } from "../../../src/game/types";
 import app from "../../../worker/src/index";
 import { pickDailyEntry } from "../../../worker/src/catalog";
 import { Room, type RoomContext, type RoomSocket } from "../../../worker/src/room";
+import { FEMALE_SINGERS, MALE_SINGERS } from "../../../worker/src/singerNames";
 import type { EventsDataset } from "../../../worker/src/events";
 import type { RateLimiter, RoomNamespace } from "../../../worker/src/roomRoutes";
 import { resetSimilarityMemo } from "../../../worker/src/similarity";
@@ -226,6 +227,8 @@ async function entryFrom(response: Response): Promise<RoomEntry> {
   return entry;
 }
 
+const SINGERS = [...MALE_SINGERS, ...FEMALE_SINGERS];
+
 async function createRoom(pseudo = "Camille"): Promise<RoomEntry> {
   return entryFrom(await post("/api/rooms", { pseudo }));
 }
@@ -257,9 +260,19 @@ describe("POST /api/rooms", () => {
     expect(rooms.state(entry.room.code).alarm).toBe(Date.UTC(2026, 9, 19));
   });
 
-  it("keeps an empty pseudo as unnamed, and sanitizes any other", async () => {
-    expect((await createRoom("   ")).room.host.name).toBeNull();
+  it("names an empty pseudo after a singer, and sanitizes any other", async () => {
+    expect(SINGERS).toContain((await createRoom("   ")).room.host.name);
+    expect(SINGERS).toContain((await createRoom("")).room.host.name);
     expect((await createRoom("  Zoé \u0000 la 🎤 Star du Karaoké ")).room.host.name).toBe("Zoé la 🎤 Star du");
+  });
+
+  it("gives two members who left their pseudo empty two different singers", async () => {
+    const host = await createRoom("");
+    const guest = await joinRoom(host.room.code, "");
+
+    const names = [host.room.host.name, guest.room.members.find((m) => m.id === guest.you)?.name];
+    expect(names.every((name) => name && SINGERS.includes(name))).toBe(true);
+    expect(new Set(names).size).toBe(2);
   });
 
   it("draws another code when the first one is taken", async () => {
