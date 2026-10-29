@@ -739,13 +739,17 @@ export function useGame(day: string | null = null) {
     if (!aloneSession?.round) return;
     const { code, token } = aloneSession;
     const { day: roomDay } = aloneSession.round;
+    // What the round the room signs holds of the group's, listed with the
+    // player's own words: as of now, so no later find of the room's gets in.
+    const groupFinds = aloneSession.triedWords.filter((word) => word.key !== aloneSession.winningKey);
     setState((prev) => (prev.shared ? { ...prev, shared: { ...prev.shared, aloneRequested: true } } : prev));
     continueAlone(code, token, soloState, roomDay)
       .then((round) => {
         setState((prev) => {
           if (prev.shared?.code !== code || (prev.day ?? utcDay()) !== round.day) return prev;
-          saveRoundSoon(round, prev.triedWords);
-          return { ...prev, round, error: null };
+          const triedWords = withGroupFinds(prev.triedWords, groupFinds);
+          saveRoundSoon(round, triedWords);
+          return { ...prev, round, triedWords, error: null };
         });
       })
       .catch(() => {});

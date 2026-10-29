@@ -1082,6 +1082,22 @@ describe("when the group finds the song without the player (#30)", () => {
     expect(lyricsText()).not.toContain("novembre");
   });
 
+  // The solo list was shown as it was before the room: empty, or the few
+  // words tried alone, under lyrics holding everything the group found.
+  it("lists what the group found but the winning word among the player's own words", async () => {
+    answer(200, aloneRound);
+    seedRoom(entry(camille.id, [camille, leo]));
+    await mountGame([roomGuess("guitare", leo, false), ...titleFound.slice(1)]);
+
+    latestSocket().receive(roundMessage([roomGuess("guitare", leo, false), ...titleFound], "novembre", "novembre"));
+
+    await waitFor(() => expect(lyricsText()).toContain("refuge"));
+    const card = screen.getByRole("region", { name: "Tes mots" });
+    const chips = [...card.querySelectorAll(".lyrix-chip")].map((chip) => chip.textContent).sort();
+    expect(chips).toEqual(["de", "le", "refuge"]);
+    expect(document.querySelector('[data-stat="found"] .lyrix-stat-value')?.textContent).toBe("3");
+  });
+
   // Decided with the developer: a player still looking on their own when they
   // leave keeps everything the group found but the winning word, which is
   // what their solo round already holds; the room's own state would hand
