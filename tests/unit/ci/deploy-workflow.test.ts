@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-// Regression test for a production outage: Pages (lyrix-eyg.pages.dev) and the
+// Regression test for a production outage: Pages (lyrix.mintymoon.app) and the
 // Worker (lyrix-api.lyrix.workers.dev) are different origins, so the frontend
 // build must be told the Worker's absolute URL via VITE_API_BASE_URL. Without
 // it, client.ts falls back to relative /api/* calls against the Pages origin,

@@ -18,7 +18,7 @@ import { INVITE_IMAGE } from "./socialImage";
  * and the host's pseudo is personal data a preview would broadcast.
  */
 
-const SITE = "https://lyrix-eyg.pages.dev/";
+const SITE = "https://lyrix.mintymoon.app/";
 
 export const INVITE_PAGE = {
   file: "salon/index.html",

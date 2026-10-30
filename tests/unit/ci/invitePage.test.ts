@@ -12,7 +12,7 @@ import { INVITE_PATH } from "../../../src/game/room";
  * a dropped tag would only show as a bare link in a chat.
  */
 
-const SITE = "https://lyrix-eyg.pages.dev/";
+const SITE = "https://lyrix.mintymoon.app/";
 
 const root = new URL("../../../", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root));

@@ -38,7 +38,7 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          # Pages (lyrix-eyg.pages.dev) and the Worker (lyrix-api.lyrix.workers.dev) are
+          # Pages (lyrix.mintymoon.app) and the Worker (lyrix-api.lyrix.workers.dev) are
           # different origins, so the built frontend needs the Worker's absolute URL —
           # see client.ts and the VITE_API_BASE_URL comment in .env.example.
           VITE_API_BASE_URL: https://lyrix-api.lyrix.workers.dev

@@ -8,7 +8,7 @@ import { strategyFor, type RequestShape } from "../../../src/serviceWorker/route
  * Worker may give, or an invite link, whose page Pages serves.
  */
 
-const SITE = "https://lyrix-eyg.pages.dev";
+const SITE = "https://lyrix.mintymoon.app";
 const PRECACHED = new Set(["/", "/assets/index-abc123.js", "/assets/index-def456.css", "/icon-192.png"]);
 
 function strategy(url: string, { method = "GET", mode = "cors" }: Partial<RequestShape> = {}) {

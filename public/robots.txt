@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://lyrix-eyg.pages.dev/sitemap.xml
+Sitemap: https://lyrix.mintymoon.app/sitemap.xml

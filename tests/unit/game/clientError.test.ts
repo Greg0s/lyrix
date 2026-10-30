@@ -29,7 +29,7 @@ describe("a client error report", () => {
   });
 
   it("keeps an address's path alone, and never an invite link's code", () => {
-    expect(scrubAddresses("failed https://lyrix-eyg.pages.dev/assets/a.js?v=1#x at line")).toBe("failed /assets/a.js at line");
+    expect(scrubAddresses("failed https://lyrix.mintymoon.app/assets/a.js?v=1#x at line")).toBe("failed /assets/a.js at line");
     expect(scrubAddresses("wss://api.example.com/api/rooms/ABC234/socket?token=secret")).toBe("/api/rooms/ABC234/socket");
     expect(scrubAddresses("on https://lyrix.test/salon/ABC234 and /salon/XYZ789")).toBe("on /salon/… and /salon/…");
     expect(scrubAddresses("see https://example.com")).toBe("see /");
