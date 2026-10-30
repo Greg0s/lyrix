@@ -230,8 +230,9 @@ test("names a player who gave no pseudo after a singer, a different one for each
 
   await joinRoom(guest, code, "");
 
+  // The card fills once the room's first message lands: wait for both members before reading them.
+  await expect(roomCard(guest).locator(".lyrix-member-name")).toHaveCount(2);
   const names = (await roomCard(guest).locator(".lyrix-member-name").allInnerTexts()).map((name) => name.trim());
-  expect(names).toHaveLength(2);
   expect(names[0]).toBe(hostName);
   expect(singers).toContain(names[1]);
   expect(names[1]).not.toBe(hostName);
