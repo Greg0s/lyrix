@@ -2,8 +2,6 @@
 
 A free web game inspired by [Pedantix](https://cemantix.certitudes.org/pedantix), built around song lyrics instead of Wikipedia articles. Type words to progressively reveal a song's lyrics — the round is won once the title is fully uncovered.
 
-Currently in **MVP** phase: plain, functional UI, no 3D or animations yet.
-
 ## Tech Stack
 
 - **Frontend**: Vite + React (TypeScript, strict mode)
