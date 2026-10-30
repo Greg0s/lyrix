@@ -15,7 +15,7 @@ export interface CanaryConfig {
 
 /** The environment variables the canary reads (set by the workflow). */
 export const CANARY_ENV = {
-  CANARY_SITE_URL: "the site's address, e.g. https://lyrix-eyg.pages.dev",
+  CANARY_SITE_URL: "the site's address, e.g. https://lyrix.mintymoon.app",
   CANARY_API_URL: "the Worker's address, e.g. https://lyrix-api.lyrix.workers.dev",
 } as const;
 

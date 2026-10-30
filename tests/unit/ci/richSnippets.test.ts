@@ -8,7 +8,7 @@ import { SOCIAL_IMAGE } from "../../../scripts/lib/socialImage";
  * a bare link in a chat or a plain result in Google, long after deploying.
  */
 
-const SITE = "https://lyrix-eyg.pages.dev/";
+const SITE = "https://lyrix.mintymoon.app/";
 
 const root = new URL("../../../", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root));

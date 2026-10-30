@@ -237,7 +237,7 @@ describe("parsing what comes off the network", () => {
 
 describe("invite links", () => {
   it("puts the code under /salon/ on the site's own origin", () => {
-    expect(inviteUrl("ABC234", "https://lyrix-eyg.pages.dev")).toBe("https://lyrix-eyg.pages.dev/salon/ABC234");
+    expect(inviteUrl("ABC234", "https://lyrix.mintymoon.app")).toBe("https://lyrix.mintymoon.app/salon/ABC234");
     expect(inviteUrl("ABC234", "http://localhost:5173")).toBe("http://localhost:5173/salon/ABC234");
   });
 
