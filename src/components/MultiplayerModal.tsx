@@ -24,6 +24,7 @@ interface MultiplayerModalProps {
   invite: string | null;
   onCreate: (pseudo: string) => Promise<RoomOutcome>;
   onJoin: (code: string, pseudo: string) => Promise<RoomOutcome>;
+  onLeave: () => void;
   onClosed: () => void;
 }
 
@@ -53,17 +54,28 @@ interface FormError {
  * room keeps the dialog open on the new room; joining one closes it, and the
  * guess dock says whose room it was (see useRoom).
  */
-export function MultiplayerModal({ room, invite, onCreate, onJoin, onClosed }: MultiplayerModalProps) {
+export function MultiplayerModal({ room, invite, onCreate, onJoin, onLeave, onClosed }: MultiplayerModalProps) {
   // After a join the dialog closes; the form stays up while it animates out,
   // rather than flashing the in-room view on the way.
   const [joined, setJoined] = useState(false);
-  const inRoom = room !== null && !joined && (invite === null || invite === room.code);
+  // After leaving, the room just left stays up while the dialog animates out.
+  const [left, setLeft] = useState<RoomView | null>(null);
+  const shown = left ?? room;
+  const inRoom = shown !== null && !joined && (left !== null || invite === null || invite === shown.code);
 
   return (
     <Modal title="Jouer à plusieurs" onClosed={onClosed} size="wide">
       {(requestClose) =>
         inRoom ? (
-          <InRoom room={room} onDone={requestClose} />
+          <InRoom
+            room={shown}
+            onDone={requestClose}
+            onLeave={() => {
+              setLeft(shown);
+              onLeave();
+              requestClose();
+            }}
+          />
         ) : (
           <RoomForms
             invite={invite}
@@ -242,9 +254,10 @@ function RoomForms({ invite, currentRoom, onCreate, onJoin, onJoined }: RoomForm
 interface InRoomProps {
   room: RoomView;
   onDone: () => void;
+  onLeave: () => void;
 }
 
-function InRoom({ room, onDone }: InRoomProps) {
+function InRoom({ room, onDone, onLeave }: InRoomProps) {
   return (
     <div className="lyrix-mp">
       <div className="lyrix-room-code-block">
@@ -264,16 +277,16 @@ function InRoom({ room, onDone }: InRoomProps) {
         Partage le lien, ou ce code à saisir dans «&nbsp;Rejoindre&nbsp;»&nbsp;: chaque joueur qui l'ouvre arrive dans
         ce salon, jusqu'à minuit (heure UTC), quand la chanson du jour change.
       </p>
-      <p className="lyrix-soon" role="note">
-        <span className="lyrix-soon-badge">Bientôt</span>
-        Chaque mot trouvé par l'un se dévoilera pour tous.
-      </p>
+      <p className="lyrix-mp-text">Chaque mot trouvé par un joueur se dévoile pour tous.</p>
       <section className="lyrix-mp-members" aria-label="Joueurs">
         <h3 className="lyrix-mp-members-title">Joueurs · {room.members.length}</h3>
         <RoomMembers room={room} variant="list" waiting />
       </section>
       <button type="button" className="lyrix-button is-accent is-block" onClick={onDone}>
         Chercher ensemble
+      </button>
+      <button type="button" className="lyrix-button is-block" onClick={onLeave}>
+        Quitter le salon
       </button>
     </div>
   );
