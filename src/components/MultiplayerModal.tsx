@@ -168,7 +168,8 @@ function RoomForms({ invite, currentRoom, onCreate, onJoin, onJoined }: RoomForm
             />
           </label>
           <small id="lyrix-pseudo-hint" className="lyrix-field-hint">
-            Visible des seuls membres du salon, effacé avec lui au changement de chanson.
+            Visible des seuls membres du salon, effacé avec lui au changement de chanson. Sans pseudo, tu auras
+            le nom d’un chanteur ou d’une chanteuse.
           </small>
         </div>
 
