@@ -217,6 +217,7 @@ export function GameScreen() {
           room={room.view}
           invite={invite}
           onCreate={room.create}
+          onLeave={room.leave}
           onJoin={room.join}
           onClosed={closeDialog}
         />

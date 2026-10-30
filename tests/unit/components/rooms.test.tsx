@@ -483,6 +483,22 @@ describe("leaving the room", () => {
     expect(screen.getByRole("button", { name: /Chercher à plusieurs/ })).toBeTruthy();
     expect(window.localStorage.getItem("lyrix:room")).toBeNull();
   });
+
+  it("can be done from the dialog, which closes on the room left, never on the forms", async () => {
+    answer(204);
+    seedRoom();
+    await mountGame();
+    latestSocket().open();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Salon/ }));
+    const dialog = screen.getByRole("dialog", { name: "Jouer à plusieurs" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Quitter le salon" }));
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://localhost:3000/api/rooms/ABC234/leave");
+    expect(roomCard()).toBeNull();
+    expect(within(dialog).queryByRole("tab")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
 });
 
 describe("the multiplayer dialog", () => {
