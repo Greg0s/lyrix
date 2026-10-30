@@ -1,5 +1,9 @@
 # Lyrix
 
+[![Lyrix preview](public/og-image.png)](https://lyrix.mintymoon.app/)
+
+**Play it: <https://lyrix.mintymoon.app/>**
+
 A free web game inspired by [Pedantix](https://cemantix.certitudes.org/pedantix), built around song lyrics instead of Wikipedia articles. Type words to progressively reveal a song's lyrics — the round is won once the title is fully uncovered.
 
 ## Tech Stack
