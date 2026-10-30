@@ -7,12 +7,12 @@ This file gives Claude Code the context and rules needed to work on this project
 A free web game inspired by Pedantix, built around song lyrics instead of Wikipedia articles. The player types words to progressively reveal a song's lyrics; the round is won once the title is fully uncovered.
 
 - One song per day, same puzzle for everyone (Motus/Wordle-style), rotating at UTC midnight from a curated catalog (`worker/src/catalog.ts`). No "replay with a different song": once solved, the player waits for tomorrow's, or plays a day they missed in the archives (the last 30 days, `/archives`), never a day to come.
-- Target audience: French-speaking, tech-savvy web users. No user accounts or personal data in the MVP.
+- Target audience: French-speaking, tech-savvy web users. No user accounts or personal data.
 - Project name: **Lyrix**.
 
-## Current Phase: MVP (no 3D)
+## Product State: final form (no 3D)
 
-The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header, one song card whose hidden words are accent bars, a sticky guess dock, and a side column (progress, tried words, hints). The archives follow the "Lyrix Archives" mockup's "Collection" variant (1c, as integrated in "Lyrix v4"): a cover per song found, an empty slot per day still to play. Short CSS animations only, all disabled under `prefers-reduced-motion` — no 3D. Do not add 3D dependencies (`three`, `@react-three/fiber`, `@react-three/drei`) unless explicitly asked; 3D is a planned post-MVP phase (see "Out of Scope"). MVP scope: masked lyrics (blanks matching word length, punctuation/line breaks preserved), a text input that reveals every occurrence of a correctly guessed word, and a win state once the title is fully uncovered.
+The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header, one song card whose hidden words are accent bars, a sticky guess dock, and a side column (progress, tried words, hints). The archives follow the "Lyrix Archives" mockup's "Collection" variant (1c, as integrated in "Lyrix v4"): a cover per song found, an empty slot per day still to play. Short CSS animations only, all disabled under `prefers-reduced-motion`. The site is in its final form, not a stepping stone: 3D was once planned and has been dropped for good (decided with the developer), so there is no 3D phase to prepare for and no 3D dependency (`three`, `@react-three/fiber`, `@react-three/drei`) to add. Future work is ordinary updates to this game. Core loop: masked lyrics (blanks matching word length, punctuation/line breaks preserved), a text input that reveals every occurrence of a correctly guessed word, and a win state once the title is fully uncovered.
 
 ## Tech Stack
 
@@ -25,7 +25,7 @@ The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header
 - **Semantic proximity scoring**: French word embeddings, precomputed offline into a per-song score table — see `docs/SIMILARITY.md`.
 - **Statistics**: Workers Analytics Engine (the `EVENTS` dataset, `lyrix_events`), written by the Worker (`worker/src/events.ts`) and read back with `npm run stats` (`scripts/stats.ts`, the SQL API). No analytics service, script or dashboard of anyone else's.
 - **Installable (PWA, #79)**: `public/manifest.webmanifest` and a hand-written service worker (`src/serviceWorker/sw.ts`, about 2 kB), bundled on its own into `/sw.js` by a Vite plugin (`scripts/lib/serviceWorker.ts`) that writes the build's file list in. No `vite-plugin-pwa`/Workbox.
-- **Planned, not yet in scope**: `@react-three/fiber`/`@react-three/drei` for in-game 3D; word-usage counter.
+- **Planned, not yet in scope**: word-usage counter.
 
 ## Working on this project
 
@@ -102,7 +102,7 @@ Keep `docs/LEARNINGS.md` as a running log of things worth remembering across ses
 
 ## Domain-Specific Rules
 
-- **Anti-cheat is a hard requirement**, even in the MVP: the Worker is the only thing that knows the actual lyrics. It receives a guessed word and returns which positions match — never the full text before the round is won. The one exception is `DEV_REVEAL_LYRICS` (`worker/src/index.ts`), which attaches each hidden word's real text as `devHint` for local debugging (`WordToken.tsx`); wired only into `dev:worker`/`dev:all`/`test:e2e`, never in `wrangler.toml` or production.
+- **Anti-cheat is a hard requirement**, the Worker is the only thing that knows the actual lyrics. It receives a guessed word and returns which positions match — never the full text before the round is won. The one exception is `DEV_REVEAL_LYRICS` (`worker/src/index.ts`), which attaches each hidden word's real text as `devHint` for local debugging (`WordToken.tsx`); wired only into `dev:worker`/`dev:all`/`test:e2e`, never in `wrangler.toml` or production.
 - **The "show all lyrics" checkbox reuses that same mechanism, gated on `victory` instead of a dev flag.** Once `RoundView.victory` is true — recomputed by the Worker itself from sealed state, never client-supplied — `buildRoundView` attaches every still-hidden lyrics word's real text as `DisplayToken.revealHint`, riding along on the normal round/guess response (no extra endpoint or round trip). The checkbox itself is local, unsigned UI state owned by `GameScreen`, rendered only once won (`TitleGuess`); `WordToken` shows `revealHint` in place of a blank only while checked, ahead of a close-guess placement and the dev hint.
 - **Hints** (`src/game/hints.ts`, `docs/superpowers/specs/2026-10-19-song-hints-design.md`, decided with the developer): three per song, the same every day — *Époque*, *Type d'artiste*, *Style* — and one more may be revealed at 50, 100 and 150 guesses (`HINT_THRESHOLDS`), the player picking which. Unlocking never reveals: a hint shows only once picked, or once the round is won. Their text lives in `worker/src/songFacts.ts` alone, curated by hand: a song added to the catalog gets its facts in the same commit, and no hint may share a word with its song's title or artist (`tests/unit/worker/songFacts.test.ts`). The guess count (`tried`: every guess the Worker answered, found or not) and the hints revealed are sealed in the round state, which `POST /api/round/hint` checks a reveal against; a state sealed before hints counts its found words. In a room, hints are the group's: unlocked on its guesses, revealed by any member for everyone (`/api/rooms/:code/hint`), `RoomRound.hints` naming who. The day's entry in `roundStorage` keeps the round's hints, since today's view is only rewritten when words are revealed.
 - **The win is celebrated once, live** (#42): the title's words pop in turn, the victory panel comes in after them, and confetti (`Celebration.tsx`) bursts from the title — only when the answer to a guess of the player's own completes the title of the round on screen (`useGame`'s `celebration`). Never for a round that comes back won (storage, a room's round on connection), a teammate's win, or "Afficher la réponse". The confetti is portalled into `<body>` (the song card keeps a transform, and `position: fixed` inside it would be fixed to the card), lets every click through, is `aria-hidden`, and isn't rendered at all under reduced motion.
@@ -132,7 +132,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
 
 ## Out of Scope (do not implement without an explicit request)
 
-- Any 3D code or dependency (`three`, `@react-three/fiber`, `@react-three/drei`).
+- Any 3D code or dependency (`three`, `@react-three/fiber`, `@react-three/drei`): dropped for good, not postponed.
 - Word-usage counter (V2).
 - Push notifications ("la chanson du jour est là"): left out of #79, an issue of their own.
 - User accounts, authentication, leaderboard, Cloudflare D1 (V3).
