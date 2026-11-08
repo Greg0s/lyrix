@@ -115,7 +115,11 @@ describe("months", () => {
     const after = addDays(lastListedDay, 1);
     const last = months[listed[listed.length - 1]];
     expect(pickDailyEntry(after)).toEqual(last[0]);
-    expect(pickDailyEntry(addDays(lastListedDay, 31))).toEqual(last[0]);
+    // Two months on, each day still plays its day of the month's song in the last list.
+    for (let offset = 1; offset <= 62; offset++) {
+      const date = addDays(lastListedDay, offset);
+      expect(pickDailyEntry(date)).toEqual(last[(date.getUTCDate() - 1) % last.length]);
+    }
   });
 
   // The archives offer the last ARCHIVE_DAYS days: none of them may be the
