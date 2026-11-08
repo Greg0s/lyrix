@@ -65,6 +65,10 @@ export function GuessForm({ value, onChange, onSubmit, submitting, feedback, inp
             placeholder={placeholder}
             autoComplete="off"
             spellCheck={false}
+            // iOS would otherwise swap the typed word for its own on "Valider" (autocorrect), and
+            // capitalize it: a guess is sent as the player typed it.
+            autoCorrect="off"
+            autoCapitalize="none"
           />
           {/* Never `disabled`, on the input or the button: disabling the
               focused input blurs it (closing a phone's keyboard), and a

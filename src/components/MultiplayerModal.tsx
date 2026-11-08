@@ -176,6 +176,7 @@ function RoomForms({ invite, currentRoom, onCreate, onJoin, onJoined }: RoomForm
               placeholder="Ex. Camille"
               autoComplete="nickname"
               spellCheck={false}
+              autoCorrect="off"
               aria-describedby="lyrix-pseudo-hint"
             />
           </label>
@@ -225,6 +226,7 @@ function RoomForms({ invite, currentRoom, onCreate, onJoin, onJoined }: RoomForm
                   autoComplete="off"
                   autoCapitalize="characters"
                   spellCheck={false}
+                  autoCorrect="off"
                   aria-invalid={error?.onCode ?? false}
                   aria-describedby={error ? errorId : undefined}
                 />
