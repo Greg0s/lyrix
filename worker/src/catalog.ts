@@ -18,10 +18,10 @@ export interface CatalogEntry {
 //
 // An id is a slug of the title. Never change or remove one that has been
 // played: a round in progress, or an archived one, names its song by id.
-// Spares, should `npm run catalog:check` refuse a song before its day: "Quand
-// la musique est bonne" (Jean-Jacques Goldman), "L'Hymne de nos campagnes"
-// (Tryo), "Belle" (Garou, Daniel Lavoie, Patrick Fiori), "Andalouse" (Kendji
-// Girac).
+// Spares, should `npm run catalog:check` refuse a song before its day: "Belle"
+// (Garou, Daniel Lavoie, Patrick Fiori), "Tous les cris les SOS" (Daniel
+// Balavoine), "La Seine" (Vanessa Paradis, -M-), "Le Temps de l'amour"
+// (Françoise Hardy).
 
 const OCTOBER_2026: readonly CatalogEntry[] = [
   { id: "la-tribu-de-dana", artist: "Manau", title: "La Tribu de Dana" },
@@ -90,6 +90,40 @@ const NOVEMBER_2026: readonly CatalogEntry[] = [
   { id: "jai-cherche", artist: "Amir", title: "J'ai cherché" },
 ];
 
+const DECEMBER_2026: readonly CatalogEntry[] = [
+  { id: "quand-la-musique-est-bonne", artist: "Jean-Jacques Goldman", title: "Quand la musique est bonne" },
+  { id: "djadja", artist: "Aya Nakamura", title: "Djadja" },
+  { id: "la-javanaise", artist: "Serge Gainsbourg", title: "La Javanaise" },
+  { id: "lhymne-de-nos-campagnes", artist: "Tryo", title: "L'Hymne de nos campagnes" },
+  { id: "week-end-a-rome", artist: "Étienne Daho", title: "Week-end à Rome" },
+  { id: "laigle-noir", artist: "Barbara", title: "L'Aigle noir" },
+  { id: "toi-plus-moi", artist: "Grégoire", title: "Toi + Moi" },
+  { id: "le-chanteur", artist: "Daniel Balavoine", title: "Le Chanteur" },
+  { id: "santiano", artist: "Hugues Aufray", title: "Santiano" },
+  { id: "bella", artist: "Maître Gims", title: "Bella" },
+  { id: "jai-encore-reve-delle", artist: "Il était une fois", title: "J'ai encore rêvé d'elle" },
+  { id: "amsterdam", artist: "Jacques Brel", title: "Amsterdam" },
+  { id: "jai-demande-a-la-lune", artist: "Indochine", title: "J'ai demandé à la lune" },
+  { id: "mademoiselle-chante-le-blues", artist: "Patricia Kaas", title: "Mademoiselle chante le blues" },
+  { id: "andalouse", artist: "Kendji Girac", title: "Andalouse" },
+  { id: "les-feuilles-mortes", artist: "Yves Montand", title: "Les Feuilles mortes" },
+  { id: "la-groupie-du-pianiste", artist: "Michel Berger", title: "La Groupie du pianiste" },
+  { id: "la-boulette", artist: "Diam's", title: "La Boulette" },
+  { id: "pour-un-flirt", artist: "Michel Delpech", title: "Pour un flirt" },
+  { id: "joe-le-taxi", artist: "Vanessa Paradis", title: "Joe le taxi" },
+  { id: "la-montagne", artist: "Jean Ferrat", title: "La Montagne" },
+  { id: "sous-le-vent", artist: "Garou & Céline Dion", title: "Sous le vent" },
+  { id: "le-bal-masque", artist: "La Compagnie Créole", title: "Le Bal masqué" },
+  { id: "emmenez-moi", artist: "Charles Aznavour", title: "Emmenez-moi" },
+  { id: "petit-papa-noel", artist: "Tino Rossi", title: "Petit Papa Noël" },
+  { id: "christine", artist: "Christine and the Queens", title: "Christine" },
+  { id: "les-champs-elysees", artist: "Joe Dassin", title: "Les Champs-Élysées" },
+  { id: "il-est-libre-max", artist: "Hervé Cristiani", title: "Il est libre Max" },
+  { id: "lettre-a-france", artist: "Michel Polnareff", title: "Lettre à France" },
+  { id: "fais-moi-une-place", artist: "Julien Clerc", title: "Fais-moi une place" },
+  { id: "allumer-le-feu", artist: "Johnny Hallyday", title: "Allumer le feu" },
+];
+
 /**
  * Which list plays when, keyed by UTC month (YYYY-MM), in order and with no
  * month missing from the first one on. The archives replay any of the last 30
@@ -98,6 +132,7 @@ const NOVEMBER_2026: readonly CatalogEntry[] = [
 export const months: Readonly<Record<string, readonly CatalogEntry[]>> = {
   "2026-10": OCTOBER_2026,
   "2026-11": NOVEMBER_2026,
+  "2026-12": DECEMBER_2026,
 };
 
 /** Every song the Worker may serve, whatever the day: a round names its song by one of these ids. */
