@@ -19,6 +19,12 @@ html {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* iOS Safari enlarges text on its own when a phone turns to landscape: the layout's sizes are meant as they are. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   background: var(--color-page-bg);
