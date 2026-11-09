@@ -97,6 +97,30 @@ Without a model it says so, names where it looked, and stops; `npm run dev:all` 
 
 Nothing to set up, locally or in production. Each room is a Cloudflare Durable Object (`worker/src/room.ts`), declared in `worker/wrangler.toml` together with two rate limits on creating and joining rooms, and deployed with the Worker: `npm run dev:all` runs all of it locally, WebSockets included. A room lasts until the next UTC midnight, when the day's song changes, and then it is deleted with everything in it — pseudos are kept nowhere else.
 
+## Statistics: visits and play
+
+The deployed Worker counts visits and play into Workers Analytics Engine (the `lyrix_events` dataset, bound as `EVENTS` in `worker/wrangler.toml`): counts only, no identifier, cookie or IP address (see "Statistics are counts, never people" in [CLAUDE.md](CLAUDE.md)). There is no dashboard; you read them from your machine with one command.
+
+1. **Find your account id**: Cloudflare dashboard, Workers & Pages, in the right-hand column ("Account ID").
+2. **Create an API token**: dashboard, My Profile, API Tokens, "Create Token", "Create Custom Token", with the permission **Account > Account Analytics > Read** on the Lyrix account. Copy it: Cloudflare shows it only once.
+3. **Put both in `.env`** at the repository root (gitignored; `.env.example` lists them):
+
+   ```
+   CLOUDFLARE_ACCOUNT_ID=<your account id>
+   CLOUDFLARE_API_TOKEN=<the token>
+   ```
+
+4. **Run it**:
+
+   ```bash
+   npm run stats                 # the last 7 days (UTC)
+   npm run stats -- --days 30    # any number of days, 1 to 365
+   ```
+
+It prints one table per question: visits and screens seen per day, where visits came from (referrers, `utm_*` campaigns), first screen, devices, installed app or browser, countries, solo rounds started and won (guesses and hints it took), hints revealed, songs prepared ahead of their day, errors met in players' browsers, and rooms created or joined. The queries live in `scripts/lib/stats.ts` and go through Cloudflare's [Analytics Engine SQL API](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/).
+
+If a variable is missing, the script names it and says where to get it. A `401`/`403` from the SQL API means the token lacks the Account Analytics Read permission or belongs to another account. Analytics Engine keeps data for three months, and local runs (`npm run dev:all`) never reach the production dataset, nor do players who opted out on the legal page or whose browser sends Do Not Track / Global Privacy Control. An error's stack is in the Worker's logs (dashboard, Workers & Pages, the Worker, Logs), kept a few days.
+
 ## Installing the game
 
 Lyrix is a Progressive Web App: Chrome, Edge and Android offer to install it, and on an iPhone "Sur l'écran d'accueil" in Safari's share menu adds it to the home screen. It then opens in a window of its own, straight from the app shell its service worker keeps (`src/serviceWorker/sw.ts`). Playing still needs the network — only the Worker can check a word — so offline, the game says so and keeps today's round readable.
