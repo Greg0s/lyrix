@@ -1,6 +1,7 @@
 import type { Plugin } from "vite";
 import { INVITE_PATH } from "../../src/game/room";
 import { INVITE_IMAGE } from "./socialImage";
+import { SITE, replaceOnce, setMeta } from "./htmlPage";
 
 /**
  * The page invite links (`/salon/<code>`, src/game/room.ts) are served: the
@@ -18,8 +19,6 @@ import { INVITE_IMAGE } from "./socialImage";
  * and the host's pseudo is personal data a preview would broadcast.
  */
 
-const SITE = "https://lyrix.mintymoon.app/";
-
 export const INVITE_PAGE = {
   file: "salon/index.html",
   url: `${SITE}salon/`,
@@ -28,27 +27,6 @@ export const INVITE_PAGE = {
     "On cherche la chanson du jour ensemble : propose des mots pour dévoiler ses paroles et trouvons son titre à plusieurs.",
   imageAlt: "Le logo Lyrix, une invitation à rejoindre un salon, et des paroles masquées par des barres de couleur.",
 } as const;
-
-function escapeAttribute(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
-}
-
-/** Replaces `pattern`'s single match, or fails loudly: a preview silently left as the home page's is the bug. */
-function replaceOnce(html: string, pattern: RegExp, replacement: string, what: string): string {
-  const matches = html.match(new RegExp(pattern.source, `${pattern.flags.replace("g", "")}g`));
-  if (matches?.length !== 1) throw new Error(`invite page: expected one ${what} in index.html, found ${matches?.length ?? 0}`);
-  return html.replace(pattern, replacement);
-}
-
-/** Sets a `<meta>`'s content, found by its `name` or `property`. */
-function setMeta(html: string, key: string, content: string): string {
-  return replaceOnce(
-    html,
-    new RegExp(`(<meta\\s+(?:name|property)="${key}"\\s+content=")[^"]*(")`, "s"),
-    `$1${escapeAttribute(content)}$2`,
-    `<meta ${key}>`
-  );
-}
 
 /** index.html, as the invite page. */
 export function invitePageHtml(indexHtml: string): string {

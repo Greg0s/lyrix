@@ -145,6 +145,14 @@ test("opens the rules as a page from the header, and closes them from the same b
   await expect(page.locator('[data-stat="tried"]')).toHaveText("1 essai");
 });
 
+test("serves the rules at their address under their own title and canonical link", async ({ page }) => {
+  await page.goto("/comment-jouer");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://lyrix.mintymoon.app/comment-jouer");
+  await expect(page).toHaveTitle(/^Comment jouer à Lyrix/);
+  await page.getByRole("button", { name: "C'est parti" }).click();
+  await expect(page).toHaveTitle(/^Lyrix - retrouve la chanson du jour/);
+});
+
 test("shades the rules' sample bars from cold to hot, as the lyrics shade close guesses", async ({ page }) => {
   await page.goto("/comment-jouer");
   const bars = page.locator(".lyrix-help-sample");

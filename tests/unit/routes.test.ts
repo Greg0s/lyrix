@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ARCHIVES, HELP, isPageRoute, LEGAL, parseRoute, routePath, TODAY } from "../../src/routes";
+import { ARCHIVES, HELP, HOME_TITLE, isPageRoute, LEGAL, parseRoute, routePath, routeTitle, TODAY } from "../../src/routes";
 
 const NOW = new Date("2026-10-20T10:00:00Z");
 
@@ -54,5 +55,20 @@ describe("isPageRoute", () => {
     expect(isPageRoute(LEGAL)).toBe(true);
     expect(isPageRoute(TODAY)).toBe(false);
     expect(isPageRoute({ name: "day", day: "2026-10-15" })).toBe(false);
+  });
+});
+
+describe("routeTitle", () => {
+  it("is index.html's own title for today's song", () => {
+    const html = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
+    expect(html).toContain(`<title>${HOME_TITLE}</title>`);
+    expect(routeTitle(TODAY)).toBe(HOME_TITLE);
+  });
+
+  it("names every other screen, a day by its date alone", () => {
+    expect(routeTitle(ARCHIVES)).toMatch(/^Archives.* - Lyrix$/);
+    expect(routeTitle({ name: "day", day: "2026-10-01" })).toBe("Chanson du jeudi 1er octobre - Lyrix");
+    expect(routeTitle(HELP)).toMatch(/Lyrix/);
+    expect(routeTitle(LEGAL)).toMatch(/^Mentions légales.* - Lyrix$/);
   });
 });

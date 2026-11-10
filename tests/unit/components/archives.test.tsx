@@ -20,6 +20,7 @@ vi.mock("../../../src/api/client", () => ({ fetchRound, resumeRound, submitGuess
 
 const { GameScreen } = await import("../../../src/components/GameScreen");
 const { SONG_RETRY_DELAYS_MS, SONG_UNAVAILABLE_MESSAGE } = await import("../../../src/hooks/useGame");
+const { ARCHIVES, HOME_TITLE, routeTitle } = await import("../../../src/routes");
 
 const NOW = new Date("2026-10-20T10:00:00Z");
 const TODAY = "2026-10-20";
@@ -127,6 +128,22 @@ describe("the archives screen", () => {
     });
     expect(window.location.pathname).toBe("/");
     expect(await screen.findByPlaceholderText("Propose un mot…")).toBeTruthy();
+  });
+
+  it("names the screen in the tab's title, and today's song once back", async () => {
+    await mount();
+    await screen.findByPlaceholderText("Propose un mot…");
+    expect(document.title).toBe(HOME_TITLE);
+    await openArchives();
+    expect(document.title).toBe(routeTitle(ARCHIVES));
+    await act(async () => {
+      fireEvent.click(cover(/^Jeudi 15 octobre/));
+    });
+    expect(document.title).toBe("Chanson du jeudi 15 octobre - Lyrix");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("link", { name: "Lyrix, chanson du jour" }));
+    });
+    expect(document.title).toBe(HOME_TITLE);
   });
 
   it("holds the last 30 days, the ones before the first song unavailable", async () => {
