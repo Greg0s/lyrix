@@ -86,6 +86,16 @@ describe("rich snippets", () => {
     expect(game).not.toHaveProperty("review");
   });
 
+  // Crawlers that don't run scripts (AI ones above all) read only the HTML:
+  // the game is described there until React replaces it.
+  it("describes the game in the page itself, before the app runs", () => {
+    const root = /<div id="root">(.*?)<\/div>/s.exec(html)?.[1] ?? "";
+    expect(root).toMatch(/<h1 class="lyrix-static-title">[^<]*Lyrix[^<]*<\/h1>/);
+    expect(root).toMatch(/chanson/);
+    expect(root).toContain('<a href="/comment-jouer">');
+    expect(root).toContain("<noscript>");
+  });
+
   it("points every absolute URL at the production site", () => {
     const urls = [...html.matchAll(/https:\/\/lyrix[^"\s]*/g)].map((m) => m[0]);
     expect(urls.length).toBeGreaterThan(0);

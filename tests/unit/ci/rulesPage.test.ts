@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { build } from "vite";
 import { RULES_PAGE, rulesPageHtml } from "../../../scripts/lib/rulesPage";
-import { FAQ, RULES_DESCRIPTION, RULES_TITLE } from "../../../src/rules";
+import { FAQ, RULES_DESCRIPTION, RULES_SUMMARY, RULES_TITLE } from "../../../src/rules";
 import { HELP, routePath, routeTitle } from "../../../src/routes";
 
 /**
@@ -71,6 +71,20 @@ describe("the rules' page", () => {
     // The ids it points to are the home page's.
     expect(indexHtml).toContain(`"@id": "${SITE}#website"`);
     expect(indexHtml).toContain(`"@id": "${SITE}#game"`);
+  });
+
+  it("writes the rules and every question in the page, for crawlers that don't run the app", () => {
+    const rootBlock = /<div id="root">(.*?)<\/main>\s*<\/div>/s.exec(html)?.[1] ?? "";
+    // As text, the way a crawler reads it: entities decoded.
+    const text = rootBlock.replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+    for (const sentence of Object.values(RULES_SUMMARY)) expect(text).toContain(sentence);
+    for (const { question, answer } of FAQ) {
+      expect(text).toContain(`<h3>${question}</h3>`);
+      expect(text).toContain(answer);
+    }
+    expect(rootBlock).toContain('class="lyrix-static"');
+    // The home page's own text is gone: one <h1>, the rules'.
+    expect(html.match(/<h1\b/g)).toHaveLength(1);
   });
 
   it("is otherwise the game itself: script, theme boot, fonts and link preview image", () => {

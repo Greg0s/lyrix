@@ -1,5 +1,5 @@
 import type { Plugin } from "vite";
-import { FAQ, RULES_DESCRIPTION, RULES_TITLE } from "../../src/rules";
+import { FAQ, RULES_DESCRIPTION, RULES_SUMMARY, RULES_TITLE } from "../../src/rules";
 import { HELP_PATH } from "../../src/routes";
 import { replaceOnce, setMeta, SITE } from "./htmlPage";
 
@@ -9,8 +9,10 @@ import { replaceOnce, setMeta, SITE } from "./htmlPage";
  * fallback answered with index.html, whose title and canonical link name the
  * home page, so search engines took the rules for a copy of it and left them
  * out, sitemap or not. And crawlers that don't run scripts (AI ones above
- * all) found nothing of the rules there: their questions and answers are in
- * the page as structured data (FAQPage), from the same list the page shows.
+ * all) found nothing of the rules there: the rules and their questions are
+ * now in the page itself, in place of the home page's text the app replaces
+ * on rendering, and as structured data (FAQPage), from the same text the
+ * page shows (src/rules.ts).
  *
  * Emitted as `comment-jouer.html`, which Cloudflare Pages serves at
  * `/comment-jouer` (its pretty URLs). Derived from the built index.html, like
@@ -47,6 +49,29 @@ export function rulesJsonLd(): object {
   };
 }
 
+function escapeText(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** The rules as plain HTML, for #root: what the page shows, before (or without) the app. */
+export function rulesStaticHtml(): string {
+  const paragraph = (text: string) => `<p>${escapeText(text)}</p>`;
+  const lines = [
+    '<main class="lyrix-static">',
+    `  <h1 class="lyrix-static-title">${escapeText(RULES_SUMMARY.heading)}</h1>`,
+    ...[RULES_SUMMARY.lead, RULES_SUMMARY.guess, RULES_SUMMARY.near, RULES_SUMMARY.letters, RULES_SUMMARY.together].map(
+      (text) => `  ${paragraph(text)}`
+    ),
+    '  <p class="lyrix-static-status">Chargement du jeu…</p>',
+    "  <noscript><p>Lyrix a besoin de JavaScript pour fonctionner.</p></noscript>",
+    '  <p><a href="/">Jouer à la chanson du jour</a></p>',
+    "  <h2>Questions fréquentes</h2>",
+    ...FAQ.flatMap(({ question, answer }) => [`  <h3>${escapeText(question)}</h3>`, `  ${paragraph(answer)}`]),
+    "</main>",
+  ];
+  return lines.map((line) => `      ${line}`).join("\n");
+}
+
 /** JSON inside a <script>: no `<` that could close it early. */
 function scriptJson(data: object): string {
   return JSON.stringify(data, null, 2).replace(/</g, "\\u003c").replace(/\n/g, "\n      ");
@@ -71,6 +96,12 @@ export function rulesPageHtml(indexHtml: string): string {
     /(<script type="application\/ld\+json">).*?(<\/script>)/s,
     () => `<script type="application/ld+json">\n      ${scriptJson(rulesJsonLd())}\n    </script>`,
     "JSON-LD block"
+  );
+  html = replaceOnce(
+    html,
+    /<div id="root">.*?<\/main>\s*<\/div>/s,
+    () => `<div id="root">\n${rulesStaticHtml()}\n    </div>`,
+    "#root's text"
   );
   return html;
 }

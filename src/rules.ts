@@ -11,6 +11,21 @@ export const RULES_TITLE = "Comment jouer à Lyrix : règles et questions fréqu
 export const RULES_DESCRIPTION =
   "Les règles de Lyrix : propose des mots pour dévoiler les paroles cachées de la chanson du jour, suis leur proximité, joue seul ou en salon.";
 
+/**
+ * The rules in a few sentences, as the page writes them. `\u00a0` keeps
+ * French punctuation off the start of a line.
+ */
+export const RULES_SUMMARY = {
+  heading: "Comment on joue\u00a0?",
+  lead: "Le but\u00a0: retrouver le titre d'une chanson à partir de ses paroles cachées. Une nouvelle chanson chaque jour, la même pour tout le monde.",
+  guess:
+    "Propose un mot\u00a0: s'il se cache dans les paroles, il apparaît d'un coup, partout où il se trouve. Devine tous les mots du titre pour révéler la chanson en entier.",
+  near: "Un mot au sens proche s'inscrit dans la barre du mot caché, coloré du rouge (à peine proche) au vert (tout proche).",
+  letters: "Touche une barre pour savoir combien de lettres compte le mot qu'elle cache.",
+  together:
+    "À plusieurs\u00a0: crée un salon ou rejoins celui d'un ami avec son code. Les mots trouvés par chacun se dévoilent pour tout le groupe.",
+} as const;
+
 export interface Question {
   question: string;
   answer: string;

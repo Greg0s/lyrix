@@ -1,4 +1,4 @@
-import { FAQ } from "../rules";
+import { FAQ, RULES_SUMMARY } from "../rules";
 import { nearStyle } from "./heatStyle";
 
 interface HowToPlayProps {
@@ -22,19 +22,12 @@ export function HowToPlay({ onClose }: HowToPlayProps) {
   return (
     <main className="lyrix-help-page">
       <article className="lyrix-card lyrix-help">
-        <h1 className="lyrix-help-title">Comment on joue&nbsp;?</h1>
-        <p className="lyrix-help-lead">
-          Le but&nbsp;: retrouver le titre d'une chanson à partir de ses paroles cachées. Une nouvelle chanson chaque
-          jour, la même pour tout le monde.
-        </p>
-        <p className="lyrix-help-text">
-          Propose un mot&nbsp;: s'il se cache dans les paroles, il apparaît d'un coup, partout où il se trouve. Devine
-          tous les mots du titre pour révéler la chanson en entier.
-        </p>
+        <h1 className="lyrix-help-title">{RULES_SUMMARY.heading}</h1>
+        <p className="lyrix-help-lead">{RULES_SUMMARY.lead}</p>
+        <p className="lyrix-help-text">{RULES_SUMMARY.guess}</p>
         <div className="lyrix-help-example">
           <p>
-            Un mot au sens proche s'inscrit dans la barre du mot caché, coloré du rouge (à peine proche) au vert (tout
-            proche). Pour «&nbsp;jardin&nbsp;»&nbsp;:
+            {RULES_SUMMARY.near} Pour «&nbsp;jardin&nbsp;»&nbsp;:
           </p>
           <ul className="lyrix-help-samples">
             {SAMPLE_GUESSES.map(({ word, score }) => (
@@ -44,11 +37,8 @@ export function HowToPlay({ onClose }: HowToPlayProps) {
             ))}
           </ul>
         </div>
-        <p className="lyrix-help-text">Touche une barre pour savoir combien de lettres compte le mot qu'elle cache.</p>
-        <p className="lyrix-help-text">
-          À plusieurs&nbsp;: crée un salon ou rejoins celui d'un ami avec son code. Les mots trouvés par chacun se
-          dévoilent pour tout le groupe.
-        </p>
+        <p className="lyrix-help-text">{RULES_SUMMARY.letters}</p>
+        <p className="lyrix-help-text">{RULES_SUMMARY.together}</p>
         <button type="button" className="lyrix-button" onClick={onClose}>
           C'est parti
         </button>

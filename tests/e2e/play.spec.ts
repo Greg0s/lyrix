@@ -145,8 +145,16 @@ test("opens the rules as a page from the header, and closes them from the same b
   await expect(page.locator('[data-stat="tried"]')).toHaveText("1 essai");
 });
 
+test("replaces the page's text for crawlers with the game once it runs", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
+  await expect(page.locator(".lyrix-static")).toHaveCount(0);
+});
+
 test("serves the rules at their address under their own title and canonical link", async ({ page }) => {
   await page.goto("/comment-jouer");
+  await expect(page.locator(".lyrix-help")).toBeVisible();
+  await expect(page.locator(".lyrix-static")).toHaveCount(0);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://lyrix.mintymoon.app/comment-jouer");
   await expect(page).toHaveTitle(/^Comment jouer à Lyrix/);
   await page.getByRole("button", { name: "C'est parti" }).click();
