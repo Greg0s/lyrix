@@ -102,4 +102,15 @@ describe("rich snippets", () => {
     // The rules are a page of their own (src/routes.ts), worth finding from a search.
     expect(sitemap).toContain(`<loc>${SITE}comment-jouer</loc>`);
   });
+
+  // A summary for language models (llmstxt.org): a title, a quoted summary,
+  // and links, all at the production site.
+  it("sums the game up for language models in llms.txt", () => {
+    const llms = read("public/llms.txt").toString("utf8");
+    expect(llms).toMatch(/^# Lyrix\r?\n\r?\n> \S/);
+    const links = [...llms.matchAll(/\]\((https?:[^)]+)\)/g)].map((m) => m[1]);
+    expect(links).toContain(SITE);
+    expect(links).toContain(`${SITE}comment-jouer`);
+    for (const link of links) expect(link.startsWith(SITE)).toBe(true);
+  });
 });
