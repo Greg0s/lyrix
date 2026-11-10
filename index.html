@@ -64,10 +64,10 @@
             "@id": "https://lyrix.mintymoon.app/#game",
             "name": "Lyrix",
             "url": "https://lyrix.mintymoon.app/",
-            "description": "Jeu de mots quotidien : retrouve le titre d'une chanson en dévoilant ses paroles cachées, mot après mot, seul ou dans un salon avec tes amis.",
+            "description": "Jeu musical quotidien : retrouve le titre d'une chanson en dévoilant ses paroles cachées, mot après mot, seul ou dans un salon avec tes amis.",
             "image": "https://lyrix.mintymoon.app/og-image.png",
             "inLanguage": "fr",
-            "genre": ["Jeu de mots", "Quiz musical"],
+            "genre": ["Jeu musical", "Quiz musical"],
             "gamePlatform": "Navigateur web",
             "applicationCategory": "GameApplication",
             "operatingSystem": "Tous (navigateur web)",
@@ -133,7 +133,25 @@
     <link rel="preload" href="/src/assets/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin />
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      What the page says before the app runs: replaced by the game as soon as
+      React renders, so a player sees it at most while the script loads, as a
+      loading screen. It is for crawlers that never run the script (search
+      engines' first pass, AI crawlers): never anything of a song.
+      scripts/lib/rulesPage.ts puts the rules here on their page.
+    -->
+    <div id="root">
+      <main class="lyrix-static">
+        <h1 class="lyrix-static-title">Lyrix, la chanson du jour</h1>
+        <p>
+          Un jeu musical gratuit&nbsp;: chaque jour, une chanson dont les paroles sont cachées, la même pour tout le
+          monde. Propose des mots pour les dévoiler et retrouve son titre, seul ou dans un salon avec tes amis.
+        </p>
+        <p class="lyrix-static-status">Chargement du jeu…</p>
+        <noscript><p>Lyrix a besoin de JavaScript pour fonctionner.</p></noscript>
+        <p><a href="/comment-jouer">Comment jouer</a> · <a href="/archives">Archives</a></p>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

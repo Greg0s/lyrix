@@ -1,4 +1,6 @@
 import { isDayKey, isPlayableDay, utcDay } from "./game/daily";
+import { longDayLabel } from "./game/frenchDates";
+import { RULES_TITLE } from "./rules";
 
 /**
  * The game's screens, one address each, so the browser's Back button and a
@@ -21,7 +23,7 @@ export const HELP: Route = { name: "help" };
 export const LEGAL: Route = { name: "legal" };
 
 const ARCHIVES_PATH = "/archives";
-const HELP_PATH = "/comment-jouer";
+export const HELP_PATH = "/comment-jouer";
 const LEGAL_PATH = "/mentions-legales";
 
 /**
@@ -63,4 +65,21 @@ export function sameRoute(a: Route, b: Route): boolean {
  */
 export function isPageRoute(route: Route): route is { name: "archives" } | { name: "help" } | { name: "legal" } {
   return route.name === "archives" || route.name === "help" || route.name === "legal";
+}
+
+/** The home page's title, as index.html writes it (tests/unit/routes.test.ts). */
+export const HOME_TITLE = "Lyrix - retrouve la chanson du jour à partir de ses paroles";
+
+/**
+ * The tab's title on each screen, which is also what a bookmark or a search
+ * result shows. A day of the archives is named by its date alone: its song
+ * stays unnamed until found. The rules' matches the page the build serves at
+ * their address (scripts/lib/rulesPage.ts).
+ */
+export function routeTitle(route: Route): string {
+  if (route.name === "archives") return "Archives : les 30 derniers jours - Lyrix";
+  if (route.name === "day") return `Chanson du ${longDayLabel(route.day)} - Lyrix`;
+  if (route.name === "help") return RULES_TITLE;
+  if (route.name === "legal") return "Mentions légales et confidentialité - Lyrix";
+  return HOME_TITLE;
 }

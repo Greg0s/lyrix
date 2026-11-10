@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isArchivesPath, parseRoute, routePath, sameRoute, type Route } from "../routes";
+import { isArchivesPath, parseRoute, routePath, routeTitle, sameRoute, type Route } from "../routes";
 import { countView } from "../stats";
 
 interface Shown {
@@ -59,6 +59,13 @@ export function useRoute(): { route: Route; gameDay: string | null; navigate: (t
     document.documentElement.scrollTop = 0;
     setShown((previous) => show(to, previous.gameDay));
   }, []);
+
+  // The tab names the screen, as a page of its own would. A string, so
+  // nothing runs again until the screen actually changes.
+  const title = routeTitle(shown.route);
+  useEffect(() => {
+    document.title = title;
+  }, [title]);
 
   return { route: shown.route, gameDay: shown.gameDay, navigate };
 }

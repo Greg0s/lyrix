@@ -1,0 +1,17 @@
+# Lyrix
+
+> Lyrix est un jeu musical gratuit en français, inspiré de Pedantix, autour des paroles de chansons. Chaque jour, une chanson dont les paroles sont cachées, la même pour tout le monde : on propose des mots pour les dévoiler, et on gagne en retrouvant son titre. Une nouvelle chanson arrive chaque jour à minuit (UTC).
+
+- Gratuit, sans compte, sans publicité et sans cookie ; se joue dans le navigateur, sur ordinateur comme sur téléphone, et s'installe comme une application.
+- Un mot présent dans les paroles se dévoile partout où il apparaît. Un mot qui n'y est pas reçoit un score de proximité de 0 à 100 ; s'il est assez proche d'un mot caché, il s'affiche à sa place, coloré du rouge (à peine proche) au vert (tout proche).
+- Les accents et les majuscules ne comptent pas.
+- Trois indices par chanson (époque, type d'artiste, style) : on peut en dévoiler un à 50, 100 et 150 essais.
+- À plusieurs : un salon se crée en un clic et se rejoint avec son code ou un lien d'invitation ; les mots trouvés par chacun se dévoilent pour tout le groupe.
+- Archives : les chansons des 30 derniers jours restent jouables.
+
+## Pages
+
+- [La chanson du jour](https://lyrix.mintymoon.app/) : le jeu
+- [Comment jouer](https://lyrix.mintymoon.app/comment-jouer) : les règles et les questions fréquentes
+- [Archives](https://lyrix.mintymoon.app/archives) : les 30 derniers jours
+- [Mentions légales et confidentialité](https://lyrix.mintymoon.app/mentions-legales)

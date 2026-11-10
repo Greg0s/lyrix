@@ -86,6 +86,16 @@ describe("rich snippets", () => {
     expect(game).not.toHaveProperty("review");
   });
 
+  // Crawlers that don't run scripts (AI ones above all) read only the HTML:
+  // the game is described there until React replaces it.
+  it("describes the game in the page itself, before the app runs", () => {
+    const root = /<div id="root">(.*?)<\/div>/s.exec(html)?.[1] ?? "";
+    expect(root).toMatch(/<h1 class="lyrix-static-title">[^<]*Lyrix[^<]*<\/h1>/);
+    expect(root).toMatch(/chanson/);
+    expect(root).toContain('<a href="/comment-jouer">');
+    expect(root).toContain("<noscript>");
+  });
+
   it("points every absolute URL at the production site", () => {
     const urls = [...html.matchAll(/https:\/\/lyrix[^"\s]*/g)].map((m) => m[0]);
     expect(urls.length).toBeGreaterThan(0);
@@ -101,5 +111,16 @@ describe("rich snippets", () => {
     expect(sitemap).toContain(`<loc>${SITE}</loc>`);
     // The rules are a page of their own (src/routes.ts), worth finding from a search.
     expect(sitemap).toContain(`<loc>${SITE}comment-jouer</loc>`);
+  });
+
+  // A summary for language models (llmstxt.org): a title, a quoted summary,
+  // and links, all at the production site.
+  it("sums the game up for language models in llms.txt", () => {
+    const llms = read("public/llms.txt").toString("utf8");
+    expect(llms).toMatch(/^# Lyrix\r?\n\r?\n> \S/);
+    const links = [...llms.matchAll(/\]\((https?:[^)]+)\)/g)].map((m) => m[1]);
+    expect(links).toContain(SITE);
+    expect(links).toContain(`${SITE}comment-jouer`);
+    for (const link of links) expect(link.startsWith(SITE)).toBe(true);
   });
 });
