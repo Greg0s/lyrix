@@ -11,6 +11,7 @@ import { useRoute } from "../hooks/useRoute";
 import { OFFLINE_MESSAGE } from "../pwa";
 import { isAnswerRevealed } from "../roomStorage";
 import { loadArchive } from "../roundStorage";
+import { isTourSeen, markTourSeen } from "../tourStorage";
 import { utcDay } from "../game/daily";
 import { ARCHIVES, HELP, isPageRoute, LEGAL, TODAY } from "../routes";
 import { AppHeader } from "./AppHeader";
@@ -26,6 +27,7 @@ import { LegalNotice } from "./LegalNotice";
 import { LyricsBody } from "./LyricsBody";
 import { MultiplayerModal } from "./MultiplayerModal";
 import { MultiplayerPromo } from "./MultiplayerPromo";
+import { ProductTour } from "./ProductTour";
 import { ProgressCard } from "./ProgressCard";
 import { RoomCard } from "./RoomCard";
 import { RouteLink } from "./RouteLink";
@@ -133,6 +135,14 @@ export function GameScreen() {
     () => setRevealedDay((revealed) => (revealed === day ? undefined : day)),
     [day]
   );
+  // The guided tour, for a first visit only (src/tourStorage.ts). Never for a
+  // player with a day already in the archives: they played before it existed.
+  const [tourPending, setTourPending] = useState(() => !isTourSeen() && Object.keys(loadArchive()).length === 0);
+  // Gone, the player is back to guessing, as after a dialog (see closeDialog).
+  const finishTour = useCallback(() => {
+    setTourPending(false);
+    if (!isTouchScreen()) inputRef.current?.focus();
+  }, []);
   const { submit } = game;
   const onSubmit = useCallback(() => void submit(), [submit]);
 
@@ -173,6 +183,14 @@ export function GameScreen() {
     const archive = loadArchive();
     return { daysLeft: daysToFind(archive).length, nextDay: day === null ? null : nextDayToFind(archive, day) };
   }, [won, day]);
+
+  // Over a round still to find, once nothing else is open (an invite link's
+  // dialog comes first). Marked seen the moment it shows: offered once, ever.
+  const showTour =
+    tourPending && (route.name === "today" || route.name === "day") && round !== null && !won && dialog === null;
+  useEffect(() => {
+    if (showTour) markTourSeen();
+  }, [showTour]);
 
   // In a room, its days as this player may see them, for the archives screen.
   const { roomDays, roomRevealed } = game;
@@ -383,6 +401,7 @@ export function GameScreen() {
           />
         ) : null}
       </aside>
+      {showTour ? <ProductTour onDone={finishTour} /> : null}
     </main>
   );
 }

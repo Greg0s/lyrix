@@ -73,7 +73,7 @@ export const TitleGuess = memo(function TitleGuess({
     ? ({ "--words": titleTokens.filter((token) => token.isWord).length } as CSSProperties)
     : undefined;
   return (
-    <div className={`lyrix-title-block${celebration ? " is-celebrating" : ""}`} style={style}>
+    <div className={`lyrix-title-block${celebration ? " is-celebrating" : ""}`} style={style} data-tour="title">
       <p className="lyrix-eyebrow">Titre de chanson à deviner</p>
       <h1 className="lyrix-title-line" ref={roving.ref} onFocus={roving.onFocus} onKeyDown={roving.onKeyDown}>
         <TokenRun tokens={titleTokens} lastFoundKey={lastFoundKey} rankWords={celebration > 0} />

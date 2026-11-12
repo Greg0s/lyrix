@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { markTourSeen } from "../../../src/tourStorage";
 import { CELEBRATION_MS } from "../../../src/components/confetti";
 import { utcDay } from "../../../src/game/daily";
 import type { GuessDelta, GuessResult, RoundView } from "../../../src/game/types";
@@ -82,6 +83,8 @@ async function mountGame(): Promise<HTMLInputElement> {
 beforeEach(() => {
   wordTokenRenders.count = 0;
   window.localStorage.clear();
+  // A first visit's guided tour is productTour.test.tsx's: here, the player has seen it.
+  markTourSeen();
   fetchRound.mockReset().mockResolvedValue(round());
   submitGuess.mockReset();
   resumeRound.mockReset();

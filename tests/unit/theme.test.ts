@@ -153,7 +153,8 @@ describe("the palette", () => {
     // Set inline by components, per element: a player's colour, a score's heat
     // (and the colours game.css mixes from it),
     // a title word's rank and the title's word count on a win, a confetti piece's flight,
-    // the size an archived song's title fits its cover at, the side column's height.
+    // the size an archived song's title fits its cover at, the side column's height,
+    // where the guided tour's arrow points.
     const inline = new Set([
       "--cover-title-size",
       "--player",
@@ -173,6 +174,7 @@ describe("the palette", () => {
       "--delay",
       "--time",
       "--sticky-height",
+      "--tour-arrow-left",
     ]);
     const undefinedTokens = [...used].filter((name) => !light.has(name) && !inline.has(name));
     expect(undefinedTokens).toEqual([]);

@@ -3417,3 +3417,167 @@ a.lyrix-day-step:hover {
 .lyrix-static-status {
   color: var(--color-ink-faint);
 }
+
+/* ---------- Guided tour (ProductTour.tsx) ---------- */
+
+/*
+ * The screen dimmed but for the element a step points at: the highlight's
+ * shadow is the dimming, so the hole follows it as it moves. Over the header
+ * and the dock, under nothing: a dialog never opens during the tour.
+ */
+.lyrix-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  animation: lyrix-fade-in 0.22s ease;
+}
+
+.lyrix-tour-catcher {
+  position: absolute;
+  inset: 0;
+}
+
+.lyrix-tour-spotlight {
+  position: fixed;
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 3px var(--accent-solid),
+    0 0 0 100vmax var(--color-backdrop);
+  pointer-events: none;
+  transition:
+    top 0.3s var(--ease-out),
+    left 0.3s var(--ease-out),
+    width 0.3s var(--ease-out),
+    height 0.3s var(--ease-out);
+}
+
+.lyrix-tour-tip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: min(340px, calc(100vw - 32px));
+  box-sizing: border-box;
+  /* Raised: in the dark theme, a plain surface would melt into the dimmed page. */
+  background: var(--color-surface-raised);
+  color: var(--color-ink);
+  border-radius: 18px;
+  padding: 18px 18px 14px;
+  box-shadow: var(--shadow-modal);
+  font-family: var(--font-ui);
+  transition:
+    top 0.3s var(--ease-out),
+    left 0.3s var(--ease-out);
+}
+
+/* The arrow, pointing at the target's middle (placeTip, src/tour.ts). */
+.lyrix-tour-tip::before {
+  content: "";
+  position: absolute;
+  left: var(--tour-arrow-left, 50%);
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  background: var(--color-surface-raised);
+  border-radius: 3px;
+  transform: rotate(45deg);
+}
+
+.lyrix-tour-tip[data-side="below"]::before {
+  top: -6px;
+}
+
+.lyrix-tour-tip[data-side="above"]::before {
+  bottom: -6px;
+}
+
+.lyrix-tour-content {
+  position: relative;
+  animation: lyrix-rise 0.28s var(--ease-out);
+}
+
+.lyrix-tour-count {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+}
+
+.lyrix-tour-title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  line-height: 1.25;
+}
+
+.lyrix-tour-body {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--color-ink-soft);
+}
+
+.lyrix-tour-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.lyrix-tour-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.lyrix-tour-tip button {
+  border: none;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.12s ease;
+}
+
+.lyrix-tour-tip button:active {
+  transform: scale(0.97);
+}
+
+.lyrix-tour-tip button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.lyrix-tour-skip {
+  background: transparent;
+  color: var(--color-ink-muted);
+  padding-left: 4px;
+}
+
+.lyrix-tour-skip:hover {
+  color: var(--color-ink);
+}
+
+.lyrix-tour-back {
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+}
+
+.lyrix-tour-back:hover {
+  background: var(--color-surface-hover);
+}
+
+.lyrix-tour-next {
+  background: var(--accent-solid);
+  color: var(--color-on-bright);
+}
+
+.lyrix-tour-next:hover {
+  background: var(--accent-hover);
+}

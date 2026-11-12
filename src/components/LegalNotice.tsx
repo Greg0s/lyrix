@@ -104,7 +104,7 @@ export function LegalNotice({ onClose, contact = CONTACT_EMAIL }: LegalNoticePro
           <dl className="lyrix-legal-list">
             <dt>Ta partie, sur ton appareil</dt>
             <dd>
-              Ta progression, tes archives, ton thème, le salon où tu joues et, si tu l'as fait, ton refus d'être
+              Ta progression, tes archives, ton thème, le salon où tu joues, le fait que la visite guidée t'a déjà été montrée et, si tu l'as fait, ton refus d'être
               compté sont enregistrés dans le stockage local de ton navigateur, pour que tu retrouves ta partie. Ce stockage est indispensable au jeu que tu demandes, il
               ne sert à rien d'autre et ne demande donc pas de consentement. Tu l'effaces en effaçant les données du site
               dans ton navigateur.
