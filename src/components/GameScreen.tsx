@@ -339,6 +339,8 @@ export function GameScreen() {
             victory={round.victory}
             group={group !== null}
             artist={round.artist}
+            year={round.year}
+            cover={round.cover}
             lastFoundKey={lastFoundKey}
             revealAllLyrics={revealAllLyrics}
             onToggleRevealAllLyrics={toggleRevealAllLyrics}

@@ -9,6 +9,8 @@ import { resetFreshRoundMemo } from "../../../worker/src/freshRound";
 import app from "../../../worker/src/index";
 import { resetSimilarityMemo, SIMILARITY_TABLE_VERSION, type SimilarityKv } from "../../../worker/src/similarity";
 import { getSongById, resetSongMemo } from "../../../worker/src/songs";
+import { coverToken } from "../../../worker/src/covers";
+import { SONG_FACTS } from "../../../worker/src/songFacts";
 import { openState, sealState } from "../../../worker/src/state";
 import { encodeNear, type ReadableNear } from "./similarityTableFixture";
 import { titleLeaks } from "./titleLeak";
@@ -142,8 +144,11 @@ describe("GET /api/round", () => {
     expect(words.every((t) => !t.revealed && /^_+$/.test(t.text))).toBe(true);
   });
 
-  it("omits the artist before victory", async () => {
-    expect((await getRound()).artist).toBeUndefined();
+  it("omits the artist, year and cover before victory", async () => {
+    const round = await getRound();
+    expect(round.artist).toBeUndefined();
+    expect(round.year).toBeUndefined();
+    expect(round.cover).toBeUndefined();
   });
 
   it("returns the same song for repeated calls the same day", async () => {
@@ -488,6 +493,10 @@ describe("POST /api/guess", () => {
 
     expect(last?.victory).toBe(true);
     expect(last?.artist).toBe(song.artist);
+    expect(last?.year).toBe(SONG_FACTS[song.id]?.year);
+    // The cover's address names the song by a token, never by its id (a slug of its title).
+    expect(last?.cover).toBe(await coverToken(song.id, env.STATE_SECRET));
+    expect(last?.cover).not.toContain(song.id);
   });
 
   it("rejects a tampered state token", async () => {

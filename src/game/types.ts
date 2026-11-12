@@ -60,6 +60,15 @@ export interface RoundView {
   victory: boolean;
   /** Only ever present once `victory` is true. */
   artist?: string;
+  /** The song's release year: only ever present once `victory` is true, and only for a song with one (worker/src/songFacts.ts). */
+  year?: number;
+  /**
+   * Where the song's album cover is asked for (`GET /api/cover/<cover>`,
+   * worker/src/covers.ts): only ever present once `victory` is true, since a
+   * cover names its song. Present doesn't mean there is one: a song Deezer
+   * has none for answers 404, and the panel keeps its own sleeve.
+   */
+  cover?: string;
   /** The song's hints (src/game/hints.ts). Absent for a song without any, or from a Worker that predates them. */
   hints?: RoundHints;
 }

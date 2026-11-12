@@ -7,7 +7,8 @@ import { wordPositions } from "../../src/game/slots";
 import type { GuessDelta, HintId, NearSlot, RevealedSlot, RoundHints, RoundView, Song } from "../../src/game/types";
 import type { EventsEnv } from "./events";
 import { proximityHint, type SimilarityEnv } from "./similarity";
-import { hintValues } from "./songFacts";
+import { coverToken, hasCoverLookup } from "./covers";
+import { hintValues, songYear } from "./songFacts";
 import type { SongsEnv } from "./songs";
 import { sealState, type HintProgress } from "./state";
 
@@ -107,6 +108,9 @@ export async function buildRoundView(
   const victory = isVictory(song, foundSet);
   const state = await sealRound(song, foundSet, env, day, progress);
   const hints = roundHints(song, progress, victory);
+  const year = victory ? songYear(song.id) : null;
+  // A cover names its song: its address only ever rides along with a win.
+  const cover = victory && hasCoverLookup(song.id) ? await coverToken(song.id, env.STATE_SECRET) : null;
 
   return {
     state,
@@ -119,6 +123,8 @@ export async function buildRoundView(
     sections: buildSectionsView(song, foundSet, devReveal, victory),
     victory,
     ...(victory ? { artist: song.artist } : {}),
+    ...(year !== null ? { year } : {}),
+    ...(cover !== null ? { cover } : {}),
     ...(hints ? { hints } : {}),
   };
 }

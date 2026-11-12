@@ -54,7 +54,8 @@ id = "90be993fabd1457e9cb7a8e4280e477c"
 # worker/src/songs.ts): LRCLIB is asked about a song once, ever, and a day's
 # song can't change once played. Without it, a new isolate had to reach
 # LRCLIB again, and when LRCLIB was down the day was played on a stand-in
-# (docs/LEARNINGS.md, 2026-10-18). Created with
+# (docs/LEARNINGS.md, 2026-10-18). Also each song's album cover and Deezer
+# track ("media:<id>", worker/src/covers.ts), found on Deezer once, ever. Created with
 # `npx wrangler kv namespace create SONGS`; the id is not a secret.
 [[kv_namespaces]]
 binding = "SONGS"
