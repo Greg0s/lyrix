@@ -952,7 +952,8 @@
 
 .lyrix-victory-song {
   font-family: var(--font-display);
-  font-size: clamp(1.15rem, 2.6vw, 1.3rem);
+  /* The same size on every screen: the facts under it stay a step smaller, as on a desktop. */
+  font-size: 1.3rem;
   font-weight: 800;
   line-height: 1.2;
   letter-spacing: -0.02em;
