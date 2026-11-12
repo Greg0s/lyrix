@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { markTourSeen } from "../../../src/tourStorage";
 import {
   PSEUDO_MAX_LENGTH,
   ROOM_CLOSE_EXPIRED,
@@ -190,6 +191,8 @@ beforeEach(() => {
   wordTokenRenders.count = 0;
   FakeWebSocket.instances.length = 0;
   window.localStorage.clear();
+  // A first visit's guided tour is productTour.test.tsx's: here, the player has seen it.
+  markTourSeen();
   fetchRound.mockReset().mockResolvedValue(round());
   resumeRound.mockReset();
   submitGuess.mockReset();

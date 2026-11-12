@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { markTourSeen } from "../../../src/tourStorage";
 import type { GuessResult, RoundView } from "../../../src/game/types";
 import { ApiError } from "../../../src/api/base";
 import { flushSavedRound, loadArchive, loadSavedDay, saveRound } from "../../../src/roundStorage";
@@ -89,6 +90,8 @@ function cover(name: RegExp): HTMLElement {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], now: NOW });
   window.localStorage.clear();
+  // A first visit's guided tour is productTour.test.tsx's: here, the player has seen it.
+  markTourSeen();
   // Like fetch: a request aborted before its answer arrives rejects.
   fetchRound.mockReset().mockImplementation(async (signal?: AbortSignal, day?: string) => {
     await Promise.resolve();

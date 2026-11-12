@@ -91,6 +91,7 @@ export const AppHeader = memo(function AppHeader({
             className={`lyrix-pill is-outline${archivesOpen ? " is-current" : ""}`}
             onClick={onToggleArchives}
             aria-label="Archives"
+            data-tour="archives"
             aria-current={archivesOpen ? "page" : undefined}
           >
             <CalendarIcon />
@@ -101,6 +102,7 @@ export const AppHeader = memo(function AppHeader({
             className={`lyrix-pill is-outline${helpOpen ? " is-current" : ""}`}
             onClick={onToggleHelp}
             aria-label="Comment jouer"
+            data-tour="help"
             aria-current={helpOpen ? "page" : undefined}
           >
             <span className="lyrix-help-dot" aria-hidden="true">

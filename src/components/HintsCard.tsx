@@ -49,6 +49,7 @@ export const HintsCard = memo(function HintsCard({ hints, victory, group, reveal
     <section
       className={`lyrix-card lyrix-hints${open ? " is-open" : ""}${text.badge ? " is-waiting" : ""}`}
       aria-label="Indices"
+      data-tour="hints"
     >
       <h2 className="lyrix-hints-heading">
         <button

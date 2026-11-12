@@ -38,6 +38,20 @@ export const similarityWorkerUrl = `http://localhost:${SIMILARITY_WORKER_PORT}`;
 /** The production build, as `vite preview` serves it: the only frontend that registers the service worker (#79). */
 export const previewUrl = `http://localhost:${PREVIEW_PORT}`;
 
+/**
+ * A browser that has already been shown the guided tour (src/tourStorage.ts),
+ * on both frontends: every spec plays the game, not a first visit's tour,
+ * which dims the page and takes focus. tour.spec.ts starts from an empty one.
+ * A context a spec makes itself (browser.newContext) is given it explicitly.
+ */
+export const TOUR_SEEN = {
+  cookies: [],
+  origins: [webUrl, previewUrl].map((origin) => ({
+    origin,
+    localStorage: [{ name: "lyrix:tour-seen", value: "1" }],
+  })),
+};
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
@@ -107,6 +121,7 @@ export default defineConfig({
   ],
   use: {
     baseURL: webUrl,
+    storageState: TOUR_SEEN,
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });
