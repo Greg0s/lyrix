@@ -95,11 +95,23 @@ export const TitleGuess = memo(function TitleGuess({
               <p className="lyrix-victory-eyebrow">
                 {group ? "Bravo, le groupe l'a trouvée\u00a0!" : "Bravo, tu l'as trouvée\u00a0!"}
               </p>
-              {artist ? <p className="lyrix-victory-artist">{artist}</p> : null}
-              <p className="lyrix-victory-song">
-                {title}
-                {year !== undefined ? ` · ${year}` : null}
-              </p>
+              <p className="lyrix-victory-song">{title}</p>
+              {artist || year !== undefined ? (
+                <dl className="lyrix-victory-facts">
+                  {artist ? (
+                    <div>
+                      <dt>Artiste</dt>
+                      <dd>{artist}</dd>
+                    </div>
+                  ) : null}
+                  {year !== undefined ? (
+                    <div>
+                      <dt>Année</dt>
+                      <dd>{year}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+              ) : null}
               {archiveDay === null ? (
                 <>
                   <p className="lyrix-victory-note">Reviens demain pour une nouvelle chanson&nbsp;!</p>

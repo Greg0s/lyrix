@@ -35,8 +35,9 @@ test("names the artist and the year once the round is won, on the song's sleeve"
   if (!artist || year === undefined) throw new Error("the winning view names no artist or year");
 
   const panel = page.locator(".lyrix-victory");
-  await expect(panel.locator(".lyrix-victory-artist")).toHaveText(artist);
-  await expect(panel.locator(".lyrix-victory-song")).toContainText(`· ${year}`);
+  const facts = panel.locator(".lyrix-victory-facts");
+  await expect(facts.locator("dt")).toHaveText(["Artiste", "Année"]);
+  await expect(facts.locator("dd")).toHaveText([artist, String(year)]);
   const sleeve = panel.locator(".lyrix-victory-cover");
   await expect(sleeve).toHaveAttribute("aria-hidden", "true");
   await expect(sleeve.locator(".lyrix-victory-cover-year")).toHaveText(String(year));
