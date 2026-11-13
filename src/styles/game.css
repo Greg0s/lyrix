@@ -845,56 +845,28 @@
 }
 
 /*
- * The song's sleeve (VictoryCover): its album cover once loaded, an orange
- * sleeve with the year on it until then, or for good when there is none. A
- * record peeks out of its corner, in the panel's own shades.
+ * The song's sleeve (VictoryCover): its album cover, shown only once loaded.
+ * Until then it takes no room, and a song without a cover has none at all.
  */
 .lyrix-victory-cover {
   position: relative;
   flex: none;
   width: clamp(68px, 16vw, 88px);
   aspect-ratio: 1;
-  display: flex;
-  align-items: flex-end;
-  padding: 8px 10px;
   border-radius: 12px;
   overflow: hidden;
-  background: var(--accent-solid);
-  color: var(--color-on-bright);
 }
 
-.lyrix-victory-cover::before {
-  content: "";
-  position: absolute;
-  top: -24px;
-  right: -24px;
-  width: 58px;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: repeating-radial-gradient(circle, var(--color-solid) 0 2px, var(--color-solid-raised) 2px 3px);
-}
-
-.lyrix-victory-cover-year {
-  position: relative;
-  font-family: var(--font-display);
-  font-size: clamp(1.2rem, 3.4vw, 1.6rem);
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -0.02em;
+.lyrix-victory-cover:not(.has-image) {
+  display: none;
 }
 
 .lyrix-victory-cover img {
-  position: absolute;
-  inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0;
-  transition: opacity 0.3s var(--ease-out);
-}
-
-.lyrix-victory-cover.has-image img {
-  opacity: 1;
+  animation: lyrix-cover-in 0.3s var(--ease-out);
 }
 
 /* The song's facts, side by side like a record's label: Artiste, then Année. */

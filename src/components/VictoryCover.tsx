@@ -4,33 +4,30 @@ import { apiUrl } from "../api/base";
 interface VictoryCoverProps {
   /** The song's cover token (RoundView.cover); absent for a song that can't have one. */
   cover?: string;
-  /** The song's release year (RoundView.year), written on the sleeve. */
-  year?: number;
 }
 
 /**
  * The victory panel's sleeve: the song's album cover, asked of the Worker
- * (worker/src/covers.ts), never of anyone else. Until the image has loaded,
- * and for good when there is none (404) or it couldn't be had, an orange
- * sleeve shows the song's year, a record peeking out of it. Decorative: the
- * panel's text says the artist and year already.
+ * (worker/src/covers.ts), never of anyone else. Nothing takes its place:
+ * it only shows once the image has loaded, and goes for good when there is
+ * none (404) or it couldn't be had (decided with the developer). Decorative:
+ * the panel's text names the song, its artist and year.
  */
-export const VictoryCover = memo(function VictoryCover({ cover, year }: VictoryCoverProps) {
-  // Which cover's image has loaded, so another song's shows its sleeve until its own has.
+export const VictoryCover = memo(function VictoryCover({ cover }: VictoryCoverProps) {
+  // Which cover's image has loaded, or failed: another song's waits for its own.
   const [loaded, setLoaded] = useState<string | null>(null);
-  const shown = cover !== undefined && loaded === cover;
+  const [failed, setFailed] = useState<string | null>(null);
+  if (cover === undefined || failed === cover) return null;
   return (
-    <div className={shown ? "lyrix-victory-cover has-image" : "lyrix-victory-cover"} aria-hidden="true">
-      {year !== undefined ? <span className="lyrix-victory-cover-year">{year}</span> : null}
-      {cover !== undefined ? (
-        <img
-          key={cover}
-          src={apiUrl(`/api/cover/${encodeURIComponent(cover)}`).href}
-          alt=""
-          decoding="async"
-          onLoad={() => setLoaded(cover)}
-        />
-      ) : null}
+    <div className={loaded === cover ? "lyrix-victory-cover has-image" : "lyrix-victory-cover"} aria-hidden="true">
+      <img
+        key={cover}
+        src={apiUrl(`/api/cover/${encodeURIComponent(cover)}`).href}
+        alt=""
+        decoding="async"
+        onLoad={() => setLoaded(cover)}
+        onError={() => setFailed(cover)}
+      />
     </div>
   );
 });

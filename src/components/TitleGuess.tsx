@@ -90,7 +90,7 @@ export const TitleGuess = memo(function TitleGuess({
       {victory ? (
         <div className="lyrix-victory">
           <div className="lyrix-victory-main">
-            <VictoryCover cover={cover} year={year} />
+            <VictoryCover cover={cover} />
             <div className="lyrix-victory-text">
               <p className="lyrix-victory-eyebrow">
                 {group ? "Bravo, le groupe l'a trouvée\u00a0!" : "Bravo, tu l'as trouvée\u00a0!"}

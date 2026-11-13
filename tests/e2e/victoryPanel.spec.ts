@@ -3,13 +3,13 @@ import type { GuessAnswer, RoundView } from "../../src/game/types";
 import { titleWords as titleWordsOf } from "./titleWords";
 
 /**
- * The victory panel names the song's artist and year, the year on the
- * song's sleeve until its album cover (if the Worker has one) loads over it.
+ * The victory panel names the song's artist and year, beside its album
+ * cover when the Worker has one, and nothing in its place when it doesn't.
  * Neither is known before the win: the round's view carries no artist, year
  * or cover until then.
  */
 
-test("names the artist and the year once the round is won, on the song's sleeve", async ({ page }) => {
+test("names the artist and the year once the round is won, with no sleeve for a song without a cover", async ({ page }) => {
   const roundResponse = page.waitForResponse(
     (res) => res.url().includes("/api/round") && res.request().method() === "GET"
   );
@@ -38,7 +38,6 @@ test("names the artist and the year once the round is won, on the song's sleeve"
   const facts = panel.locator(".lyrix-victory-facts");
   await expect(facts.locator("dt")).toHaveText(["Artiste", "Année"]);
   await expect(facts.locator("dd")).toHaveText([artist, String(year)]);
-  const sleeve = panel.locator(".lyrix-victory-cover");
-  await expect(sleeve).toHaveAttribute("aria-hidden", "true");
-  await expect(sleeve.locator(".lyrix-victory-cover-year")).toHaveText(String(year));
+  // Dev's stand-in song has no cover: nothing takes its place.
+  if (!won.cover) await expect(panel.locator(".lyrix-victory-cover")).toHaveCount(0);
 });

@@ -5,46 +5,45 @@ import { VictoryCover } from "../../../src/components/VictoryCover";
 
 afterEach(cleanup);
 
-function sleeve(container: HTMLElement): HTMLElement {
-  const element = container.querySelector<HTMLElement>(".lyrix-victory-cover");
-  if (!element) throw new Error("no sleeve");
-  return element;
+function sleeve(container: HTMLElement): HTMLElement | null {
+  return container.querySelector<HTMLElement>(".lyrix-victory-cover");
 }
 
 describe("VictoryCover", () => {
-  it("shows the year on its sleeve until the cover has loaded, then the cover", () => {
-    const { container } = render(<VictoryCover cover="abc" year={1996} />);
-    expect(sleeve(container).textContent).toBe("1996");
-    expect(sleeve(container).classList.contains("has-image")).toBe(false);
+  it("shows the cover once it has loaded, and nothing in its place before", () => {
+    const { container } = render(<VictoryCover cover="abc" />);
+    // Rendered, so the image loads, but hidden (game.css) until it has: no placeholder.
+    expect(sleeve(container)?.classList.contains("has-image")).toBe(false);
+    expect(sleeve(container)?.textContent).toBe("");
 
     const image = container.querySelector("img");
     expect(image?.getAttribute("src")).toMatch(/\/api\/cover\/abc$/);
     fireEvent.load(image as HTMLImageElement);
-    expect(sleeve(container).classList.contains("has-image")).toBe(true);
+    expect(sleeve(container)?.classList.contains("has-image")).toBe(true);
   });
 
-  it("keeps its sleeve when there is no cover to be had", () => {
-    const { container } = render(<VictoryCover cover="abc" year={1996} />);
+  it("goes away entirely when there is no cover to be had", () => {
+    const { container } = render(<VictoryCover cover="abc" />);
     fireEvent.error(container.querySelector("img") as HTMLImageElement);
-    expect(sleeve(container).classList.contains("has-image")).toBe(false);
-    expect(sleeve(container).textContent).toBe("1996");
+    expect(sleeve(container)).toBeNull();
+    expect(container.innerHTML).toBe("");
   });
 
-  it("asks for nothing for a song that can't have a cover", () => {
-    const { container } = render(<VictoryCover year={1996} />);
-    expect(container.querySelector("img")).toBeNull();
+  it("renders nothing, and asks for nothing, for a song that can't have a cover", () => {
+    const { container } = render(<VictoryCover />);
+    expect(container.innerHTML).toBe("");
   });
 
-  it("shows another song's sleeve until that song's own cover has loaded", () => {
-    const { container, rerender } = render(<VictoryCover cover="abc" year={1996} />);
+  it("waits for another song's own cover before showing it", () => {
+    const { container, rerender } = render(<VictoryCover cover="abc" />);
     fireEvent.load(container.querySelector("img") as HTMLImageElement);
-    rerender(<VictoryCover cover="def" year={2014} />);
-    expect(sleeve(container).classList.contains("has-image")).toBe(false);
+    rerender(<VictoryCover cover="def" />);
+    expect(sleeve(container)?.classList.contains("has-image")).toBe(false);
     expect(container.querySelector("img")?.getAttribute("src")).toMatch(/\/api\/cover\/def$/);
   });
 
-  it("is hidden from screen readers: the panel's text says the artist and year", () => {
-    const { container } = render(<VictoryCover cover="abc" year={1996} />);
-    expect(sleeve(container).getAttribute("aria-hidden")).toBe("true");
+  it("is hidden from screen readers: the panel's text names the song", () => {
+    const { container } = render(<VictoryCover cover="abc" />);
+    expect(sleeve(container)?.getAttribute("aria-hidden")).toBe("true");
   });
 });
