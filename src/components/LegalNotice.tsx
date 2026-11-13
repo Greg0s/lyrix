@@ -89,6 +89,11 @@ export function LegalNotice({ onClose, contact = CONTACT_EMAIL }: LegalNoticePro
               </>
             ) : null}
           </p>
+          <p>
+            Les pochettes d'album, montrées une fois la chanson trouvée, appartiennent à leurs ayants droit. Le serveur du
+            jeu les obtient de <a href="https://www.deezer.com">Deezer</a>, ou de l'éditeur pour les rares chansons que
+            Deezer n'a pas, et te les envoie lui-même&nbsp;: ton navigateur ne contacte jamais Deezer.
+          </p>
           <p>Les polices Bricolage Grotesque et Figtree sont diffusées sous licence SIL Open Font License&nbsp;1.1.</p>
           {/* CC BY 3.0 (4.b) lets the credit sit wherever is reasonable: here, with the site's other credits. */}
           <p>
