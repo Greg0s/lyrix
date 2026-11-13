@@ -4,6 +4,8 @@ import { nearStyle } from "./heatStyle";
 interface HowToPlayProps {
   /** Leaves the page for today's song. */
   onClose: () => void;
+  /** Leaves it for today's song with the guided tour started over (ProductTour). */
+  onReplayTour: () => void;
 }
 
 /**
@@ -18,7 +20,7 @@ const SAMPLE_GUESSES: readonly { word: string; score: number }[] = [
 ];
 
 /** The rules, a page of their own (/comment-jouer), opened from the header's "Comment jouer" button. */
-export function HowToPlay({ onClose }: HowToPlayProps) {
+export function HowToPlay({ onClose, onReplayTour }: HowToPlayProps) {
   return (
     <main className="lyrix-help-page">
       <article className="lyrix-card lyrix-help">
@@ -39,9 +41,14 @@ export function HowToPlay({ onClose }: HowToPlayProps) {
         </div>
         <p className="lyrix-help-text">{RULES_SUMMARY.letters}</p>
         <p className="lyrix-help-text">{RULES_SUMMARY.together}</p>
-        <button type="button" className="lyrix-button" onClick={onClose}>
-          C'est parti
-        </button>
+        <div className="lyrix-help-actions">
+          <button type="button" className="lyrix-button" onClick={onClose}>
+            C'est parti
+          </button>
+          <button type="button" className="lyrix-button is-outline" onClick={onReplayTour}>
+            Revoir la visite guidée
+          </button>
+        </div>
       </article>
 
       <section className="lyrix-card lyrix-faq" aria-labelledby="lyrix-faq-title">

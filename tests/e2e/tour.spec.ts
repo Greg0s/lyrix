@@ -99,3 +99,16 @@ test("is shown once: skipped, it never comes back, and the game is playable at o
   await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
   await expect(tour(page)).toHaveCount(0);
 });
+
+test("can be taken again from the rules' page, whenever the player wants", async ({ page }) => {
+  await page.goto("/");
+  await invite(page).getByRole("button", { name: "Non merci, je joue" }).click();
+  await page.getByRole("button", { name: "Comment jouer" }).click();
+  await page.getByRole("button", { name: "Revoir la visite guidée" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(tour(page)).toBeVisible();
+  await expect(tour(page)).toContainText("Étape 1 sur");
+  await tour(page).getByRole("button", { name: "Passer" }).click();
+  await expect(tour(page)).toHaveCount(0);
+  await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
+});

@@ -1376,6 +1376,17 @@
   background: var(--accent-hover);
 }
 
+/* A second choice beside a solid button, on a light surface. */
+.lyrix-button.is-outline {
+  background: transparent;
+  color: var(--color-ink);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+
+.lyrix-button.is-outline:hover {
+  background: var(--color-surface-hover);
+}
+
 .lyrix-button.is-block {
   align-self: stretch;
   padding: 13px 20px;
@@ -2234,6 +2245,12 @@
 .lyrix-help {
   gap: 16px;
   padding: 28px;
+}
+
+.lyrix-help-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .lyrix-help-title {

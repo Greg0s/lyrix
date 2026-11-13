@@ -6,7 +6,7 @@ import type { RoundHints, RoundView } from "../../../src/game/types";
 import { flushSavedRound, saveRound } from "../../../src/roundStorage";
 import { readFileSync } from "node:fs";
 import { INVITE_LEAVE_MS, TOUR_STEPS } from "../../../src/tour";
-import { TOUR_STORAGE_KEY, isTourSeen } from "../../../src/tourStorage";
+import { TOUR_STORAGE_KEY, isTourSeen, markTourSeen } from "../../../src/tourStorage";
 
 /**
  * The guided tour a first visit gets: first offered in the guess dock's place
@@ -269,5 +269,58 @@ describe("a first visit's guided tour", () => {
     press("Suivant");
     press("Passer");
     expect(wordTokenRenders.count).toBe(0);
+  });
+});
+
+describe("the guided tour, asked for again from the rules' page", () => {
+  async function replayFromRules(): Promise<void> {
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Comment jouer" }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Revoir la visite guidée" }));
+    });
+  }
+
+  beforeEach(() => {
+    markTourSeen();
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("starts straight away over today's song, then hands the input back", async () => {
+    await mountGame();
+    await replayFromRules();
+    expect(window.location.pathname).toBe("/");
+    expect(invite()).toBeNull();
+    expect(step()).toBe(TOUR_STEPS[0]?.title);
+    press("Passer");
+    expect(tour()).toBeNull();
+    expect(document.activeElement).toBe(input());
+    // Once, as asked: back on the rules and out again, no tour.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Comment jouer" }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "C'est parti" }));
+    });
+    expect(tour()).toBeNull();
+  });
+
+  it("is shown over a round already won too", async () => {
+    await mountGame(round({ victory: true }));
+    await replayFromRules();
+    expect(tour()).toBeTruthy();
+  });
+
+  it("takes the place of a first visit's invitation still unanswered", async () => {
+    window.localStorage.clear();
+    await mountGame();
+    expect(invite()).toBeTruthy();
+    await replayFromRules();
+    expect(invite()).toBeNull();
+    expect(tour()).toBeTruthy();
+    press("Passer");
+    expect(invite()).toBeNull();
+    expect(input()).toBeTruthy();
   });
 });
