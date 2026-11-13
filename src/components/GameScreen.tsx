@@ -32,6 +32,7 @@ import { ProgressCard } from "./ProgressCard";
 import { RoomCard } from "./RoomCard";
 import { RouteLink } from "./RouteLink";
 import { TitleGuess } from "./TitleGuess";
+import { TourInvite } from "./TourInvite";
 import { TriedWords } from "./TriedWords";
 
 function feedbackMessage({ word, found, duplicate, nearCount }: Feedback): string {
@@ -148,11 +149,29 @@ export function GameScreen() {
   // The guided tour, for a first visit only (src/tourStorage.ts). Never for a
   // player with a day already in the archives: they played before it existed.
   const [tourPending, setTourPending] = useState(() => !isTourSeen() && Object.keys(loadArchive()).length === 0);
+  // First offered in the dock's place (TourInvite), taken only if the player says so.
+  const [tourStarted, setTourStarted] = useState(false);
+  const startTour = useCallback(() => setTourStarted(true), []);
+  // Asked for again from the rules' page ("Revoir la visite guidée"): the tour
+  // itself, straight away, over today's song, won or not.
+  const [tourReplay, setTourReplay] = useState(false);
+  const replayTour = useCallback(() => {
+    setTourReplay(true);
+    navigate(TODAY);
+  }, [navigate]);
   // Gone, the player is back to guessing, as after a dialog (see closeDialog).
+  // After the commit: declined, the invitation still holds the input's place.
   const finishTour = useCallback(() => {
     setTourPending(false);
-    if (!isTouchScreen()) inputRef.current?.focus();
+    setTourReplay(false);
   }, []);
+  const tourOn = tourPending || tourReplay;
+  const tourWasOn = useRef(tourOn);
+  useEffect(() => {
+    const done = tourWasOn.current && !tourOn;
+    tourWasOn.current = tourOn;
+    if (done && !isTouchScreen()) inputRef.current?.focus();
+  }, [tourOn]);
   const { submit } = game;
   const onSubmit = useCallback(() => void submit(), [submit]);
 
@@ -201,6 +220,7 @@ export function GameScreen() {
   useEffect(() => {
     if (showTour) markTourSeen();
   }, [showTour]);
+  const showReplay = tourReplay && route.name === "today" && round !== null && dialog === null;
 
   // In a room, its days as this player may see them, for the archives screen.
   const { roomDays, roomRevealed } = game;
@@ -272,7 +292,7 @@ export function GameScreen() {
   );
 
   if (route.name === "archives") return shell(<ArchivesScreen onNavigate={navigate} group={groupDays} />);
-  if (route.name === "help") return shell(<HowToPlay onClose={goToday} />);
+  if (route.name === "help") return shell(<HowToPlay onClose={goToday} onReplayTour={replayTour} />);
   if (route.name === "legal") return shell(<LegalNotice onClose={goToday} />);
 
   if (game.error && !round) {
@@ -384,15 +404,19 @@ export function GameScreen() {
           <LyricsBody sections={slots.sections} revealAll={revealAllLyrics} lastFoundKey={lastFoundKey} />
         </article>
 
-        <GuessForm
-          value={game.inputValue}
-          onChange={game.setInputValue}
-          onSubmit={onSubmit}
-          submitting={game.submitting}
-          feedback={guessFeedback}
-          inputRef={inputRef}
-          placeholder={group ? "Propose un mot au groupe…" : "Propose un mot…"}
-        />
+        {showTour && !tourStarted && !tourReplay ? (
+          <TourInvite onStart={startTour} onSkip={finishTour} />
+        ) : (
+          <GuessForm
+            value={game.inputValue}
+            onChange={game.setInputValue}
+            onSubmit={onSubmit}
+            submitting={game.submitting}
+            feedback={guessFeedback}
+            inputRef={inputRef}
+            placeholder={group ? "Propose un mot au groupe…" : "Propose un mot…"}
+          />
+        )}
       </div>
 
       <aside className="lyrix-aside" ref={trackStickyHeight}>
@@ -414,7 +438,7 @@ export function GameScreen() {
           />
         ) : null}
       </aside>
-      {showTour ? <ProductTour onDone={finishTour} /> : null}
+      {(showTour && tourStarted) || showReplay ? <ProductTour onDone={finishTour} /> : null}
     </main>
   );
 }

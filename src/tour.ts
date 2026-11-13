@@ -6,6 +6,13 @@
  * this song) is left out.
  */
 
+/**
+ * How long the tour's invitation (TourInvite.tsx) takes to slide out once
+ * answered, before the answer takes effect: game.css's
+ * `.lyrix-invite-panel.is-answered` animation.
+ */
+export const INVITE_LEAVE_MS = 280;
+
 export interface TourStep {
   /** The `data-tour` value of the element the tip points at. */
   target: string;
