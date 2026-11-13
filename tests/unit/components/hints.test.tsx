@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { markTourSeen } from "../../../src/tourStorage";
 import { utcDay } from "../../../src/game/daily";
 import type { GuessDelta, HintAnswer, RoundHints, RoundView } from "../../../src/game/types";
 import { flushSavedRound } from "../../../src/roundStorage";
@@ -78,6 +79,8 @@ const revealed: HintAnswer = { state: "state-2", hints: { tried: 50, used: ["era
 beforeEach(() => {
   wordTokenRenders.count = 0;
   window.localStorage.clear();
+  // A first visit's guided tour is productTour.test.tsx's: here, the player has seen it.
+  markTourSeen();
   fetchRound.mockReset();
   submitGuess.mockReset();
   resumeRound.mockReset();
