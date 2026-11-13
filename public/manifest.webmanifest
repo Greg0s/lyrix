@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Lyrix",
   "short_name": "Lyrix",
-  "description": "Jeu gratuit : une chanson par jour, la même pour tout le monde. Propose des mots pour dévoiler ses paroles cachées et retrouve son titre, seul ou à plusieurs.",
+  "description": "Jeu musical gratuit : une chanson par jour aux paroles cachées, la même pour tous. Propose des mots pour les dévoiler et trouve son titre, seul ou entre amis.",
   "lang": "fr",
   "dir": "ltr",
   "start_url": "/",

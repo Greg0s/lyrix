@@ -68,7 +68,7 @@ export function isPageRoute(route: Route): route is { name: "archives" } | { nam
 }
 
 /** The home page's title, as index.html writes it (tests/unit/routes.test.ts). */
-export const HOME_TITLE = "Lyrix - retrouve la chanson du jour à partir de ses paroles";
+export const HOME_TITLE = "Lyrix – Le jeu de la chanson du jour";
 
 /**
  * The tab's title on each screen, which is also what a bookmark or a search

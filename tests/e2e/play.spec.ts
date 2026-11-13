@@ -158,7 +158,7 @@ test("serves the rules at their address under their own title and canonical link
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://lyrix.mintymoon.app/comment-jouer");
   await expect(page).toHaveTitle(/^Comment jouer à Lyrix/);
   await page.getByRole("button", { name: "C'est parti" }).click();
-  await expect(page).toHaveTitle(/^Lyrix - retrouve la chanson du jour/);
+  await expect(page).toHaveTitle(/^Lyrix – Le jeu de la chanson du jour/);
 });
 
 test("shades the rules' sample bars from cold to hot, as the lyrics shade close guesses", async ({ page }) => {
