@@ -546,6 +546,21 @@ describe("the multiplayer dialog", () => {
     expect(dialog.querySelector(".lyrix-tabs")?.classList.contains("is-second")).toBe(true);
   });
 
+  it("opens on « Créer un salon » from the « Chercher à plusieurs » card, and on « Rejoindre » from the header after it", async () => {
+    await mountGame();
+
+    fireEvent.click(screen.getByRole("button", { name: /Chercher à plusieurs/ }));
+    let dialog = screen.getByRole("dialog", { name: "Jouer à plusieurs" });
+    expect(within(dialog).getByRole("tab", { name: "Créer un salon" }).getAttribute("aria-selected")).toBe("true");
+    expect(dialog.querySelector(".lyrix-tabs")?.classList.contains("is-second")).toBe(true);
+    expect(within(dialog).getByRole("button", { name: "Créer le salon" })).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    dialog = openDialog();
+    expect(within(dialog).getByRole("tab", { name: "Rejoindre" }).getAttribute("aria-selected")).toBe("true");
+  });
+
   it("joins a room: closes, and the dock says whose room it is", async () => {
     answer(201, entry(leo.id, [camille, leo]));
     await mountGame();

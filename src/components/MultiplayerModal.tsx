@@ -22,13 +22,19 @@ interface MultiplayerModalProps {
    * joining it leaves.
    */
   invite: string | null;
+  /**
+   * The tab the forms open on: "Rejoindre" unless the dialog was opened to
+   * create a room (the side column's "Chercher à plusieurs" card). An invite
+   * link always opens on "Rejoindre".
+   */
+  tab?: Tab;
   onCreate: (pseudo: string) => Promise<RoomOutcome>;
   onJoin: (code: string, pseudo: string) => Promise<RoomOutcome>;
   onLeave: () => void;
   onClosed: () => void;
 }
 
-type Tab = "create" | "join";
+export type Tab = "create" | "join";
 
 const CODE_LENGTH_ERROR = `Le code doit contenir ${ROOM_CODE_LENGTH} caractères.`;
 const UNKNOWN_ROOM_ERROR = "Aucun salon ne porte ce code, ou il a expiré.";
@@ -54,7 +60,7 @@ interface FormError {
  * room keeps the dialog open on the new room; joining one closes it, and the
  * guess dock says whose room it was (see useRoom).
  */
-export function MultiplayerModal({ room, invite, onCreate, onJoin, onLeave, onClosed }: MultiplayerModalProps) {
+export function MultiplayerModal({ room, invite, tab = "join", onCreate, onJoin, onLeave, onClosed }: MultiplayerModalProps) {
   // After a join the dialog closes; the form stays up while it animates out,
   // rather than flashing the in-room view on the way.
   const [joined, setJoined] = useState(false);
@@ -79,6 +85,7 @@ export function MultiplayerModal({ room, invite, onCreate, onJoin, onLeave, onCl
         ) : (
           <RoomForms
             invite={invite}
+            initialTab={invite === null ? tab : "join"}
             currentRoom={room?.code ?? null}
             onCreate={onCreate}
             onJoin={onJoin}
@@ -95,6 +102,7 @@ export function MultiplayerModal({ room, invite, onCreate, onJoin, onLeave, onCl
 
 interface RoomFormsProps {
   invite: string | null;
+  initialTab: Tab;
   /** The room the player is in while an invite offers another one. */
   currentRoom: string | null;
   onCreate: (pseudo: string) => Promise<RoomOutcome>;
@@ -102,8 +110,8 @@ interface RoomFormsProps {
   onJoined: () => void;
 }
 
-function RoomForms({ invite, currentRoom, onCreate, onJoin, onJoined }: RoomFormsProps) {
-  const [tab, setTab] = useState<Tab>("join");
+function RoomForms({ invite, initialTab, currentRoom, onCreate, onJoin, onJoined }: RoomFormsProps) {
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [pseudo, setPseudo] = useState("");
   const [code, setCode] = useState(invite ?? "");
   const [pending, setPending] = useState(false);
