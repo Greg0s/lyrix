@@ -29,7 +29,7 @@ function deezerResult(overrides: { id?: number; title?: string; artist?: string;
 }
 
 function track(overrides: Partial<DeezerTrack>): DeezerTrack {
-  return { id: 1, title: "Papaoutai", artist: "Stromae", albumId: 2, cover: null, ...overrides };
+  return { id: 1, title: "Papaoutai", artist: "Stromae", albumId: 2, version: "", cover: null, ...overrides };
 }
 
 function answer(body: unknown, status = 200): void {
@@ -50,6 +50,7 @@ describe("parseDeezerTrack", () => {
       title: "Papaoutai",
       artist: "Stromae",
       albumId: 7090505,
+      version: "",
       cover: "https://cdn-images.dzcdn.net/images/cover/abc/250x250-000000-80-0-0.jpg",
     });
   });
@@ -77,6 +78,16 @@ describe("bestDeezerMatch", () => {
     expect(bestDeezerMatch(tracks, ENTRY)?.id).toBe(3);
   });
 
+  it("prefers the original take, and reads a title without its case or punctuation", () => {
+    const tracks = [
+      track({ id: 1, title: "papaoutai", version: "(Extended)" }),
+      track({ id: 2, title: "papaoutai" }),
+    ];
+    expect(bestDeezerMatch(tracks, ENTRY)?.id).toBe(2);
+    const lolita = { id: "moi-lolita", artist: "Alizée", title: "Moi... Lolita" };
+    expect(bestDeezerMatch([track({ id: 3, artist: "Alizée", title: "Moi Lolita" })], lolita)?.id).toBe(3);
+  });
+
   it("takes another version by the same artist over nothing", () => {
     expect(bestDeezerMatch([track({ id: 2, title: "Papaoutai (Live)" })], ENTRY)?.id).toBe(2);
   });
@@ -92,13 +103,14 @@ describe("bestDeezerMatch", () => {
 });
 
 describe("searchDeezer", () => {
-  it("asks for the artist and the title together", async () => {
+  it("asks for the artist and the title in one plain query", async () => {
     answer({ data: [deezerResult()] });
     const tracks = await searchDeezer(ENTRY);
     expect(tracks.map((found) => found.id)).toEqual([70322130]);
     const url = new URL(String(vi.mocked(fetch).mock.calls[0]?.[0]));
     expect(url.origin + url.pathname).toBe("https://api.deezer.com/search");
-    expect(url.searchParams.get("q")).toBe('artist:"Stromae" track:"Papaoutai"');
+    // Not Deezer's advanced search, which finds nothing once both fields are set.
+    expect(url.searchParams.get("q")).toBe("Stromae Papaoutai");
   });
 
   it("answers an empty list when Deezer has nothing", async () => {

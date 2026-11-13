@@ -19,6 +19,8 @@ export interface DeezerTrack {
   title: string;
   artist: string;
   albumId: number;
+  /** Set on another take of the song ("(Live)", "(Remasterisé en 2009)"): its title_version. */
+  version: string;
   /** The album's cover, 250x250 JPEG: three times the size the victory panel shows it at. */
   cover: string | null;
 }
@@ -50,6 +52,7 @@ export function parseDeezerTrack(value: unknown): DeezerTrack | null {
     title: typeof candidate.title_short === "string" ? candidate.title_short : candidate.title,
     artist: artist.name,
     albumId: album.id,
+    version: typeof candidate.title_version === "string" ? candidate.title_version.trim() : "",
     cover: isDeezerImage(album.cover_medium) ? album.cover_medium : null,
   };
 }
@@ -82,9 +85,11 @@ async function fetchWithTimeout(url: string | URL): Promise<Response | string> {
 /** Deezer's results for a catalog entry; an empty list when it has none. Throws DeezerUnavailableError when it couldn't answer. */
 export async function searchDeezer(entry: CatalogEntry): Promise<DeezerTrack[]> {
   const url = new URL(SEARCH_URL);
-  // Deezer's advanced search: both fields matched, rather than one loose query.
-  url.searchParams.set("q", `artist:"${entry.artist}" track:"${entry.title}"`);
-  url.searchParams.set("limit", "10");
+  // A plain query: Deezer's documented advanced search (`artist:"…" track:"…"`)
+  // finds nothing once both fields are set (docs/LEARNINGS.md, 2026-11-13), so
+  // the results are narrowed to the entry's artist here, by bestDeezerMatch.
+  url.searchParams.set("q", `${entry.artist} ${entry.title}`);
+  url.searchParams.set("limit", "25");
 
   const response = await fetchWithTimeout(url);
   if (typeof response === "string") throw new DeezerUnavailableError(entry.id, response);
@@ -97,6 +102,11 @@ export async function searchDeezer(entry: CatalogEntry): Promise<DeezerTrack[]> 
   return body.data.map(parseDeezerTrack).filter((track): track is DeezerTrack => track !== null);
 }
 
+/** A title as compared: case, accents and punctuation aside ("Moi... Lolita", "moi lolita"). */
+function titleKey(title: string): string {
+  return normalize(title).replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
 function sameArtist(found: string, wanted: string): boolean {
   const a = normalize(found);
   const b = normalize(wanted);
@@ -105,14 +115,16 @@ function sameArtist(found: string, wanted: string): boolean {
 
 /**
  * The entry's own track among the results, or null: only by its artist, the
- * same title preferred (a live or remastered one is still the song). Never
+ * same title preferred, the original take over another (a live or remastered
+ * one is still the song, and its album still the song's). Never
  * the first result regardless, as LRCLIB's lookup falls back to: a wrong
  * cover is worse than the panel's own, with the song's year on it.
  */
 export function bestDeezerMatch(tracks: readonly DeezerTrack[], entry: CatalogEntry): DeezerTrack | null {
   const byArtist = tracks.filter((track) => sameArtist(track.artist, entry.artist));
-  const title = normalize(entry.title);
-  return byArtist.find((track) => normalize(track.title) === title) ?? byArtist[0] ?? null;
+  const title = titleKey(entry.title);
+  const sameTitle = byArtist.filter((track) => titleKey(track.title) === title);
+  return sameTitle.find((track) => track.version === "") ?? sameTitle[0] ?? byArtist[0] ?? null;
 }
 
 /** A cover's bytes, or why they couldn't be had (always worth trying again: the address came from Deezer). */
