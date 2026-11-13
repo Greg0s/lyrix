@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { catalog } from "./catalog";
+import { COVER_OVERRIDES } from "./coverOverrides";
 import { bestDeezerMatch, DeezerUnavailableError, fetchDeezerImage, searchDeezer } from "./deezer";
 import type { SongsEnv } from "./songs";
 
@@ -133,6 +134,11 @@ export function hasCoverLookup(songId: string): boolean {
   return catalog.some((entry) => entry.id === songId);
 }
 
+/** A cover supplied by hand (worker/covers/, `npm run covers:embed`), for a song Deezer has none for. */
+export function coverOverride(songId: string): string | null {
+  return Object.prototype.hasOwnProperty.call(COVER_OVERRIDES, songId) ? (COVER_OVERRIDES[songId] as string) : null;
+}
+
 // ---------- Media ----------
 
 /** Media this isolate holds, by song id; a cover is a few tens of kilobytes. Bounded, least recently used out. */
@@ -222,8 +228,11 @@ export async function getSongMedia(id: string, env: SongsEnv): Promise<SongMedia
 export async function prepareCovers(songIds: readonly string[], env: SongsEnv): Promise<void> {
   for (const id of new Set(songIds)) {
     try {
+      if (coverOverride(id) !== null) continue;
       const media = await getSongMedia(id, env);
-      if (media && !media.cover) console.warn(`covers: Deezer has no cover for "${id}": its panel shows the year alone.`);
+      if (media && !media.cover) {
+        console.warn(`covers: Deezer has no cover for "${id}": its panel shows none. Add one to worker/covers/.`);
+      }
     } catch (error) {
       if (error instanceof DeezerUnavailableError) {
         console.warn(`covers: ${error.message}`);
@@ -244,11 +253,13 @@ const COVER_RETRY_AFTER_SECONDS = 30;
 
 export const coverRoutes = new Hono<{ Bindings: CoverEnv }>();
 
-// GET /api/cover/<token>: a won round's cover (RoundView.cover). An unknown
-// token and a song without a cover get the same 404, and the panel keeps its
-// own sleeve, the song's year on it.
+// GET /api/cover/<token>: a won round's cover (RoundView.cover): one supplied
+// by hand first, Deezer's otherwise. An unknown token and a song without a
+// cover get the same 404, and the panel shows no sleeve at all.
 coverRoutes.get("/:token", async (c) => {
   const id = await songOfCoverToken(c.req.param("token"), c.env.STATE_SECRET);
+  const override = id === null ? null : coverOverride(id);
+  if (override !== null) return coverResponse("image/jpeg", override);
   let media: SongMedia | null = null;
   if (id !== null) {
     try {
@@ -265,10 +276,11 @@ coverRoutes.get("/:token", async (c) => {
     c.header("Cache-Control", `public, max-age=${NO_COVER_MAX_AGE_SECONDS}`);
     return c.json({ error: "no cover" }, 404);
   }
-  return new Response(fromBase64(media.cover.base64), {
-    headers: {
-      "Content-Type": media.cover.contentType,
-      "Cache-Control": `public, max-age=${COVER_MAX_AGE_SECONDS}, immutable`,
-    },
-  });
+  return coverResponse(media.cover.contentType, media.cover.base64);
 });
+
+function coverResponse(contentType: string, base64: string): Response {
+  return new Response(fromBase64(base64), {
+    headers: { "Content-Type": contentType, "Cache-Control": `public, max-age=${COVER_MAX_AGE_SECONDS}, immutable` },
+  });
+}

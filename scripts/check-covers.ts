@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { catalog } from "../worker/src/catalog";
+import { COVER_OVERRIDES } from "../worker/src/coverOverrides";
 import { bestDeezerMatch, searchDeezer } from "../worker/src/deezer";
 
 /**
@@ -7,7 +8,8 @@ import { bestDeezerMatch, searchDeezer } from "../worker/src/deezer";
  * uses (worker/src/deezer.ts), and says which track and cover it would keep.
  * The suite mocks the network on purpose, so this is how a new month of the
  * catalog is checked for covers, like `npm run catalog:check` for lyrics.
- * A song with none still plays: its victory panel shows the year alone.
+ * A song with none still plays, its victory panel without a sleeve: add its
+ * cover to worker/covers/<id>.jpg, then `npm run covers:embed`.
  *
  *   npm run covers:check
  *   npm run covers:check -- --song papaoutai
@@ -29,11 +31,15 @@ async function main(): Promise<void> {
   for (const [index, entry] of entries.entries()) {
     if (index > 0) await sleep(DELAY_MS);
     const track = bestDeezerMatch(await searchDeezer(entry), entry);
-    if (track?.cover) {
+    if (Object.prototype.hasOwnProperty.call(COVER_OVERRIDES, entry.id)) {
+      console.log(`ok    ${entry.id}: supplied by hand (worker/covers/${entry.id}.jpg)`);
+    } else if (track?.cover) {
       console.log(`ok    ${entry.id}: "${track.title}" by ${track.artist} (track ${track.id}) ${track.cover}`);
     } else {
       missing += 1;
-      console.log(`none  ${entry.id}: ${track ? `track ${track.id} has no cover` : "no track by this artist"}`);
+      console.log(
+        `none  ${entry.id}: ${track ? `track ${track.id} has no cover` : "no track by this artist"} — add worker/covers/${entry.id}.jpg`
+      );
     }
   }
   console.log(`\n${entries.length - missing} with a cover, ${missing} without`);

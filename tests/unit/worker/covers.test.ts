@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { catalog, DEV_STANDIN_SONG_ID } from "../../../worker/src/catalog";
+import { COVER_OVERRIDES } from "../../../worker/src/coverOverrides";
 import {
+  coverOverride,
   coverToken,
   getSongMedia,
   hasCoverLookup,
@@ -183,5 +185,30 @@ describe("prepareCovers", () => {
     deezer();
     await Promise.all([getSongMedia(ENTRY.id, { SONGS }), getSongMedia(ENTRY.id, { SONGS })]);
     expect(calls.filter((url) => url.startsWith("https://api.deezer.com/search"))).toHaveLength(1);
+  });
+});
+
+describe("covers supplied by hand", () => {
+  it("are only for catalog songs", () => {
+    for (const id of Object.keys(COVER_OVERRIDES)) expect(hasCoverLookup(id)).toBe(true);
+  });
+
+  it("are served before Deezer is asked anything, even when it is down", async () => {
+    const [id] = Object.keys(COVER_OVERRIDES);
+    deezer({ down: true });
+    const res = await getCover(await coverToken(id, SECRET));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+    const bytes = Uint8Array.from(atob(COVER_OVERRIDES[id] as string), (char) => char.charCodeAt(0));
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(bytes);
+    expect(calls).toEqual([]);
+  });
+
+  it("leave the scheduled run nothing to look up", async () => {
+    const [id] = Object.keys(COVER_OVERRIDES);
+    deezer();
+    await prepareCovers([id], { SONGS });
+    expect(calls).toEqual([]);
+    expect(coverOverride(id)).not.toBeNull();
   });
 });
