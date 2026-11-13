@@ -8,8 +8,9 @@ import { TOUR_STEPS } from "../../../src/tour";
 import { TOUR_STORAGE_KEY, isTourSeen } from "../../../src/tourStorage";
 
 /**
- * The guided tour a first visit gets (ProductTour.tsx): over today's round,
- * one step per key part of the screen, "Passer" on every one, and never twice.
+ * The guided tour a first visit gets: first offered in the guess dock's place
+ * (TourInvite.tsx), then, if taken, over today's round (ProductTour.tsx), one
+ * step per key part of the screen, "Passer" on every one, and never twice.
  */
 
 const wordTokenRenders = vi.hoisted(() => ({ count: 0 }));
@@ -49,13 +50,22 @@ function round({ victory = false, withHints = true } = {}): RoundView {
   };
 }
 
-async function mountGame(view: RoundView = round()): Promise<HTMLInputElement> {
+async function mountGame(view: RoundView = round()): Promise<void> {
   fetchRound.mockResolvedValue(view);
   await act(async () => {
     render(<GameScreen />);
   });
-  await waitFor(() => expect(screen.getByPlaceholderText("Propose un mot…")).toBeTruthy());
-  return screen.getByPlaceholderText("Propose un mot…") as HTMLInputElement;
+  await waitFor(() => expect(screen.getByText("Couplet 1")).toBeTruthy());
+}
+
+const input = () => screen.queryByPlaceholderText("Propose un mot…");
+const invite = () => screen.queryByRole("region", { name: /Première fois sur Lyrix/ });
+const answer = (name: string) => fireEvent.click(within(screen.getByRole("region", { name: /Première fois/ })).getByRole("button", { name }));
+
+/** Mounted, then "Faire la visite": the tour itself. */
+async function mountTour(view: RoundView = round()): Promise<void> {
+  await mountGame(view);
+  answer("Faire la visite");
 }
 
 const tour = () => screen.queryByRole("dialog");
@@ -75,9 +85,56 @@ afterEach(() => {
   flushSavedRound();
 });
 
-describe("a first visit's guided tour", () => {
-  it("opens over today's round, and is marked seen as soon as it shows", async () => {
+describe("a first visit's invitation to the tour", () => {
+  it("takes the dock's place, dims nothing, and is marked seen as soon as it shows", async () => {
     await mountGame();
+    expect(invite()).toBeTruthy();
+    expect(input()).toBeNull();
+    expect(tour()).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Faire la visite" }));
+    expect(isTourSeen()).toBe(true);
+  });
+
+  it("declined, gives the dock back, focused, and the tour never shows", async () => {
+    await mountGame();
+    answer("Non merci, je joue");
+    expect(invite()).toBeNull();
+    expect(tour()).toBeNull();
+    expect(document.activeElement).toBe(input());
+    cleanup();
+    await mountGame();
+    expect(invite()).toBeNull();
+    expect(input()).toBeTruthy();
+  });
+
+  it("never comes back once shown, even left unanswered", async () => {
+    await mountGame();
+    cleanup();
+    await mountGame();
+    expect(invite()).toBeNull();
+    expect(input()).toBeTruthy();
+  });
+
+  it("re-renders none of the lyrics, answered either way", async () => {
+    await mountGame();
+    wordTokenRenders.count = 0;
+    answer("Faire la visite");
+    press("Passer");
+    expect(wordTokenRenders.count).toBe(0);
+    cleanup();
+    window.localStorage.clear();
+    await mountGame();
+    wordTokenRenders.count = 0;
+    answer("Non merci, je joue");
+    expect(wordTokenRenders.count).toBe(0);
+  });
+});
+
+describe("a first visit's guided tour", () => {
+  it("opens over today's round once accepted, in the dock's place given back", async () => {
+    await mountTour();
+    expect(invite()).toBeNull();
+    expect(input()).toBeTruthy();
     expect(tour()).toBeTruthy();
     expect(step()).toBe(TOUR_STEPS[0]?.title);
     expect(screen.getByText(`Étape 1 sur ${TOUR_STEPS.length}`)).toBeTruthy();
@@ -85,7 +142,7 @@ describe("a first visit's guided tour", () => {
   });
 
   it("walks through every step, back and forth, then hands the player the input", async () => {
-    const input = await mountGame();
+    await mountTour();
     expect(screen.queryByRole("button", { name: "Précédent" })).toBeNull();
     press("Suivant");
     expect(step()).toBe(TOUR_STEPS[1]?.title);
@@ -98,11 +155,11 @@ describe("a first visit's guided tour", () => {
     expect(screen.queryByRole("button", { name: "Suivant" })).toBeNull();
     press(/C'est parti/);
     expect(tour()).toBeNull();
-    expect(document.activeElement).toBe(input);
+    expect(document.activeElement).toBe(input());
   });
 
   it("offers \"Passer\" on every step, which ends it there", async () => {
-    await mountGame();
+    await mountTour();
     for (let index = 0; index < TOUR_STEPS.length; index += 1) {
       expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Passer" })).toBeTruthy();
       if (index < TOUR_STEPS.length - 1) press("Suivant");
@@ -112,18 +169,18 @@ describe("a first visit's guided tour", () => {
   });
 
   it("is skipped with Escape too", async () => {
-    await mountGame();
+    await mountTour();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(tour()).toBeNull();
   });
 
   it("points every step at its element, highlighted on the page", async () => {
-    await mountGame();
+    await mountTour();
     for (const { target } of TOUR_STEPS) expect(document.querySelector(`[data-tour="${target}"]`)).not.toBeNull();
   });
 
   it("leaves out a step whose element isn't there: no hints for this song", async () => {
-    await mountGame(round({ withHints: false }));
+    await mountTour(round({ withHints: false }));
     expect(screen.getByText(`Étape 1 sur ${TOUR_STEPS.length - 1}`)).toBeTruthy();
     const titles: (string | null)[] = [];
     for (let index = 0; index < TOUR_STEPS.length - 1; index += 1) {
@@ -134,7 +191,7 @@ describe("a first visit's guided tour", () => {
   });
 
   it("never comes back once shown, even left halfway", async () => {
-    await mountGame();
+    await mountTour();
     press("Suivant");
     cleanup();
     await mountGame();
@@ -145,17 +202,19 @@ describe("a first visit's guided tour", () => {
     saveRound(round(), [{ key: "orage", display: "orage", found: false, score: null, near: [] }]);
     flushSavedRound();
     await mountGame();
+    expect(invite()).toBeNull();
     expect(tour()).toBeNull();
   });
 
   it("waits for a round still to find", async () => {
     await mountGame(round({ victory: true }));
+    expect(invite()).toBeNull();
     expect(tour()).toBeNull();
     expect(window.localStorage.getItem(TOUR_STORAGE_KEY)).toBeNull();
   });
 
   it("re-renders none of the lyrics while it moves on", async () => {
-    await mountGame();
+    await mountTour();
     wordTokenRenders.count = 0;
     press("Suivant");
     press("Suivant");

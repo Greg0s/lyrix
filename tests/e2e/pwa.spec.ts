@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { previewUrl } from "../../playwright.config";
 import { OFFLINE_MESSAGE } from "../../src/pwa";
+import { TOUR_STORAGE_KEY } from "../../src/tourStorage";
 
 /**
  * An installable Lyrix (#79), on the production build: the dev server
@@ -24,6 +25,15 @@ function cachedUrls(page: Page): Promise<string[]> {
   });
 }
 
+/**
+ * Nothing saved but the tour having been offered: a first visit's invitation
+ * takes the dock's place (TourInvite.tsx), and these tests need the dock.
+ */
+function forgetAllButTheTour(tourKey: string): void {
+  localStorage.clear();
+  localStorage.setItem(tourKey, "1");
+}
+
 const isRound = (url: string) => new URL(url).pathname === "/api/round";
 
 test("links the manifest and registers the service worker", async ({ page }) => {
@@ -39,7 +49,7 @@ test("links the manifest and registers the service worker", async ({ page }) => 
 
 test("never answers the day's round from its cache, nor keeps it", async ({ page }) => {
   // Nothing saved between loads: each one asks the Worker for the round.
-  await page.addInitScript(() => localStorage.clear());
+  await page.addInitScript(forgetAllButTheTour, TOUR_STORAGE_KEY);
   await page.goto("/");
   await controlledByServiceWorker(page);
 
@@ -90,7 +100,7 @@ test("reopens offline on the app shell it kept, today's round readable and the d
 
 test("says it is offline in place of a round it couldn't load, and loads it once back online", async ({ page, context }) => {
   // Nothing saved: offline, the round can't be loaded at all.
-  await page.addInitScript(() => localStorage.clear());
+  await page.addInitScript(forgetAllButTheTour, TOUR_STORAGE_KEY);
   await page.goto("/");
   await controlledByServiceWorker(page);
 

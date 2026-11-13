@@ -2,13 +2,15 @@ import { expect, test, type Page } from "@playwright/test";
 import { TOUR_STEPS } from "../../src/tour";
 
 /**
- * A first visit's guided tour (ProductTour.tsx), in a real browser: every
+ * A first visit's guided tour, offered in the guess dock's place
+ * (TourInvite.tsx), then shown (ProductTour.tsx), in a real browser: every
  * other spec starts from a browser that has seen it (TOUR_SEEN,
  * playwright.config.ts), this one from an empty one.
  */
 test.use({ storageState: { cookies: [], origins: [] } });
 
 const tour = (page: Page) => page.getByRole("dialog");
+const invite = (page: Page) => page.getByRole("region", { name: /Première fois sur Lyrix/ });
 
 /** Inside the viewport, and next to the element its step points at. */
 async function expectTipBy(page: Page, target: string): Promise<void> {
@@ -33,6 +35,7 @@ for (const viewport of [
   test(`walks a first visit through the screen, next to each element (${viewport.name})`, async ({ page }) => {
     await page.setViewportSize(viewport.size);
     await page.goto("/");
+    await invite(page).getByRole("button", { name: "Faire la visite" }).click();
     await expect(tour(page)).toBeVisible();
     // A step whose element isn't there (a song without hints) is left out.
     const steps = [];
@@ -51,8 +54,35 @@ for (const viewport of [
   });
 }
 
+for (const viewport of [
+  { name: "desktop", size: { width: 1280, height: 800 } },
+  { name: "phone", size: { width: 390, height: 760 } },
+]) {
+  test(`is offered in the dock's place, in full on screen, and can be declined (${viewport.name})`, async ({ page }) => {
+    await page.setViewportSize(viewport.size);
+    await page.goto("/");
+    await expect(invite(page)).toBeVisible();
+    // The screen stays usable and undimmed: no dialog, only no input before an answer.
+    await expect(tour(page)).toHaveCount(0);
+    await expect(page.getByPlaceholder("Propose un mot…")).toHaveCount(0);
+    const box = await invite(page).boundingBox();
+    if (!box) throw new Error("no box for the invitation");
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.size.height);
+    await invite(page).getByRole("button", { name: "Non merci, je joue" }).click();
+    await expect(invite(page)).toHaveCount(0);
+    await expect(tour(page)).toHaveCount(0);
+    await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
+    await expect(invite(page)).toHaveCount(0);
+  });
+}
+
 test("is shown once: skipped, it never comes back, and the game is playable at once", async ({ page }) => {
   await page.goto("/");
+  await invite(page).getByRole("button", { name: "Faire la visite" }).click();
   await expect(tour(page)).toBeVisible();
   // The page behind is out of reach while it shows.
   await page.getByPlaceholder("Propose un mot…").click({ trial: true, timeout: 1000 }).then(

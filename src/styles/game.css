@@ -3581,3 +3581,107 @@ a.lyrix-day-step:hover {
 .lyrix-tour-next:hover {
   background: var(--accent-hover);
 }
+
+/* ---------- Tour invitation (TourInvite.tsx) ---------- */
+
+/* In the dock's place, coming in a moment after the round: the screen is seen first. */
+.lyrix-invite-panel {
+  background: var(--color-solid);
+  color: var(--color-on-ink);
+  border-radius: 20px;
+  padding: 16px 18px 14px;
+  box-shadow: var(--shadow-dock);
+  font-family: var(--font-ui);
+  animation: lyrix-rise 0.45s var(--ease-out) 0.9s both;
+}
+
+/*
+ * Below 880px the round comes after the side column, and a dock taller than
+ * usual would be held back at its top: fixed, the invitation shows in full.
+ */
+@media (max-width: 879px) {
+  .lyrix-invite {
+    position: fixed;
+    left: max(16px, env(safe-area-inset-left, 0px));
+    right: max(16px, env(safe-area-inset-right, 0px));
+    z-index: 20;
+  }
+}
+
+.lyrix-invite-kicker {
+  margin: 0 0 2px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-on-ink-accent);
+}
+
+.lyrix-invite-title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.lyrix-invite-body {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--color-on-ink-soft);
+}
+
+.lyrix-invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.lyrix-invite-actions button {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
+}
+
+.lyrix-invite-actions button:active {
+  transform: scale(0.97);
+}
+
+.lyrix-invite-actions button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.lyrix-invite-start {
+  flex: 1 1 auto;
+  background: var(--accent-solid);
+  color: var(--color-on-bright);
+}
+
+.lyrix-invite-start:hover {
+  background: var(--accent-hover);
+}
+
+.lyrix-invite-skip {
+  background: transparent;
+  color: var(--color-on-ink-muted);
+}
+
+.lyrix-invite-skip:hover {
+  color: var(--color-on-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyrix-invite-panel {
+    animation: none;
+  }
+}

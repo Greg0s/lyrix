@@ -32,6 +32,7 @@ import { ProgressCard } from "./ProgressCard";
 import { RoomCard } from "./RoomCard";
 import { RouteLink } from "./RouteLink";
 import { TitleGuess } from "./TitleGuess";
+import { TourInvite } from "./TourInvite";
 import { TriedWords } from "./TriedWords";
 
 function feedbackMessage({ word, found, duplicate, nearCount }: Feedback): string {
@@ -138,11 +139,18 @@ export function GameScreen() {
   // The guided tour, for a first visit only (src/tourStorage.ts). Never for a
   // player with a day already in the archives: they played before it existed.
   const [tourPending, setTourPending] = useState(() => !isTourSeen() && Object.keys(loadArchive()).length === 0);
+  // First offered in the dock's place (TourInvite), taken only if the player says so.
+  const [tourStarted, setTourStarted] = useState(false);
+  const startTour = useCallback(() => setTourStarted(true), []);
   // Gone, the player is back to guessing, as after a dialog (see closeDialog).
-  const finishTour = useCallback(() => {
-    setTourPending(false);
-    if (!isTouchScreen()) inputRef.current?.focus();
-  }, []);
+  // After the commit: declined, the invitation still holds the input's place.
+  const finishTour = useCallback(() => setTourPending(false), []);
+  const tourWasPending = useRef(tourPending);
+  useEffect(() => {
+    const done = tourWasPending.current && !tourPending;
+    tourWasPending.current = tourPending;
+    if (done && !isTouchScreen()) inputRef.current?.focus();
+  }, [tourPending]);
   const { submit } = game;
   const onSubmit = useCallback(() => void submit(), [submit]);
 
@@ -371,15 +379,19 @@ export function GameScreen() {
           <LyricsBody sections={slots.sections} revealAll={revealAllLyrics} lastFoundKey={lastFoundKey} />
         </article>
 
-        <GuessForm
-          value={game.inputValue}
-          onChange={game.setInputValue}
-          onSubmit={onSubmit}
-          submitting={game.submitting}
-          feedback={guessFeedback}
-          inputRef={inputRef}
-          placeholder={group ? "Propose un mot au groupe…" : "Propose un mot…"}
-        />
+        {showTour && !tourStarted ? (
+          <TourInvite onStart={startTour} onSkip={finishTour} />
+        ) : (
+          <GuessForm
+            value={game.inputValue}
+            onChange={game.setInputValue}
+            onSubmit={onSubmit}
+            submitting={game.submitting}
+            feedback={guessFeedback}
+            inputRef={inputRef}
+            placeholder={group ? "Propose un mot au groupe…" : "Propose un mot…"}
+          />
+        )}
       </div>
 
       <aside className="lyrix-aside" ref={trackStickyHeight}>
@@ -401,7 +413,7 @@ export function GameScreen() {
           />
         ) : null}
       </aside>
-      {showTour ? <ProductTour onDone={finishTour} /> : null}
+      {showTour && tourStarted ? <ProductTour onDone={finishTour} /> : null}
     </main>
   );
 }
