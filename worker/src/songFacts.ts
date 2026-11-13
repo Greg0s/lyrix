@@ -162,3 +162,9 @@ export function hintValues(songId: string): Record<HintId, string> | null {
   const facts = SONG_FACTS[songId] as SongFacts;
   return { era: decadeText(facts.year), artistType: artistTypeText(facts), style: facts.style };
 }
+
+/** The song's release year, shown once the round is won (RoundView.year); null for a song with no facts. */
+export function songYear(songId: string): number | null {
+  if (!Object.prototype.hasOwnProperty.call(SONG_FACTS, songId)) return null;
+  return (SONG_FACTS[songId] as SongFacts).year;
+}

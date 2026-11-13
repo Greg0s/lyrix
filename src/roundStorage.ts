@@ -142,7 +142,7 @@ function readDay(storage: Storage, day: string): DayEntry | null {
 function resumableView(value: unknown, saved: DayEntry, today: string): RoundView | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
-  const { title, sections, victory, artist, day } = candidate;
+  const { title, sections, victory, artist, year, cover, day } = candidate;
   if (typeof title !== "object" || title === null || !Array.isArray(sections) || typeof victory !== "boolean") {
     return null;
   }
@@ -159,6 +159,8 @@ function resumableView(value: unknown, saved: DayEntry, today: string): RoundVie
     sections: sections as RoundView["sections"],
     victory,
     ...(typeof artist === "string" ? { artist } : {}),
+    ...(typeof year === "number" ? { year } : {}),
+    ...(typeof cover === "string" ? { cover } : {}),
     ...(saved.hints ? { hints: saved.hints } : {}),
   };
 }
@@ -262,8 +264,17 @@ function write(storage: Storage, round: RoundView, triedWords: TriedWord[], toda
   // Last: the largest write, and the only one a full storage may refuse
   // without costing the day its progress.
   if (day === today && before !== revealed) {
-    const { day: viewDay, title, sections, victory, artist } = round;
-    const view = { day: viewDay, title, sections, victory, ...(artist !== undefined ? { artist } : {}), revealed };
+    const { day: viewDay, title, sections, victory, artist, year, cover } = round;
+    const view = {
+      day: viewDay,
+      title,
+      sections,
+      victory,
+      ...(artist !== undefined ? { artist } : {}),
+      ...(year !== undefined ? { year } : {}),
+      ...(cover !== undefined ? { cover } : {}),
+      revealed,
+    };
     storage.setItem(VIEW_PREFIX + day, JSON.stringify(view));
   }
 }

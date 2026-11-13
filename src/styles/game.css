@@ -820,10 +820,91 @@
   animation: lyrix-victory-in 0.6s cubic-bezier(0.34, 1.45, 0.64, 1) both;
 }
 
+/* The sleeve, then what was found: the artist first, the title and year under it. */
+.lyrix-victory-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
 .lyrix-victory-text {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+}
+
+/* On a phone, the sleeve sits above the text, so Artiste and Année keep the panel's whole width side by side. */
+@media (max-width: 559px) {
+  .lyrix-victory-main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+}
+
+/*
+ * The song's sleeve (VictoryCover): its album cover, shown only once loaded.
+ * Until then it takes no room, and a song without a cover has none at all.
+ */
+.lyrix-victory-cover {
+  position: relative;
+  flex: none;
+  width: clamp(68px, 16vw, 88px);
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.lyrix-victory-cover:not(.has-image) {
+  display: none;
+}
+
+.lyrix-victory-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: lyrix-cover-in 0.3s var(--ease-out);
+}
+
+/* The song's facts, side by side like a record's label: Artiste, then Année. */
+.lyrix-victory-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 0;
+  margin: 2px 0 6px;
+}
+
+.lyrix-victory-facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-right: 18px;
+}
+
+.lyrix-victory-facts > div + div {
+  padding-left: 18px;
+  border-left: 1px solid var(--color-solid-raised);
+}
+
+.lyrix-victory-facts dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-on-ink-muted);
+}
+
+.lyrix-victory-facts dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color-on-ink-accent);
+  overflow-wrap: anywhere;
 }
 
 .lyrix-victory-text p {
@@ -842,8 +923,13 @@
 }
 
 .lyrix-victory-song {
-  font-size: 1rem;
-  color: var(--color-on-ink-soft);
+  font-family: var(--font-display);
+  /* The same size on every screen: the facts under it stay a step smaller, as on a desktop. */
+  font-size: 1.3rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-on-ink);
 }
 
 .lyrix-victory-note {

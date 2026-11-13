@@ -25,7 +25,7 @@ import { HintsCard } from "./HintsCard";
 import { HowToPlay } from "./HowToPlay";
 import { LegalNotice } from "./LegalNotice";
 import { LyricsBody } from "./LyricsBody";
-import { MultiplayerModal } from "./MultiplayerModal";
+import { MultiplayerModal, type Tab as MultiplayerTab } from "./MultiplayerModal";
 import { MultiplayerPromo } from "./MultiplayerPromo";
 import { ProductTour } from "./ProductTour";
 import { ProgressCard } from "./ProgressCard";
@@ -118,7 +118,17 @@ export function GameScreen() {
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setDialog(which);
   }, []);
-  const openMultiplayer = useCallback(() => openDialog("multiplayer"), [openDialog]);
+  // The tab the multiplayer dialog opens on: "Rejoindre" from the header, "Créer
+  // un salon" from the side column's "Chercher à plusieurs" card, which offers it.
+  const [multiplayerTab, setMultiplayerTab] = useState<MultiplayerTab>("join");
+  const openMultiplayer = useCallback(() => {
+    setMultiplayerTab("join");
+    openDialog("multiplayer");
+  }, [openDialog]);
+  const openCreateRoom = useCallback(() => {
+    setMultiplayerTab("create");
+    openDialog("multiplayer");
+  }, [openDialog]);
   const openHints = useCallback(() => openDialog("hints"), [openDialog]);
   // Once a dialog is gone, the player is back to guessing: give them the input.
   // Not on a touch screen, where focusing the input pops the on-screen keyboard
@@ -242,6 +252,7 @@ export function GameScreen() {
         <MultiplayerModal
           room={room.view}
           invite={invite}
+          tab={multiplayerTab}
           onCreate={room.create}
           onLeave={room.leave}
           onJoin={room.join}
@@ -365,6 +376,8 @@ export function GameScreen() {
             victory={round.victory}
             group={group !== null}
             artist={round.artist}
+            year={round.year}
+            cover={round.cover}
             lastFoundKey={lastFoundKey}
             revealAllLyrics={revealAllLyrics}
             onToggleRevealAllLyrics={toggleRevealAllLyrics}
@@ -402,7 +415,7 @@ export function GameScreen() {
         <ProgressCard percent={percent} foundCount={foundCount} triedCount={triedWords.length} />
         <TriedWords triedWords={triedWords} group={group} />
         {/* Where it was before the hints card came: right under "Tes mots", not below the hints. */}
-        {room.view || day !== null ? null : <MultiplayerPromo onOpen={openMultiplayer} />}
+        {room.view || day !== null ? null : <MultiplayerPromo onOpen={openCreateRoom} />}
         {round.hints ? (
           <HintsCard
             hints={round.hints}

@@ -7,6 +7,7 @@ import { Celebration } from "./Celebration";
 import { NextSongCountdown } from "./NextSongCountdown";
 import { VictoryFoot } from "./VictoryFoot";
 import { TokenRun } from "./TokenRun";
+import { VictoryCover } from "./VictoryCover";
 
 interface TitleGuessProps {
   titleTokens: SlotToken[];
@@ -14,6 +15,10 @@ interface TitleGuessProps {
   /** Playing in a room: the group found it, not the player alone. */
   group: boolean;
   artist?: string;
+  /** The song's release year (RoundView.year). */
+  year?: number;
+  /** The song's cover token (RoundView.cover). */
+  cover?: string;
   /** See WordToken: highlights every occurrence of the word the latest guess found. */
   lastFoundKey: string | null;
   /** True once the player has checked "show all lyrics" - see GameScreen. */
@@ -55,6 +60,8 @@ export const TitleGuess = memo(function TitleGuess({
   victory,
   group,
   artist,
+  year,
+  cover,
   lastFoundKey,
   revealAllLyrics,
   onToggleRevealAllLyrics,
@@ -68,6 +75,7 @@ export const TitleGuess = memo(function TitleGuess({
 }: TitleGuessProps) {
   // One tab stop into the title's bars, like the lyrics' (see useRovingBlanks).
   const roving = useRovingBlanks<HTMLHeadingElement>();
+  const title = titleTokens.map((token) => token.text).join("");
   // How many words pop before the panel comes in.
   const style = celebration
     ? ({ "--words": titleTokens.filter((token) => token.isWord).length } as CSSProperties)
@@ -81,24 +89,40 @@ export const TitleGuess = memo(function TitleGuess({
 
       {victory ? (
         <div className="lyrix-victory">
-          <div className="lyrix-victory-text">
-            <p className="lyrix-victory-eyebrow">
-              {group ? "Bravo, le groupe l'a trouvée\u00a0!" : "Bravo, tu l'as trouvée\u00a0!"}
-            </p>
-            <p className="lyrix-victory-song">
-              {titleTokens.map((token) => token.text).join("")}
-              {artist ? ` · ${artist}` : null}
-            </p>
-            {archiveDay === null ? (
-              <>
-                <p className="lyrix-victory-note">Reviens demain pour une nouvelle chanson&nbsp;!</p>
-                <NextSongCountdown />
-              </>
-            ) : (
-              <p className="lyrix-victory-note">
-                Chanson du {longDayLabel(archiveDay)}, trouvée en {triesLabel(tries)}.
+          <div className="lyrix-victory-main">
+            <VictoryCover cover={cover} />
+            <div className="lyrix-victory-text">
+              <p className="lyrix-victory-eyebrow">
+                {group ? "Bravo, le groupe l'a trouvée\u00a0!" : "Bravo, tu l'as trouvée\u00a0!"}
               </p>
-            )}
+              <p className="lyrix-victory-song">{title}</p>
+              {artist || year !== undefined ? (
+                <dl className="lyrix-victory-facts">
+                  {artist ? (
+                    <div>
+                      <dt>Artiste</dt>
+                      <dd>{artist}</dd>
+                    </div>
+                  ) : null}
+                  {year !== undefined ? (
+                    <div>
+                      <dt>Année</dt>
+                      <dd>{year}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+              ) : null}
+              {archiveDay === null ? (
+                <>
+                  <p className="lyrix-victory-note">Reviens demain pour une nouvelle chanson&nbsp;!</p>
+                  <NextSongCountdown />
+                </>
+              ) : (
+                <p className="lyrix-victory-note">
+                  Chanson du {longDayLabel(archiveDay)}, trouvée en {triesLabel(tries)}.
+                </p>
+              )}
+            </div>
           </div>
           <label className="lyrix-reveal-all">
             <input type="checkbox" checked={revealAllLyrics} onChange={onToggleRevealAllLyrics} />

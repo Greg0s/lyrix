@@ -5,6 +5,7 @@ import { canReveal, isHintId } from "../../src/game/hints";
 import type { GuessResult, HintAnswer, HintId } from "../../src/game/types";
 import { recordEvent, roundKind, type EventsEnv } from "./events";
 import { clientErrorRoutes } from "./clientError";
+import { coverRoutes, prepareCovers } from "./covers";
 import { freshRoundBody } from "./freshRound";
 import { prepareSongs } from "./prepare";
 import { isVictory } from "../../src/game/mask";
@@ -288,6 +289,9 @@ app.route("/api/visit", visitRoutes);
 // An error a player's browser met (src/errorReport.ts), logged and counted.
 app.route("/api/client-error", clientErrorRoutes);
 
+// A won round's album cover (RoundView.cover), served by the Worker itself.
+app.route("/api/cover", coverRoutes);
+
 // Rooms ("salons", issue #29), and the round each plays together (#30).
 app.route("/api/rooms", roomRoutes);
 
@@ -295,9 +299,16 @@ export default {
   fetch: app.fetch,
   /** The app's own in-process requests, for the tests (Hono's app.request). */
   request: app.request,
-  /** The scheduled runs (worker/wrangler.toml's [triggers]): the days to come get their songs ahead of time. */
+  /** The scheduled runs (worker/wrangler.toml's [triggers]): the days to come get their songs, then their covers, ahead of time. */
   scheduled(_controller: ScheduledController, env: SongsEnv & EventsEnv, ctx: ExecutionContext): void {
-    ctx.waitUntil(prepareSongs(env));
+    ctx.waitUntil(
+      prepareSongs(env).then((prepared) =>
+        prepareCovers(
+          prepared.flatMap((day) => (day.song ? [day.song] : [])),
+          env
+        )
+      )
+    );
   },
 };
 // The room's Durable Object class, which the runtime looks up by name (see worker/wrangler.toml).

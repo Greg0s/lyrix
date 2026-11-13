@@ -431,6 +431,13 @@ input::placeholder {
   }
 }
 
+/* The victory panel's album cover, once loaded (VictoryCover). */
+@keyframes lyrix-cover-in {
+  from {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
