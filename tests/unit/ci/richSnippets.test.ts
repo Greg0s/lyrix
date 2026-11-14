@@ -70,6 +70,21 @@ describe("rich snippets", () => {
   it("names the site in structured data", () => {
     const site = nodeOfType("WebSite");
     expect(site).toMatchObject({ name: "Lyrix", url: SITE, inLanguage: "fr" });
+    // Google's site name: an alternative helps it settle on one rather than
+    // fall back to the domain (docs/LEARNINGS.md, 2026-11-13).
+    expect(site?.alternateName).toMatch(/^Lyrix\b/);
+  });
+
+  // Google rewrote "Lyrix - retrouve la chanson…" as "retrouve la chanson… -
+  // Lyrix", lowercase and all: the title starts with the site's name, and what
+  // follows it reads well on its own, from a capital.
+  it("titles the home page with the site's name, then a capitalised phrase", () => {
+    const title = /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? "";
+    expect(title).toMatch(/^Lyrix – \p{Lu}/u);
+    expect(title).toMatch(/\bjeu\b/);
+    // Google shows about 60 characters of a title.
+    expect(title.length).toBeLessThanOrEqual(60);
+    expect(meta("og:title")).toBe(title);
   });
 
   it("describes the game as free to play, with no invented rating", () => {

@@ -158,8 +158,22 @@ test("serves the rules at their address under their own title and canonical link
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://lyrix.mintymoon.app/comment-jouer");
   await expect(page).toHaveTitle(/^Comment jouer à Lyrix/);
   await page.getByRole("button", { name: "C'est parti" }).click();
-  await expect(page).toHaveTitle(/^Lyrix - retrouve la chanson du jour/);
+  await expect(page).toHaveTitle(/^Lyrix – Le jeu de la chanson du jour/);
 });
+
+// Served as index.html, they were copies of the home page to Google, which
+// listed the legal notice first (scripts/lib/unlistedPages.ts).
+for (const { path, title } of [
+  { path: "/mentions-legales", title: /^Mentions légales et confidentialité - Lyrix$/ },
+  { path: "/archives", title: /^Archives : les 30 derniers jours - Lyrix$/ },
+]) {
+  test(`serves ${path} under its own title and canonical link, out of search results`, async ({ page }) => {
+    await page.goto(path);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `https://lyrix.mintymoon.app${path}`);
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
+    await expect(page).toHaveTitle(title);
+  });
+}
 
 test("shades the rules' sample bars from cold to hot, as the lyrics shade close guesses", async ({ page }) => {
   await page.goto("/comment-jouer");
