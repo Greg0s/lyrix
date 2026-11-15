@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import { apiPreconnectPlugin } from "./scripts/lib/apiPreconnect";
 import { invitePagePlugin } from "./scripts/lib/invitePage";
 import { rulesPagePlugin } from "./scripts/lib/rulesPage";
+import { unlistedPagesPlugin } from "./scripts/lib/unlistedPages";
 import { serviceWorkerPlugin } from "./scripts/lib/serviceWorker";
 
 // Where the dev server forwards /api/*: by default the Worker `npm run dev:all`
@@ -15,8 +16,9 @@ export default defineConfig({
   // apiPreconnectPlugin: index.html opens the connection to the API early, when it is on another origin.
   // invitePagePlugin: the page invite links (/salon/<code>) answer with, and its link preview.
   // rulesPagePlugin: the page the rules' address (/comment-jouer) answers with, titled and described as the rules.
+  // unlistedPagesPlugin: the legal notice's and the archives' pages, under their own titles and kept out of search results.
   // serviceWorkerPlugin: /sw.js, which keeps the app shell for an installed Lyrix (#79).
-  plugins: [react(), apiPreconnectPlugin(), invitePagePlugin(), rulesPagePlugin(), serviceWorkerPlugin()],
+  plugins: [react(), apiPreconnectPlugin(), invitePagePlugin(), rulesPagePlugin(), unlistedPagesPlugin(), serviceWorkerPlugin()],
   server: {
     proxy: {
       // ws: rooms keep their members live over a WebSocket on /api/rooms/:code/ws.
