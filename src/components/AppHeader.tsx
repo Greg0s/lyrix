@@ -4,6 +4,7 @@ import { prefersReducedMotion } from "../reducedMotion";
 import { TODAY, type Route } from "../routes";
 import { CalendarIcon } from "./CalendarIcon";
 import { GroupIcon } from "./GroupIcon";
+import { HelpIcon } from "./HelpIcon";
 import { LOGO_EXIT_MS, Logo } from "./Logo";
 import { RouteLink } from "./RouteLink";
 import { ThemeToggle } from "./ThemeToggle";
@@ -105,9 +106,7 @@ export const AppHeader = memo(function AppHeader({
             data-tour="help"
             aria-current={helpOpen ? "page" : undefined}
           >
-            <span className="lyrix-help-dot" aria-hidden="true">
-              ?
-            </span>
+            <HelpIcon />
             <span className="lyrix-pill-label is-help">Comment jouer</span>
           </button>
           <ThemeToggle />

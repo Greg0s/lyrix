@@ -361,19 +361,6 @@
   background: var(--color-surface-hover);
 }
 
-.lyrix-help-dot {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--color-ink);
-  color: var(--color-page-bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
 /* Sun in the dark theme, moon in the light one (ThemeToggle.tsx); the icon pops in on each switch. */
 .lyrix-theme-toggle {
   width: 38px;
