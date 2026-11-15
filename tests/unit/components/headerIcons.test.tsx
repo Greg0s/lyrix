@@ -1,6 +1,4 @@
 // @vitest-environment jsdom
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppHeader } from "../../../src/components/AppHeader";
@@ -11,6 +9,7 @@ import { AppHeader } from "../../../src/components/AppHeader";
  * but not every background: the "?" turned light on a light disc, and the
  * button showed a plain white circle. Every header icon is now a single-colour
  * line drawing in the text's own colour, which no recolouring can split apart.
+ * The stylesheets are pinned by tests/unit/ci/textTokenSurface.test.ts.
  */
 
 afterEach(cleanup);
@@ -48,12 +47,4 @@ describe("header icons", () => {
     }
   });
 
-  it("never fills a header element with a text token", () => {
-    const css = readFileSync(resolve(process.cwd(), "src/styles/game.css"), "utf8");
-    const rules = css.match(/\.lyrix-(pill|help|theme)[^{]*\{[^}]*\}/g) ?? [];
-    expect(rules.length).toBeGreaterThan(0);
-    for (const rule of rules) {
-      expect(rule).not.toMatch(/background(-color)?:\s*var\(--color-ink/);
-    }
-  });
 });

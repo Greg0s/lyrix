@@ -764,15 +764,18 @@
   animation: lyrix-hint 0.45s var(--ease-out);
 }
 
-/* Tapping or focusing a bar: how many letters it hides, for a moment (see Blank in WordToken.tsx). */
+/*
+ * Tapping or focusing a bar: how many letters it hides, for a moment (see Blank in WordToken.tsx).
+ * A dark fill in both themes: a light one under dark text vanished in Samsung Internet's dark mode.
+ */
 .token-peek {
   position: absolute;
   bottom: calc(100% + 4px);
   left: 50%;
   z-index: 5;
   pointer-events: none;
-  background: var(--color-ink);
-  color: var(--color-page-bg);
+  background: var(--color-solid-raised);
+  color: var(--color-on-ink);
   font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 700;
