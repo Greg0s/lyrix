@@ -5,7 +5,7 @@ import { continueAlone, revealRoomHint, submitRoomGuess } from "../api/rooms";
 import { utcDay } from "../game/daily";
 import { applyReveal, isGuessDelta, revealedWords, withHints } from "../game/delta";
 import { availableHints, HINT_LABELS } from "../game/hints";
-import { normalize } from "../game/normalize";
+import { guessKey } from "../game/normalize";
 import {
   memberName,
   type RoomDaySummary,
@@ -534,7 +534,7 @@ export function useGame(day: string | null = null) {
 
     // Mirror the server's own normalization so a repeat guess is a free,
     // instant no-op instead of a round trip. In a room, anyone's counts.
-    const key = normalize(raw);
+    const key = guessKey(raw);
     const by = shared ? triedWords.find((word) => word.key === key)?.by : undefined;
     if (triedWords.some((word) => word.key === key)) {
       setState((prev) => ({

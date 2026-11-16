@@ -24,7 +24,7 @@ import {
 import { dayStart, isPlayableDay, utcDay } from "../../src/game/daily";
 import { canReveal, isHintId } from "../../src/game/hints";
 import { buildTitleView, isVictory } from "../../src/game/mask";
-import { normalize } from "../../src/game/normalize";
+import { guessKey } from "../../src/game/normalize";
 import { revealedPercent } from "../../src/game/progress";
 import type { HintId, RoundView, Song } from "../../src/game/types";
 import {
@@ -402,7 +402,7 @@ export class Room {
     const { round, song } = loaded;
     // A word someone already proposed changes nothing: answered before any
     // work on it, the similarity lookup included.
-    const proposed = round.guesses.find((guess) => guess.key === normalize(trimmed));
+    const proposed = round.guesses.find((guess) => guess.key === guessKey(trimmed));
     if (proposed) {
       const result: RoomGuessResult = { ...(await this.#roundOf(room, round, song)), guess: proposed, duplicate: true };
       return json(result, 200);

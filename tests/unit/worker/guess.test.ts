@@ -471,6 +471,18 @@ describe("POST /api/guess", () => {
     expect(body.found).toBe(true);
   });
 
+  // Regression test: the lyrics are tokenized with an elision apart
+  // ("l'amour" -> "l", "'", "amour"), the guess used to be compared whole, so
+  // "l'amour" was never found where "amour" was.
+  it("finds a word typed with an elided word in front, or punctuation around it", async () => {
+    for (const typed of ["l'couplet", "qu’couplet", "« couplet ! »"]) {
+      const round = await getRound();
+      const { body } = await guess(round.state, typed);
+      expect(body.found).toBe(true);
+      expect(body.key).toBe("couplet");
+    }
+  });
+
   it("does not reveal anything for a word that is not in the song", async () => {
     const round = await getRound();
     const { body } = await guess(round.state, "xylophoneinexistant");
