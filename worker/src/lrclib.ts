@@ -1,4 +1,5 @@
 import { normalize } from "../../src/game/normalize";
+import { sameArtist } from "./artist";
 import type { CatalogEntry } from "./catalog";
 
 const SEARCH_URL = "https://lrclib.net/api/search";
@@ -95,9 +96,19 @@ function hasUsableLyrics(track: LrclibTrack): boolean {
   return !track.instrumental && (Boolean(track.plainLyrics?.trim()) || Boolean(track.syncedLyrics?.trim()));
 }
 
-/** Prefers a result whose artist matches the catalog entry (search is fuzzy and can return unrelated tracks); falls back to the first usable result otherwise. */
+/**
+ * The entry's own lyrics: a usable result by its artist, the exact credit
+ * preferred (search is fuzzy and can return unrelated tracks). Null when no
+ * result is theirs: the first result used to be taken regardless, and another
+ * artist's song of the same title would have been played, and kept for good.
+ * Null moves the day's pick to the next song, as for a song with no lyrics.
+ */
 export function bestMatch(tracks: LrclibTrack[], entry: CatalogEntry): LrclibTrack | null {
   const usable = tracks.filter(hasUsableLyrics);
   const artistKey = normalize(entry.artist);
-  return usable.find((track) => normalize(track.artistName) === artistKey) ?? usable[0] ?? null;
+  return (
+    usable.find((track) => normalize(track.artistName) === artistKey) ??
+    usable.find((track) => sameArtist(track.artistName, entry.artist)) ??
+    null
+  );
 }

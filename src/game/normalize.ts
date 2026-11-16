@@ -10,3 +10,22 @@ export function normalize(word: string): string {
     .replace(/\p{Diacritic}/gu, "")
     .replace(/[œæ]/g, (ligature) => LIGATURES[ligature]);
 }
+
+// The elided words French glues to the next one ("l'amour", "qu'il",
+// "jusqu'à"), with any of the apostrophes a keyboard types.
+const ELISION = /^(?:c|d|j|l|m|n|s|t|qu|jusqu|lorsqu|puisqu|quoiqu|presqu)['’ʼ]/u;
+// Punctuation typed around a word ("amour !", "« coeur »"): never part of a lyrics word.
+const EDGE_PUNCTUATION = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
+
+/**
+ * A guess's matching key: its normalized form, without the punctuation around
+ * it, and without an elided word in front, since the lyrics are tokenized with
+ * the elision apart ("l'amour" -> "l", "'", "amour"): "j'aime" finds "aime".
+ * Shared by the Worker, which checks the guess, and the client, which spots a
+ * word already tried without asking.
+ */
+export function guessKey(word: string): string {
+  const key = normalize(word).replace(EDGE_PUNCTUATION, "");
+  const unelided = key.replace(ELISION, "");
+  return unelided || key || normalize(word);
+}

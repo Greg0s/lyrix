@@ -1,7 +1,7 @@
 import { analyzeSong } from "../../src/game/analyze";
 import { HINT_IDS } from "../../src/game/hints";
 import { buildSectionsView, buildTitleView, isVictory, songWordKeys } from "../../src/game/mask";
-import { normalize } from "../../src/game/normalize";
+import { guessKey } from "../../src/game/normalize";
 import { MAX_PROXIMITY_SCORE } from "../../src/game/similarity";
 import { wordPositions } from "../../src/game/slots";
 import type { GuessDelta, HintId, NearSlot, RevealedSlot, RoundHints, RoundView, Song } from "../../src/game/types";
@@ -186,7 +186,7 @@ export async function evaluateGuess(
   foundKeys: ReadonlySet<string>,
   word: string
 ): Promise<GuessOutcome> {
-  const key = normalize(word);
+  const key = guessKey(word);
   const found = songWordKeys(song).has(key);
   // A found word is its own closest match and reveals itself, so it needs no
   // table lookup. A missed one gets its score plus the positions of the hidden

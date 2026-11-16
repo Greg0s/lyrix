@@ -52,9 +52,18 @@ describe("bestMatch", () => {
     expect(bestMatch(tracks, entry)).toBeNull();
   });
 
-  it("falls back to the first usable result when no artist matches", () => {
-    const tracks = [track({ artistName: "Nobody Related" })];
-    expect(bestMatch(tracks, entry)).toEqual(tracks[0]);
+  // Regression test: the first usable result used to be taken when no artist
+  // matched, so another artist's song of the same title could be played.
+  it("takes nothing when no result is the entry's artist", () => {
+    expect(bestMatch([track({ artistName: "Nobody Related" })], entry)).toBeNull();
+    expect(bestMatch([track({ artistName: "Stromaenia" })], entry)).toBeNull();
+  });
+
+  it("takes a credit naming the artist among others, the exact one first", () => {
+    const featuring = track({ artistName: "Stromae feat. Orelsan" });
+    expect(bestMatch([featuring], entry)).toEqual(featuring);
+    const exact = track({ artistName: "Stromae" });
+    expect(bestMatch([featuring, exact], entry)).toEqual(exact);
   });
 
   it("returns null for an empty list", () => {

@@ -367,6 +367,28 @@ describe("a day of the archives", () => {
   });
 });
 
+describe("a device whose clock runs ahead of the Worker's", () => {
+  // At the countdown's end, "Jouer" reloads the page a second early: the
+  // device is on the next day, the Worker still on the one just won.
+  const AHEAD = new Date("2026-10-21T00:00:01Z");
+
+  it("resumes the day the Worker serves instead of overwriting its victory", async () => {
+    saveRound(won(TODAY, "novembre"), [{ key: "novembre", display: "novembre", found: true, score: 100, near: [] }]);
+    flushSavedRound();
+    vi.setSystemTime(AHEAD);
+    fetchRound.mockImplementation(async () => round(TODAY));
+    resumeRound.mockResolvedValue(won(TODAY, "novembre"));
+
+    await mount();
+    await screen.findByText("novembre", { selector: ".lyrix-chip" });
+    flushSavedRound();
+
+    expect(resumeRound).toHaveBeenCalledWith([`${TODAY}-won`], TODAY, expect.anything());
+    expect(loadSavedDay(TODAY, window.localStorage, AHEAD)?.state).toBe(`${TODAY}-won`);
+    expect(loadArchive(window.localStorage, AHEAD)[TODAY]).toMatchObject({ victory: true, tries: 1 });
+  });
+});
+
 describe("today's victory", () => {
   it("points to the days of the archives still to find", async () => {
     await mount();

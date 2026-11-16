@@ -24,6 +24,14 @@ import type { DisplayToken, HintId, NearSlot, RoundView } from "./types";
 export const ROOM_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 export const ROOM_CODE_LENGTH = 6;
 export const PSEUDO_MAX_LENGTH = 16;
+/**
+ * The most members a room takes: a join beyond it is refused (409). A room is
+ * one value in its Durable Object's storage, sent whole to every member, so
+ * nothing in it may grow without bound.
+ */
+export const MAX_ROOM_MEMBERS = 20;
+/** The most words a room may propose on one day's song, for the same reason (a guess beyond it: 403). */
+export const MAX_ROOM_GUESSES = 2_000;
 /** How the local player is named when they left "Ton pseudo" empty. */
 export const OWN_FALLBACK_NAME = "Toi";
 

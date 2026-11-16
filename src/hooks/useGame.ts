@@ -5,7 +5,7 @@ import { continueAlone, revealRoomHint, submitRoomGuess } from "../api/rooms";
 import { utcDay } from "../game/daily";
 import { applyReveal, isGuessDelta, revealedWords, withHints } from "../game/delta";
 import { availableHints, HINT_LABELS } from "../game/hints";
-import { normalize } from "../game/normalize";
+import { guessKey } from "../game/normalize";
 import {
   memberName,
   type RoomDaySummary,
@@ -344,6 +344,20 @@ async function fetchDay(day: string | null, signal: AbortSignal): Promise<{ roun
   // Today's, asked for before the app even rendered when there is one (roundPrefetch.ts).
   const prefetched = day === null ? takePrefetchedRound() : null;
   const round = await (prefetched ? awaitPrefetched(prefetched, signal) : fetchRound(signal, day ?? undefined));
+  // Today's is the Worker's today, not the device's: a clock running even a
+  // second fast asks for "today" while the Worker still serves yesterday, whose
+  // progress is saved. Starting it afresh would overwrite that progress, a
+  // victory included, with a round of nothing found: it is resumed instead.
+  if (day === null && round.day !== utcDay()) {
+    const kept = loadSavedDay(round.day);
+    if (kept) {
+      try {
+        return { round: await resumeRound([kept.state], round.day, signal), triedWords: kept.triedWords };
+      } catch (error) {
+        if (isAbort(error) || isTransientFailure(error)) throw error;
+      }
+    }
+  }
   // Deferred too: the freshly loaded round is the largest thing we ever
   // serialize, and it sits right before the game's first paint. Today's
   // only: a day of the archives joins them once the player tries a word.
@@ -520,7 +534,7 @@ export function useGame(day: string | null = null) {
 
     // Mirror the server's own normalization so a repeat guess is a free,
     // instant no-op instead of a round trip. In a room, anyone's counts.
-    const key = normalize(raw);
+    const key = guessKey(raw);
     const by = shared ? triedWords.find((word) => word.key === key)?.by : undefined;
     if (triedWords.some((word) => word.key === key)) {
       setState((prev) => ({

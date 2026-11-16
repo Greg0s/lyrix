@@ -1,6 +1,8 @@
 import {
   isRoomCode,
   isTabId,
+  MAX_ROOM_GUESSES,
+  MAX_ROOM_MEMBERS,
   roomExpiresAt,
   ROOM_CLOSE_EXPIRED,
   ROOM_CLOSE_LEFT,
@@ -24,7 +26,7 @@ import {
 import { dayStart, isPlayableDay, utcDay } from "../../src/game/daily";
 import { canReveal, isHintId } from "../../src/game/hints";
 import { buildTitleView, isVictory } from "../../src/game/mask";
-import { normalize } from "../../src/game/normalize";
+import { guessKey } from "../../src/game/normalize";
 import { revealedPercent } from "../../src/game/progress";
 import type { HintId, RoundView, Song } from "../../src/game/types";
 import {
@@ -275,6 +277,7 @@ export class Room {
   async #join({ pseudo }: Record<string, unknown>): Promise<Response> {
     const room = await this.#load();
     if (!room) return json({ error: "no such room" }, 404);
+    if (room.members.length >= MAX_ROOM_MEMBERS) return json({ error: "the room is full" }, 409);
 
     const member = newMember(room.nextNumber, pseudo, room.members);
     room.nextNumber += 1;
@@ -402,10 +405,13 @@ export class Room {
     const { round, song } = loaded;
     // A word someone already proposed changes nothing: answered before any
     // work on it, the similarity lookup included.
-    const proposed = round.guesses.find((guess) => guess.key === normalize(trimmed));
+    const proposed = round.guesses.find((guess) => guess.key === guessKey(trimmed));
     if (proposed) {
       const result: RoomGuessResult = { ...(await this.#roundOf(room, round, song)), guess: proposed, duplicate: true };
       return json(result, 200);
+    }
+    if (round.guesses.length >= MAX_ROOM_GUESSES) {
+      return json({ error: "the room has proposed as many words as a round takes" }, 403);
     }
     const outcome = await evaluateGuess(this.env, song, foundKeys(round), trimmed);
 

@@ -4,6 +4,7 @@ import {
   graphemes,
   inviteUrl,
   isRoomCode,
+  MAX_ROOM_MEMBERS,
   normalizeRoomCodeInput,
   PSEUDO_MAX_LENGTH,
   ROOM_CODE_LENGTH,
@@ -42,6 +43,7 @@ const UNKNOWN_ROOM_ERROR = "Aucun salon ne porte ce code, ou il a expiré.";
 function failureText(tab: Tab, failure: RoomFailure): string {
   if (failure === "rate-limited") return "Trop de tentatives : réessaie dans une minute.";
   if (tab === "join" && failure === "not-found") return UNKNOWN_ROOM_ERROR;
+  if (failure === "full") return `Ce salon est complet (${MAX_ROOM_MEMBERS} joueurs).`;
   return tab === "create" ? "Le salon n’a pas pu être créé, réessaie." : "Impossible de rejoindre le salon, réessaie.";
 }
 

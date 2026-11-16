@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalize } from "../../../src/game/normalize";
+import { guessKey, normalize } from "../../../src/game/normalize";
 
 describe("normalize", () => {
   it("lowercases input", () => {
@@ -24,5 +24,25 @@ describe("normalize", () => {
     expect(normalize("cœur")).toBe(normalize("coeur"));
     expect(normalize("Œil")).toBe("oeil");
     expect(normalize("Lætitia")).toBe("laetitia");
+  });
+});
+
+describe("guessKey", () => {
+  it("drops an elided word in front, whatever the apostrophe", () => {
+    expect(guessKey("l'amour")).toBe("amour");
+    expect(guessKey("J’aime")).toBe("aime");
+    expect(guessKey("qu'il")).toBe("il");
+    expect(guessKey("jusqu'à")).toBe("a");
+  });
+
+  it("drops the punctuation typed around a word", () => {
+    expect(guessKey("amour !")).toBe("amour");
+    expect(guessKey("« Cœur »")).toBe("coeur");
+  });
+
+  it("keeps a word that only looks like an elision, and the elided letter alone", () => {
+    expect(guessKey("aujourd'hui")).toBe("aujourd'hui");
+    expect(guessKey("l")).toBe("l");
+    expect(guessKey("l'")).toBe("l");
   });
 });
