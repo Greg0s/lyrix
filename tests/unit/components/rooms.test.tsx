@@ -1242,6 +1242,53 @@ describe("when the group finds the song without the player (#30)", () => {
     expect(lyricsText()).not.toContain("novembre");
   });
 
+  // The room no longer sends the answer to a player who didn't find it: a
+  // round without the winning word, naming who found it.
+  function veiledMessage(guesses: RoomGuess[] = titleFound.slice(1)): RoomRoundMessage {
+    return { ...roundMessage(guesses), winner: leo, veiled: true };
+  }
+
+  function answerCalls() {
+    return fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/answer"));
+  }
+
+  it("hears of the group's win from a round that leaves the answer out", async () => {
+    answer(200, aloneRound);
+    seedRoom(entry(camille.id, [camille, leo]));
+    await mountGame(titleFound.slice(1));
+
+    latestSocket().receive(veiledMessage());
+
+    await waitFor(() => expect(screen.getByRole("region", { name: "Le groupe a trouvé" })).toBeTruthy());
+    expect(feedbackText()).toBe("Léo a trouvé la chanson !");
+    await waitFor(() => expect(aloneCalls()).toHaveLength(1));
+    expect(lyricsText()).not.toContain("novembre");
+  });
+
+  it("asks the room for the answer once shown it, and again after a reload", async () => {
+    answer(200, aloneRound);
+    seedRoom(entry(camille.id, [camille, leo]));
+    await mountGame(titleFound.slice(1));
+    latestSocket().receive(veiledMessage());
+    await waitFor(() => expect(aloneCalls()).toHaveLength(1));
+
+    answer(200, { ...roomRound(titleFound), winningKey: "novembre", winner: leo });
+    fireEvent.click(screen.getByRole("button", { name: "Afficher la réponse" }));
+
+    await waitFor(() => expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy());
+    expect(answerCalls()).toHaveLength(1);
+    expect(JSON.parse(String(answerCalls()[0]?.[1]?.body))).toEqual({ token: "token-m1", day: utcDay() });
+    expect(lyricsText()).toContain("novembre");
+
+    cleanup();
+    FakeWebSocket.instances.length = 0;
+    answer(200, { ...roomRound(titleFound), winningKey: "novembre", winner: leo });
+    render(<GameScreen />);
+    latestSocket().receive(veiledMessage());
+    await waitFor(() => expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy());
+    expect(answerCalls()).toHaveLength(2);
+  });
+
   it("stays quiet about the room's later finds while the player looks alone", async () => {
     answer(200, aloneRound);
     seedRoom(entry(camille.id, [camille, leo]));

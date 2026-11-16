@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isSongUnavailable, isTransientFailure } from "../api/base";
 import { fetchRound, resumeRound, revealHint as requestHint, submitGuess } from "../api/client";
-import { continueAlone, revealRoomHint, submitRoomGuess } from "../api/rooms";
+import { continueAlone, revealRoomAnswer, revealRoomHint, submitRoomGuess } from "../api/rooms";
 import { utcDay } from "../game/daily";
 import { applyReveal, isGuessDelta, revealedWords, withHints } from "../game/delta";
 import { availableHints, HINT_LABELS } from "../game/hints";
@@ -102,6 +102,10 @@ interface SharedRound extends RoomSession {
   triedWords: TriedWord[];
   /** Once the group has found the song: the guess that completed the title (RoomRound.winningKey). */
   winningKey: string | null;
+  /** Once the group has found the song: who completed the title (RoomRound.winner). */
+  winner: RoomMember | null;
+  /** The room sends this player its round without the answer, until they ask for it (RoomRound.veiled). */
+  veiled: boolean;
   /** The player chose to see the answer the group found without them. Saved per room (roomStorage). */
   revealed: boolean;
   /** The solo round to keep looking on was asked for (see useGame's effect): once per room session and day. */
@@ -114,6 +118,7 @@ interface SharedRound extends RoomSession {
 
 /** Who completed the title for the group, once someone has. */
 function groupWinner(shared: SharedRound): RoomMember | null {
+  if (shared.winner) return shared.winner;
   if (!shared.round?.victory || shared.winningKey === null) return null;
   return shared.triedWords.find((word) => word.key === shared.winningKey)?.by ?? null;
 }
@@ -145,13 +150,17 @@ function withRoomRound(shared: SharedRound, update: RoomRound): SharedRound {
   const otherDay = shared.round !== null && shared.round.day !== update.round.day;
   const guesses = update.guesses.length;
   const known = shared.triedWords.length;
+  // A veiled round leaves the winning guess out: the win itself adds none.
+  const newWinner = update.winner !== undefined && shared.winner === null;
   const stale = guesses < known || (guesses === known && (update.hints?.length ?? 0) <= shared.hints.length);
-  if (shared.round && !otherDay && stale) return shared;
+  if (shared.round && !otherDay && stale && !newWinner) return shared;
   return {
     ...shared,
     round: update.round,
     triedWords: update.guesses.map(triedWordFrom),
     winningKey: update.winningKey ?? null,
+    winner: update.winner ?? null,
+    veiled: update.veiled === true,
     days: update.days ?? shared.days,
     hints: update.hints ?? [],
     ...(otherDay || shared.round === null
@@ -708,6 +717,8 @@ export function useGame(day: string | null = null) {
         round: null,
         triedWords: [],
         winningKey: null,
+        winner: null,
+        veiled: false,
         revealed: false,
         aloneRequested: false,
         days: [],
@@ -726,7 +737,9 @@ export function useGame(day: string | null = null) {
       if (shared === current) return prev;
       // The player's own guess is told by its answer (submit), with the player's own wording.
       const latest = message.latest ? message.guesses.find((guess) => guess.key === message.latest) : undefined;
-      const winning = latest !== undefined && latest.key === message.winningKey;
+      // A veiled round never names the winning guess: the win is a winner appearing.
+      const veiledWin = message.veiled === true && message.winner !== undefined && current.winner === null;
+      const winning = veiledWin || (latest !== undefined && latest.key === message.winningKey);
       // Looking alone, the room's later finds would give words away: only the win itself is news.
       // On another day than the room's, its round isn't the one played: none of it is.
       const quiet = !onRoomDay({ ...prev, shared }) || (lookingAlone(current) && !winning);
@@ -736,6 +749,8 @@ export function useGame(day: string | null = null) {
       let notice = prev.notice;
       if (message.latestHint && hintBy && hintBy.id !== current.you && !quiet) {
         notice = revealNotice(message.latestHint, message.round.hints, seq, hintBy, current.you);
+      } else if (veiledWin && message.winner && message.winner.id !== current.you && !quiet) {
+        notice = { text: `${memberName(message.winner, current.you)} a trouvé la chanson !`, seq, by: message.winner, outcome: "found" };
       } else if (latest && latest.by.id !== current.you && !quiet) {
         // Their guess made a hint available: that is the news, more than the word.
         notice =
@@ -755,6 +770,32 @@ export function useGame(day: string | null = null) {
       return { ...prev, shared: { ...prev.shared, revealed: true }, notice: null, feedback: null, error: null, celebration: 0 };
     });
   }, []);
+
+  // The player asked for the answer, which the room only sends once asked
+  // (RoomRound.veiled): fetched, and the room's round shown in full. Asked
+  // again after a reload, the room keeping who asked until its day ends.
+  const answerShared = state.shared?.revealed && state.shared.veiled ? state.shared : null;
+  const answerCode = answerShared?.code ?? null;
+  const answerToken = answerShared?.token ?? null;
+  const answerRound = answerShared?.round ?? null;
+  // One request per room and day at a time: every room message changes the shared round meanwhile.
+  const answerAsked = useRef<string | null>(null);
+  useEffect(() => {
+    if (answerCode === null || answerToken === null || answerRound === null) return;
+    const key = `${answerCode}|${answerRound.day}`;
+    if (answerAsked.current === key) return;
+    answerAsked.current = key;
+    revealRoomAnswer(answerCode, answerToken, answerRound.day)
+      .then((update) => {
+        setState((prev) =>
+          prev.shared?.code === answerCode ? { ...prev, shared: withRoomRound(prev.shared, update) } : prev
+        );
+      })
+      .catch(() => {
+        // Asked again on the next change of the room's round.
+        if (answerAsked.current === key) answerAsked.current = null;
+      });
+  }, [answerCode, answerToken, answerRound]);
 
   // The group won without this player: their solo round becomes the group's
   // progress but the winning word, plus their own finds (signed by the room,

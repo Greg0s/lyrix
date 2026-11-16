@@ -18,6 +18,7 @@ import {
   type RoomEntry,
   type RoomGuessResult,
   type RoomMessage,
+  type RoomRound,
   type RoomRoundMessage,
 } from "../../../src/game/room";
 import type { DisplayToken, RoundView } from "../../../src/game/types";
@@ -652,7 +653,7 @@ describe("the room's round (#30)", () => {
     expect(revealed(late.lastRound().round)).toContain("novembre");
   });
 
-  it("is won for every member at once, and only then shows the rest of the lyrics", async () => {
+  it("is won for the member who completed the title, and only then shows them the rest of the lyrics", async () => {
     const host = await createRoom("Camille");
     const hostSocket = await connect(host);
     const guest = await joinRoom(host.room.code, "Léo");
@@ -666,12 +667,58 @@ describe("the room's round (#30)", () => {
 
     await guessIn(guest, "novembre");
 
-    for (const socket of [hostSocket, guestSocket]) {
-      const { round } = socket.lastRound();
-      expect(round.victory).toBe(true);
-      expect(round.artist).toBe("Anaïs Verger");
-      expect(words(round).some((token) => token.revealHint === "jardin")).toBe(true);
-    }
+    const { round } = guestSocket.lastRound();
+    expect(round.victory).toBe(true);
+    expect(round.artist).toBe("Anaïs Verger");
+    expect(words(round).some((token) => token.revealHint === "jardin")).toBe(true);
+  });
+
+  // The answer, the lyrics in full included, used to be sent to every member
+  // and only hidden on screen: readable in DevTools by anyone looking alone.
+  it("sends a member who didn't complete the title the round without its answer, until they ask for it", async () => {
+    const host = await createRoom("Camille");
+    const hostSocket = await connect(host);
+    const guest = await joinRoom(host.room.code, "Léo");
+    await connect(guest);
+    await winTogether(host, guest);
+    await guessIn(guest, "vent");
+
+    const veiled = hostSocket.lastRound();
+    expect(veiled.veiled).toBe(true);
+    expect(veiled.winner).toEqual({ id: guest.you, name: "Léo", number: 2 });
+    expect(veiled.winningKey).toBeUndefined();
+    expect(veiled.round.victory).toBe(false);
+    expect(veiled.guesses.map((guess) => guess.key)).toEqual(["vent", "de", "refuge", "le"]);
+    const heard = hostSocket.sent.join("") + JSON.stringify(await (await connect(host)).lastRound());
+    for (const hidden of ["novembre", "jardin", "Verger"]) expect(heard).not.toContain(hidden);
+
+    const answered = await post(`/api/rooms/${host.room.code}/answer`, { token: host.token, day: utcDay() });
+    expect(answered.status).toBe(200);
+    const full = (await answered.json()) as RoomRound;
+    expect(full.veiled).toBeUndefined();
+    expect(full.winningKey).toBe("novembre");
+    expect(full.round.victory).toBe(true);
+    // And from then on, everything the room sends them.
+    await guessIn(guest, "lampe");
+    expect(hostSocket.lastRound().round.victory).toBe(true);
+    expect((await connect(host)).lastRound().winningKey).toBe("novembre");
+  });
+
+  it("answers the answer only once won, only to a member, only on the room's day", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await guessIn(host, "le");
+    const answer = (entry: RoomEntry, day?: string) =>
+      post(`/api/rooms/${host.room.code}/answer`, { token: entry.token, day });
+    expect((await answer(host)).status).toBe(409);
+    await guessIn(guest, "refuge");
+    await guessIn(host, "de");
+    await guessIn(guest, "novembre");
+    expect((await answer(host, "2026-01-01")).status).toBe(409);
+    const wrong = await post(`/api/rooms/${host.room.code}/answer`, { token: "0".repeat(32) });
+    const guess = await post(`/api/rooms/${host.room.code}/guess`, { token: "0".repeat(32), word: "x" });
+    expect(wrong.status).toBe(404);
+    expect(await wrong.json()).toEqual(await guess.json());
   });
 
   it("never sends a still-hidden word's text before the round is won", async () => {
@@ -768,7 +815,9 @@ describe("keeping looking alone once the group has won", () => {
     await winTogether(host, guest);
     await guessIn(host, "jardin");
 
-    expect(hostSocket.lastRound().winningKey).toBe("novembre");
+    // The winning word itself only to the member who found it (see "veiled").
+    expect(hostSocket.lastRound().winner?.id).toBe(guest.you);
+    expect(hostSocket.lastRound().winningKey).toBeUndefined();
     expect((await connect(guest)).lastRound().winningKey).toBe("novembre");
   });
 
@@ -937,7 +986,7 @@ describe("the day a room plays", () => {
     await guessIn(host, "vent");
     await setDay(host, ARCHIVED);
     await winTogether(host, guest);
-    const socket = await connect(host);
+    const socket = await connect(guest);
 
     const days = socket.lastRound().days ?? [];
     expect(days.map((summary) => summary.day)).toEqual([TODAY, ARCHIVED]);
@@ -956,6 +1005,12 @@ describe("the day a room plays", () => {
     // What a member looking alone may see: everything but the winning word.
     expect(archived.titleBeforeWin?.map((token) => token.text).join("")).toBe("Le refuge de ________");
     expect(JSON.stringify(days)).not.toMatch(/devHint|revealHint/);
+
+    // A member who didn't find it sees the day as it stood before the winning word.
+    const [, veiled] = (await connect(host)).lastRound().days ?? [];
+    expect(veiled.title.map((token) => token.text).join("")).toBe("Le refuge de ________");
+    expect(veiled.artist).toBeUndefined();
+    expect(veiled.winner?.id).toBe(guest.you);
   });
 
   it("lets a member look on alone on the day the room plays", async () => {
@@ -1329,7 +1384,7 @@ describe("a room's hints", () => {
     await revealIn(guest, "era");
     await winTogether(host, guest);
 
-    const won = (await connect(host)).lastRound().round;
+    const won = (await connect(guest)).lastRound().round;
     expect(won.hints?.values).toEqual({ era: "Années 90", artistType: "Une artiste française", style: "Chanson" });
     expect((await revealIn(host, "style")).status).toBe(409);
 
