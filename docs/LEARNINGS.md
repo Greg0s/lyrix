@@ -578,3 +578,7 @@ The lyrics are tokenized with an elision apart ("l'amour" -> "l", "'", "amour"),
 ## 2026-11-16 — LRCLIB's first result stood in for the entry's artist
 
 `bestMatch` took a result by the entry's artist, and otherwise the first usable result, whoever sang it: another song of the same title would have become the day's round, and been kept for good in `SONGS`. It now takes only a result whose artist is the entry's (the exact credit first, then a credit naming them by whole words, a featuring), with the matcher Deezer's covers use (`worker/src/artist.ts`); none is null, and the day's pick moves on as for a song without lyrics. LRCLIB was out of reach from the cloud session, so `npm run catalog:check` must be run locally after this change. Tests: `lrclib.test.ts` ("takes nothing when no result is the entry's artist").
+
+## 2026-11-16 — A day without lyrics played the next day's song
+
+When LRCLIB had no usable lyrics for a day's song, `catalogRotation` fell back on the month's list from that day on: the next day's song, which then played twice (and the last day of a month fell back on the 1st's, already played). It now falls back on `SPARES` alone (`worker/src/catalog.ts`), songs scheduled on no day, starting at a different one each day. Each spare is a catalog song like any other: facts in `songFacts.ts`, a cover (`covers:check`: 3 of 3), and a similarity table to build (`npm run similarity:build -- --song <id>`), without which its guesses get no score. Tests: `catalog.test.ts` ("falls back on the spares alone").

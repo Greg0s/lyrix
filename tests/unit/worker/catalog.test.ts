@@ -8,6 +8,7 @@ import {
   monthKey,
   months,
   pickDailyEntry,
+  SPARES,
 } from "../../../worker/src/catalog";
 
 const DAY_MS = 86_400_000;
@@ -147,17 +148,27 @@ describe("pickDailyEntry / catalogRotation", () => {
   it("advances by exactly one position per day within a month", () => {
     for (const iso of ["2026-10-20", "2026-11-15"]) {
       const today = day(iso);
-      expect(catalogRotation(addDays(today, 1))[0]).toEqual(catalogRotation(today)[1]);
+      const list = months[iso.slice(0, 7)];
+      const index = list.findIndex((entry) => entry.id === pickDailyEntry(today).id);
+      expect(pickDailyEntry(addDays(today, 1))).toEqual(list[index + 1]);
     }
   });
 
-  it("rotation holds the day's month once each, starting with the day's pick", () => {
+  // Regression test: the fallback used to be the month's next days, so a day
+  // whose song had no lyrics on LRCLIB played tomorrow's, and tomorrow played it again.
+  it("falls back on the spares alone, never on a song of another day", () => {
+    const scheduled = new Set(Object.values(months).flat().map((entry) => entry.id));
     for (const month of listed) {
       const date = day(`${month}-04`);
-      const rotation = catalogRotation(date);
-      expect(rotation).toHaveLength(months[month].length);
-      expect(new Set(rotation.map((entry) => entry.id))).toEqual(new Set(months[month].map((entry) => entry.id)));
-      expect(rotation[0]).toEqual(pickDailyEntry(date));
+      const [pick, ...fallbacks] = catalogRotation(date);
+      expect(pick).toEqual(pickDailyEntry(date));
+      expect(new Set(fallbacks.map((entry) => entry.id))).toEqual(new Set(SPARES.map((entry) => entry.id)));
+      expect(fallbacks.some((entry) => scheduled.has(entry.id))).toBe(false);
     }
+  });
+
+  it("starts the spares at a different one from one day to the next", () => {
+    const today = day("2026-11-15");
+    expect(catalogRotation(addDays(today, 1))[1]).not.toEqual(catalogRotation(today)[1]);
   });
 });

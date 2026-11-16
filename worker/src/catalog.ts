@@ -18,10 +18,8 @@ export interface CatalogEntry {
 //
 // An id is a slug of the title. Never change or remove one that has been
 // played: a round in progress, or an archived one, names its song by id.
-// Spares, should `npm run catalog:check` refuse a song before its day: "Belle"
-// (Garou, Daniel Lavoie, Patrick Fiori), "Tous les cris les SOS" (Daniel
-// Balavoine), "La Seine" (Vanessa Paradis, -M-), "Le Temps de l'amour"
-// (Françoise Hardy).
+// Should `npm run catalog:check` refuse a song before its day, replace it with
+// one of SPARES (and take that one out of SPARES).
 
 const OCTOBER_2026: readonly CatalogEntry[] = [
   { id: "la-tribu-de-dana", artist: "Manau", title: "La Tribu de Dana" },
@@ -135,8 +133,22 @@ export const months: Readonly<Record<string, readonly CatalogEntry[]>> = {
   "2026-12": DECEMBER_2026,
 };
 
+/**
+ * What a day plays when LRCLIB has no usable lyrics for its own song: never
+ * a song of the month's other days, which would then be played twice, the
+ * next day's above all (it used to be the first fallback). Songs not
+ * scheduled anywhere, each with its facts (songFacts.ts) like any catalog
+ * song. Starting at a different one each day, so two days that both need one
+ * are unlikely to get the same.
+ */
+export const SPARES: readonly CatalogEntry[] = [
+  { id: "tous-les-cris-les-sos", artist: "Daniel Balavoine", title: "Tous les cris les SOS" },
+  { id: "le-temps-de-lamour", artist: "Françoise Hardy", title: "Le Temps de l'amour" },
+  { id: "la-seine", artist: "Vanessa Paradis", title: "La Seine" },
+];
+
 /** Every song the Worker may serve, whatever the day: a round names its song by one of these ids. */
-export const catalog: CatalogEntry[] = Object.values(months).flat();
+export const catalog: CatalogEntry[] = [...Object.values(months).flat(), ...SPARES];
 
 /**
  * The made-up song dev and e2e play when LRCLIB can't be reached (its lyrics
@@ -174,11 +186,13 @@ function listOf(month: string): readonly CatalogEntry[] {
   return months[current];
 }
 
-/** The day's month list reordered to start at its pick, wrapping around — index 0 is the song of the day, the rest is the fallback order if it can't be resolved. */
+/** The day's song first, then the fallback order if it can't be resolved: SPARES, from a different one each day. */
 export function catalogRotation(date: Date = new Date()): CatalogEntry[] {
   const entries = listOf(monthKey(date));
-  const startIndex = (date.getUTCDate() - 1) % entries.length;
-  return entries.map((_, index) => entries[(startIndex + index) % entries.length]);
+  const day = date.getUTCDate() - 1;
+  const pick = entries[day % entries.length];
+  const spares = SPARES.map((_, index) => SPARES[(day + index) % SPARES.length]);
+  return [pick, ...spares];
 }
 
 /** Deterministic pick for a given date (UTC day boundary), no stored state needed. */
