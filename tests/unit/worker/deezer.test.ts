@@ -100,6 +100,20 @@ describe("bestDeezerMatch", () => {
   it("never falls back to another artist's track: a wrong cover is worse than none", () => {
     expect(bestDeezerMatch([track({ artist: "Someone Else" })], ENTRY)).toBeNull();
   });
+
+  // Regression tests: the artist used to be matched as a substring, and any
+  // title of theirs taken when the song's own wasn't among the results.
+  it("matches an artist by whole words, never inside another name", () => {
+    const iam: CatalogEntry = { id: "je-danse-le-mia", artist: "IAM", title: "Je danse le Mia" };
+    expect(bestDeezerMatch([track({ artist: "William Sheller", title: "Je danse le Mia" })], iam)).toBeNull();
+    const cali: CatalogEntry = { id: "cest-quand-le-bonheur", artist: "Cali", title: "C'est quand le bonheur ?" };
+    expect(bestDeezerMatch([track({ artist: "Calimero", title: "C'est quand le bonheur" })], cali)).toBeNull();
+    expect(bestDeezerMatch([track({ artist: "-M-", title: "Je dis aime" })], { id: "x", artist: "-M-", title: "Je dis aime" })).not.toBeNull();
+  });
+
+  it("never takes another song of the same artist, whose album is not the song's", () => {
+    expect(bestDeezerMatch([track({ title: "Alors on danse" })], ENTRY)).toBeNull();
+  });
 });
 
 describe("searchDeezer", () => {

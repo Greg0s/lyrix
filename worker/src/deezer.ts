@@ -107,24 +107,46 @@ function titleKey(title: string): string {
   return normalize(title).replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
+/** A name's words, case, accents and punctuation aside: "Stromae, Pharrell Williams" -> stromae, pharrell, williams. */
+function nameWords(name: string): string[] {
+  return normalize(name).split(/[^\p{L}\p{N}]+/u).filter((word) => word.length > 0);
+}
+
+/** Whether `inner`'s words run, in order and whole, somewhere in `outer`'s. */
+function containsWords(outer: readonly string[], inner: readonly string[]): boolean {
+  if (inner.length === 0 || inner.length > outer.length) return false;
+  for (let start = 0; start + inner.length <= outer.length; start++) {
+    if (inner.every((word, index) => outer[start + index] === word)) return true;
+  }
+  return false;
+}
+
+/**
+ * The same artist, or a credit naming them among others (a featuring), by
+ * whole words: a substring used to match "IAM" with "William Sheller" and
+ * "Cali" with "Calimero", whose covers would have been kept for good.
+ */
 function sameArtist(found: string, wanted: string): boolean {
-  const a = normalize(found);
-  const b = normalize(wanted);
-  return a === b || a.includes(b) || b.includes(a);
+  const a = nameWords(found);
+  const b = nameWords(wanted);
+  return containsWords(a, b) || containsWords(b, a);
 }
 
 /**
  * The entry's own track among the results, or null: only by its artist, the
  * same title preferred, the original take over another (a live or remastered
- * one is still the song, and its album still the song's). Never
- * the first result regardless, as LRCLIB's lookup falls back to: a wrong
- * cover is worse than the panel's own, with the song's year on it.
+ * one is still the song, and its album still the song's). Another take is only
+ * taken when its title starts with the song's ("Papaoutai (Live)"): never
+ * another song of the same artist, whose album is not the song's, and never
+ * the first result regardless, as LRCLIB's lookup used to: a wrong cover is
+ * worse than the panel's own, with the song's year on it.
  */
 export function bestDeezerMatch(tracks: readonly DeezerTrack[], entry: CatalogEntry): DeezerTrack | null {
   const byArtist = tracks.filter((track) => sameArtist(track.artist, entry.artist));
   const title = titleKey(entry.title);
   const sameTitle = byArtist.filter((track) => titleKey(track.title) === title);
-  return sameTitle.find((track) => track.version === "") ?? sameTitle[0] ?? byArtist[0] ?? null;
+  const otherTake = byArtist.find((track) => titleKey(track.title).startsWith(title));
+  return sameTitle.find((track) => track.version === "") ?? sameTitle[0] ?? otherTake ?? null;
 }
 
 /** A cover's bytes, or why they couldn't be had (always worth trying again: the address came from Deezer). */
