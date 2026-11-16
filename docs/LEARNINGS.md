@@ -594,3 +594,7 @@ A room's members and each day's guesses live in its Durable Object's storage, on
 ## 2026-11-16 — A room swallowed every error but one at connection
 
 `admit` (`worker/src/room.ts`) caught the round's loading on (re)connection, closed the socket for `SongUnavailableError`, and dropped any other error without a word: no log, no close, and the member sat in the room with no round until they reconnected by chance. Any other error is now logged (`console.error`, Workers Logs) and closes the socket with `ROOM_CLOSE_TRY_AGAIN`, so the client tries again with its backoff. Test: `room.test.ts` ("logs any other failure and has the member's connection try again").
+
+## 2026-11-16 — States from before the archives were accepted for ever
+
+`openState` still opened `<JSON>.<HMAC>` tokens signed before #40, whose comment said to drop them "a day after #40 ships", and a sealed state with no `day` was read as a round of today, whatever day it was. Both can only have been made before the archives, before `FIRST_SONG_DAY`: no round still playable holds one. The HMAC path is gone and `StatePayload.day` is required; such a state is refused like a forged one (400). Tests: `state.test.ts` ("a state from before the archives"), `guess.test.ts` ("refuses a state sealed with no day"). **Takeaway**: a compatibility path that says when it can go needs a date or a test that fails then, not a comment.

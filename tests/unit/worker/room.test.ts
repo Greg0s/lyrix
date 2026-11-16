@@ -814,9 +814,9 @@ describe("keeping looking alone once the group has won", () => {
     const songId = (await openState((await connect(host)).lastRound().round.state, env.STATE_SECRET))?.songId;
     if (!songId) throw new Error("the room's round state does not open");
 
-    const own = await sealState({ songId, foundKeys: ["jardin"] }, env.STATE_SECRET);
-    const otherSong = await sealState({ songId: "another-song", foundKeys: ["lampe"] }, env.STATE_SECRET);
-    const forged = await sealState({ songId, foundKeys: ["maison"] }, "not-the-secret");
+    const own = await sealState({ songId, foundKeys: ["jardin"], day: utcDay() }, env.STATE_SECRET);
+    const otherSong = await sealState({ songId: "another-song", foundKeys: ["lampe"], day: utcDay() }, env.STATE_SECRET);
+    const forged = await sealState({ songId, foundKeys: ["maison"], day: utcDay() }, "not-the-secret");
 
     const keys = async (state: string) =>
       (await openState(((await (await alone(guest, state)).json()) as RoundView).state, env.STATE_SECRET))

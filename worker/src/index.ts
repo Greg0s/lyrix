@@ -101,7 +101,7 @@ const MAX_RESUMED_STATES = 4;
  * Several states of the same round (same song, same day) are merged, their
  * found words put together - how a room's progress joins the player's own.
  * Only states the Worker sealed itself count, so nothing found can be forged.
- * `day` names the round of a state sealed before the archives, which has none.
+ * `day`, which clients still send, is checked but not needed: every state names its own.
  */
 app.post("/api/round/resume", async (c) => {
   let body: unknown;
@@ -132,8 +132,8 @@ app.post("/api/round/resume", async (c) => {
     return c.json({ error: "invalid or expired round state" }, 400);
   }
   const [first] = opened;
-  const day = first.day ?? hint ?? utcDay();
-  if (opened.some((payload) => payload.songId !== first.songId || (payload.day ?? hint ?? utcDay()) !== day)) {
+  const { day } = first;
+  if (opened.some((payload) => payload.songId !== first.songId || payload.day !== day)) {
     return c.json({ error: "those states are not of the same round" }, 400);
   }
 
@@ -193,8 +193,7 @@ app.post("/api/guess", async (c) => {
 
   const outcome = await evaluateGuess(c.env, song, new Set(payload.foundKeys), trimmed);
   const foundKeys = outcome.found ? [...payload.foundKeys, outcome.key] : payload.foundKeys;
-  // A state sealed before the archives has no day: it can only be a round of today.
-  const day = payload.day ?? utcDay();
+  const { day } = payload;
   // Every guess answered counts towards the next hint, found or not.
   const before = hintProgressOf(payload);
   const progress: HintProgress = { tried: before.tried + 1, used: before.used };
@@ -274,7 +273,7 @@ app.post("/api/round/hint", async (c) => {
     return c.json({ error: "no hint is unlocked yet" }, 409);
   }
   const next: HintProgress = { tried: progress.tried, used: [...progress.used, hint] };
-  const day = payload.day ?? utcDay();
+  const { day } = payload;
   recordEvent(c.env, "hint", { mode: "solo", kind: roundKind(day, utcDay()), hint, tries: progress.tried });
   const answer: HintAnswer = {
     state: await sealRound(song, payload.foundKeys, c.env, day, next),

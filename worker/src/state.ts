@@ -7,11 +7,10 @@ export interface StatePayload {
   foundKeys: string[];
   /**
    * The UTC day the round is the song of (YYYY-MM-DD): a song can come back on
-   * another day, and the archives keep one round per day. Missing from a state
-   * sealed before the archives, which can only be a round of the day it was
-   * played on.
+   * another day, and the archives keep one round per day. Every state carries
+   * it: one sealed before the archives (and before FIRST_SONG_DAY) is refused.
    */
-  day?: string;
+  day: string;
   /**
    * Guesses the Worker answered on this round, found or not: what unlocks a
    * hint (src/game/hints.ts). Missing from a state sealed before hints.
@@ -92,10 +91,6 @@ const aesKey = memoizedKey(async (secret) => {
   );
 });
 
-// Only ever used to read a token sealed before #40 (see openState).
-const legacyHmacKey = memoizedKey((secret) =>
-  crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"])
-);
 
 function isStatePayload(value: unknown): value is StatePayload {
   if (typeof value !== "object" || value === null) return false;
@@ -104,7 +99,7 @@ function isStatePayload(value: unknown): value is StatePayload {
     typeof candidate.songId === "string" &&
     Array.isArray(candidate.foundKeys) &&
     candidate.foundKeys.every((key) => typeof key === "string") &&
-    (candidate.day === undefined || isDayKey(candidate.day)) &&
+    isDayKey(candidate.day) &&
     (candidate.tried === undefined ||
       (typeof candidate.tried === "number" && Number.isInteger(candidate.tried) && candidate.tried >= 0)) &&
     (candidate.hints === undefined ||
@@ -143,8 +138,6 @@ export async function sealState(payload: StatePayload, secret: string): Promise<
 }
 
 export async function openState(token: string, secret: string): Promise<StatePayload | null> {
-  if (token.includes(".")) return openLegacyState(token, secret);
-
   const bytes = fromBase64Url(token);
   if (!bytes || bytes.length <= IV_BYTES) return null;
   const key = await aesKey(secret);
@@ -158,22 +151,4 @@ export async function openState(token: string, secret: string): Promise<StatePay
   } catch {
     return null;
   }
-}
-
-// Before #40, a state was `<base64url JSON>.<HMAC>`: signed, readable by
-// anyone. A round started before the deploy still carries one, in flight and
-// in localStorage, and refusing it would restart that player's one puzzle of
-// the day. Still verified, so still unforgeable; every answer to it is sealed
-// the new way. Only today's round can hold one (a saved round expires at UTC
-// midnight, and so does a room), so this can go a day after #40 ships.
-async function openLegacyState(token: string, secret: string): Promise<StatePayload | null> {
-  const parts = token.split(".");
-  if (parts.length !== 2) return null;
-  const body = fromBase64Url(parts[0]);
-  const signature = fromBase64Url(parts[1]);
-  if (!body || !signature) return null;
-
-  const key = await legacyHmacKey(secret);
-  const valid = await crypto.subtle.verify("HMAC", key, signature, encoder.encode(parts[0]));
-  return valid ? parsePayload(body) : null;
 }
