@@ -582,3 +582,7 @@ The lyrics are tokenized with an elision apart ("l'amour" -> "l", "'", "amour"),
 ## 2026-11-16 — A day without lyrics played the next day's song
 
 When LRCLIB had no usable lyrics for a day's song, `catalogRotation` fell back on the month's list from that day on: the next day's song, which then played twice (and the last day of a month fell back on the 1st's, already played). It now falls back on `SPARES` alone (`worker/src/catalog.ts`), songs scheduled on no day, starting at a different one each day. Each spare is a catalog song like any other: facts in `songFacts.ts`, a cover (`covers:check`: 3 of 3), and a similarity table to build (`npm run similarity:build -- --song <id>`), without which its guesses get no score. Tests: `catalog.test.ts` ("falls back on the spares alone").
+
+## 2026-11-16 — Nothing bounded a room's members or words
+
+A room's members and each day's guesses live in its Durable Object's storage, one value each, and every round message carries every guess. Neither had a limit: a member sending distinct words by script, or enough joins from enough addresses, would grow them until `storage.put` refused the value (2 MB) and the room broke for everyone in it. A room now takes `MAX_ROOM_MEMBERS` (20) members and `MAX_ROOM_GUESSES` (2,000) words per day's song (`src/game/room.ts`); a join beyond is a 409 the dialog reads as "Ce salon est complet", a guess beyond a 403. Tests: `room.test.ts` ("a room's bounds"), `rooms.test.tsx` ("says a room is full").

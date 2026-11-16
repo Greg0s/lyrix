@@ -1,6 +1,8 @@
 import {
   isRoomCode,
   isTabId,
+  MAX_ROOM_GUESSES,
+  MAX_ROOM_MEMBERS,
   roomExpiresAt,
   ROOM_CLOSE_EXPIRED,
   ROOM_CLOSE_LEFT,
@@ -275,6 +277,7 @@ export class Room {
   async #join({ pseudo }: Record<string, unknown>): Promise<Response> {
     const room = await this.#load();
     if (!room) return json({ error: "no such room" }, 404);
+    if (room.members.length >= MAX_ROOM_MEMBERS) return json({ error: "the room is full" }, 409);
 
     const member = newMember(room.nextNumber, pseudo, room.members);
     room.nextNumber += 1;
@@ -406,6 +409,9 @@ export class Room {
     if (proposed) {
       const result: RoomGuessResult = { ...(await this.#roundOf(room, round, song)), guess: proposed, duplicate: true };
       return json(result, 200);
+    }
+    if (round.guesses.length >= MAX_ROOM_GUESSES) {
+      return json({ error: "the room has proposed as many words as a round takes" }, 403);
     }
     const outcome = await evaluateGuess(this.env, song, foundKeys(round), trimmed);
 

@@ -2,6 +2,8 @@ import { utcDay } from "../../../src/game/daily";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   isRoomCode,
+  MAX_ROOM_GUESSES,
+  MAX_ROOM_MEMBERS,
   parseRoomEntry,
   parseRoomGuessResult,
   parseRoomMessage,
@@ -1127,6 +1129,32 @@ describe("a guess's broadcast", () => {
 // A word someone already proposed changes nothing: it used to be looked up in
 // the similarity table all the same, and the whole song masked and a state
 // sealed again, to answer with the round as it already stood.
+// Regression tests: a room is one storage value sent whole to every member,
+// and nothing bounded how many members or words it held.
+describe("a room's bounds", () => {
+  it("refuses a member beyond MAX_ROOM_MEMBERS", async () => {
+    const host = await createRoom("Camille");
+    for (let joined = 1; joined < MAX_ROOM_MEMBERS; joined++) await joinRoom(host.room.code, `Joueur ${joined}`);
+    const response = await post(`/api/rooms/${host.room.code}/members`, { pseudo: "Un de trop" });
+    expect(response.status).toBe(409);
+  });
+
+  it("refuses a word beyond MAX_ROOM_GUESSES on one day's song", async () => {
+    const host = await createRoom("Camille");
+    const guess = (word: string) =>
+      post(`/api/rooms/${host.room.code}/guess`, { token: host.token, word });
+    expect((await guess("xylophone")).status).toBe(200);
+
+    const state = rooms.state(host.room.code);
+    const key = `round:${utcDay()}`;
+    const round = state.store.get(key) as { guesses: unknown[] };
+    const [first] = round.guesses;
+    state.store.set(key, { ...round, guesses: Array.from({ length: MAX_ROOM_GUESSES }, () => first) });
+
+    expect((await guess("trombone")).status).toBe(403);
+  });
+});
+
 describe("a word already proposed in a room", () => {
   it("is answered without a similarity lookup, nor a new view of the round", async () => {
     const host = await createRoom("Camille");

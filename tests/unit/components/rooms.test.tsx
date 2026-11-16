@@ -616,6 +616,21 @@ describe("the multiplayer dialog", () => {
     expect(code.getAttribute("aria-invalid")).toBe("false");
   });
 
+  it("says a room is full", async () => {
+    answer(409, { error: "the room is full" });
+    await mountGame();
+    const dialog = openDialog();
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Rejoindre" }));
+    const code = within(dialog).getByLabelText("Code du salon") as HTMLInputElement;
+    fireEvent.change(code, { target: { value: "ZZZZZZ" } });
+
+    fireEvent.submit(code);
+    await waitFor(() =>
+      expect(within(dialog).getByRole("alert").textContent).toBe("Ce salon est complet (20 joueurs).")
+    );
+    expect(roomCard()).toBeNull();
+  });
+
   it("tells an unknown code apart from too many attempts", async () => {
     answer(404, { error: "no such room" });
     answer(429, { error: "too many attempts" });

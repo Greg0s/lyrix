@@ -15,7 +15,7 @@ import { apiUrl, GUESS_TIMEOUT_MS, ROOM_ENTRY_TIMEOUT_MS, withTimeout } from "./
 const TAB_ID = generateTabId();
 
 /** Why creating or joining a room didn't work, as the player needs to hear it. */
-export type RoomFailure = "not-found" | "rate-limited" | "unavailable";
+export type RoomFailure = "not-found" | "full" | "rate-limited" | "unavailable";
 
 export type RoomResult = { ok: true; entry: RoomEntry } | { ok: false; failure: RoomFailure };
 
@@ -34,6 +34,7 @@ async function enter(path: string, pseudo: string): Promise<RoomResult> {
         signal,
       });
       if (response.status === 404) return failure("not-found");
+      if (response.status === 409) return failure("full");
       if (response.status === 429) return failure("rate-limited");
       if (!response.ok) return failure("unavailable");
       const entry = parseRoomEntry(await response.json().catch(() => null));
