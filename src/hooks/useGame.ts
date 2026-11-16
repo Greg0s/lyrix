@@ -28,6 +28,7 @@ import {
   saveGroupSnapshotSoon,
   saveRound,
   saveRoundSoon,
+  savedDayOfKey,
 } from "../roundStorage";
 
 export interface TriedWord {
@@ -260,6 +261,21 @@ const NO_ROOM_DAYS: RoomDaySummary[] = [];
 const NO_ROOM_HINTS: RoomHint[] = [];
 
 /** The player's own words, then the words the group found that they hadn't: what a round merged with a room's lists. */
+/** Every word either list tried, each once: `own` first, as it was. */
+function withOtherTabWords(own: readonly TriedWord[], other: readonly TriedWord[]): TriedWord[] {
+  const keys = new Set(own.map((word) => word.key));
+  return [...own, ...other.filter((word) => !keys.has(word.key))];
+}
+
+/** Whether `a` holds a word or a hint `b` doesn't. */
+function holdsMore(
+  a: { words: readonly TriedWord[]; hints: readonly string[] },
+  b: { words: readonly TriedWord[]; hints: readonly string[] }
+): boolean {
+  const keys = new Set(b.words.map((word) => word.key));
+  return a.words.some((word) => !keys.has(word.key)) || a.hints.some((hint) => !b.hints.includes(hint));
+}
+
 function withGroupFinds(own: readonly TriedWord[], group: readonly TriedWord[]): TriedWord[] {
   const keys = new Set(own.map((word) => word.key));
   return [...own, ...group.filter((word) => word.found && !keys.has(word.key))];
@@ -823,6 +839,48 @@ export function useGame(day: string | null = null) {
       merging.current = false;
     })();
   }, [outOfRoom]);
+
+  // Two tabs on the same day each saved their own round, the last write
+  // winning: what one had found vanished from storage. A tab now hears the
+  // other's saves (a storage event only reaches the other tabs): one holding
+  // something new is merged by the Worker, as a room's progress is; one
+  // missing something of this tab's gets it written back. Both stop once
+  // they hold the same words and hints.
+  useEffect(() => {
+    let merging = false;
+    const onStorage = (event: StorageEvent) => {
+      const day = savedDayOfKey(event.key);
+      const current = stateRef.current;
+      const ours = current.round;
+      if (day === null || event.newValue === null || merging) return;
+      if (current.shared !== null || current.loading || !ours || ours.day !== day) return;
+      const theirs = loadSavedDay(day);
+      if (!theirs || theirs.state === ours.state) return;
+      const mine = { words: current.triedWords, hints: ours.hints?.used ?? [] };
+      const other = { words: theirs.triedWords, hints: theirs.hintsUsed ?? [] };
+      if (!holdsMore(other, mine)) {
+        if (holdsMore(mine, other)) saveRoundSoon(ours, current.triedWords);
+        return;
+      }
+      merging = true;
+      resumeRound([ours.state, theirs.state], day)
+        .then((merged) => {
+          setState((prev) => {
+            // A guess landed meanwhile: its save reaches the other tab, which merges in turn.
+            if (prev.round !== ours || prev.shared !== null) return prev;
+            const triedWords = withOtherTabWords(prev.triedWords, theirs.triedWords);
+            saveRoundSoon(merged, triedWords);
+            return { ...prev, round: merged, triedWords };
+          });
+        })
+        .catch(() => {})
+        .finally(() => {
+          merging = false;
+        });
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   // In a room, its round takes today's solo one's place, unless the player is
   // looking alone; the solo round is kept as it was, for then and for when

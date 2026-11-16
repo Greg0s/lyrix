@@ -445,3 +445,65 @@ describe("a tab left open past midnight", () => {
     expect(notice()).toBeNull();
   });
 });
+
+// Two tabs on the same day each saved their own round over the other's: the
+// words found in one vanished from storage, the archives and the next visit.
+describe("two tabs on the same day", () => {
+  const chip = (word: string) => screen.queryByText(word, { selector: ".lyrix-chip" });
+  const tried = (key: string, found: boolean) => ({ key, display: key, found, score: found ? 100 : 12, near: [] });
+
+  /** The other tab saving its round, as this one hears it. */
+  async function otherTabSaves(state: string, words: ReturnType<typeof tried>[]): Promise<void> {
+    // This tab's own save first: the other tab's comes after it.
+    flushSavedRound();
+    saveRound(round(TODAY, state), words);
+    flushSavedRound();
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent("storage", { key: `lyrix:day:${TODAY}`, newValue: "{}" }));
+    });
+  }
+
+  it("merges what the other tab found, and saves both", async () => {
+    await mount();
+    submitGuess.mockResolvedValueOnce(answer(TODAY, "vent", true));
+    await propose("vent");
+    resumeRound.mockResolvedValueOnce(round(TODAY, "merged"));
+
+    await otherTabSaves("other", [tried("jardin", true), tried("orage", false)]);
+
+    expect(resumeRound).toHaveBeenCalledWith([`${TODAY}-vent`, "other"], TODAY);
+    await screen.findByText("jardin", { selector: ".lyrix-chip" });
+    expect(chip("vent")).not.toBeNull();
+    expect(chip("orage")).not.toBeNull();
+    flushSavedRound();
+    const saved = loadSavedDay(TODAY);
+    expect(saved?.state).toBe("merged");
+    expect(saved?.triedWords.map((word) => word.key).sort()).toEqual(["jardin", "orage", "vent"]);
+  });
+
+  it("writes its own round back over one missing its words, without asking the Worker", async () => {
+    await mount();
+    submitGuess.mockResolvedValueOnce(answer(TODAY, "vent", true));
+    await propose("vent");
+    flushSavedRound();
+
+    await otherTabSaves("other", []);
+    flushSavedRound();
+
+    expect(resumeRound).not.toHaveBeenCalled();
+    expect(loadSavedDay(TODAY)?.state).toBe(`${TODAY}-vent`);
+  });
+
+  it("stops once both hold the same words", async () => {
+    await mount();
+    submitGuess.mockResolvedValueOnce(answer(TODAY, "vent", true));
+    await propose("vent");
+    flushSavedRound();
+
+    await otherTabSaves("other", [tried("vent", true)]);
+    flushSavedRound();
+
+    expect(resumeRound).not.toHaveBeenCalled();
+    expect(loadSavedDay(TODAY)?.state).toBe("other");
+  });
+});

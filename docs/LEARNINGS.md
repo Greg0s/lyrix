@@ -610,3 +610,7 @@ A room's members and each day's guesses live in its Durable Object's storage, on
 ## 2026-11-16 — A tab left open past midnight kept yesterday's song
 
 Today's round is loaded once. A tab left open past UTC midnight went on with the day before's song, still called today's: only a winner, whose countdown ends on "Jouer", was told. `NewSongNotice` now shows over today's round, once the day is over by the device's clock less `CLOCK_GRACE_MS` (a clock running ahead mustn't announce a song the Worker doesn't serve yet), checked at midnight and whenever the tab comes back into view, and offers to reload; the old round stays in the archives under its day. Never on a won round, a day of the archives, or in a room. Tests: `archives.test.tsx` ("a tab left open past midnight").
+
+## 2026-11-16 — Two tabs on one day erased each other's finds
+
+Each tab saved its own round under the day's key (`roundStorage.ts`), the last write winning: the words found in one tab vanished from storage, the archives and the next visit, though they stayed on that tab's screen. A tab now listens to `storage` events (fired only in the other tabs) for the day it shows (`useGame`): when the other tab's save holds a word or a hint this one lacks, the two sealed states are merged by `POST /api/round/resume` and saved with both lists of words; when it only lacks some of this tab's, this tab's round is written back without asking the Worker; when they hold the same, nothing happens, so the exchange stops. Tests: `archives.test.tsx` ("two tabs on the same day").
