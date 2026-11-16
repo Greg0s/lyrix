@@ -211,13 +211,21 @@ function remember(entry: MemoizedTable): void {
   }
 }
 
-async function readTable(env: SimilarityEnv, song: Song): Promise<SimilarityTable | null> {
+/**
+ * A KV read that failed: no score for this guess, but nothing remembered
+ * either - KV not answering is not "no table" (`docs/LEARNINGS.md`,
+ * 2026-11-16), so the next guess asks again.
+ */
+const READ_FAILED = Symbol("similarity read failed");
+
+async function readTable(env: SimilarityEnv, song: Song): Promise<SimilarityTable | null | typeof READ_FAILED> {
   if (env.SIMILARITY) {
     let raw: string | null;
     try {
       raw = await env.SIMILARITY.get(song.id, { cacheTtl: KV_CACHE_TTL_SECONDS });
-    } catch {
-      return null;
+    } catch (error) {
+      console.warn(`similarity: reading the table of "${song.id}" failed`, error);
+      return READ_FAILED;
     }
     if (raw === null) {
       announceTableProblem(song.id, `the SIMILARITY namespace holds no table for "${song.id}".`);
@@ -266,6 +274,7 @@ export async function loadSimilarityTable(env: SimilarityEnv, song: Song): Promi
 
   // readTable never throws, so neither does this.
   const read = readTable(env, song).then((table) => {
+    if (table === READ_FAILED) return null;
     remember({
       bound,
       sample,

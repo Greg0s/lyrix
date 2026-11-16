@@ -586,3 +586,7 @@ When LRCLIB had no usable lyrics for a day's song, `catalogRotation` fell back o
 ## 2026-11-16 — Nothing bounded a room's members or words
 
 A room's members and each day's guesses live in its Durable Object's storage, one value each, and every round message carries every guess. Neither had a limit: a member sending distinct words by script, or enough joins from enough addresses, would grow them until `storage.put` refused the value (2 MB) and the room broke for everyone in it. A room now takes `MAX_ROOM_MEMBERS` (20) members and `MAX_ROOM_GUESSES` (2,000) words per day's song (`src/game/room.ts`); a join beyond is a 409 the dialog reads as "Ce salon est complet", a guess beyond a 403. Tests: `room.test.ts` ("a room's bounds"), `rooms.test.tsx` ("says a room is full").
+
+## 2026-11-16 — One failed KV read took every score away for a minute
+
+`readTable` (`worker/src/similarity.ts`) answered a KV read that threw with `null`, the same value as "this song has no table", and `loadSimilarityTable` memoized it for `MISS_MEMO_TTL_MS`: one hiccup meant no proximity score on any guess of that song, on that isolate, for a minute — the outage-read-as-an-answer mistake once more. A failed read is now logged and never remembered, so the next guess reads again. Test: `similarity.test.ts` ("doesn't remember a failed read as a missing table").
