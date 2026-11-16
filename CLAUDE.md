@@ -188,6 +188,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     VictoryFoot.tsx        # under a won round: today's points to the archives, a day's to the next one
     ThemeToggle.tsx         # header's sun/moon button; the theme is its own local state
     GroupFoundBanner.tsx   # "X a trouvé la chanson pour le groupe" + "Afficher la réponse" (#30)
+    NewSongNotice.tsx      # today's round still on screen past UTC midnight (and a 2-minute grace): says the
+                           # song changed, "Jouer la nouvelle" reloads; never on a won round, a day, or in a room
     TitleGuess.tsx         # masked title, victory panel, and the "show all lyrics"
                            # checkbox once won (RoundView.victory), controlled by GameScreen;
                            # on a live win, its words pop in turn (`is-celebrating`, #42)

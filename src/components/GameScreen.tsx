@@ -19,6 +19,7 @@ import { ArchivesScreen } from "./ArchivesScreen";
 import { DayBar } from "./DayBar";
 import { playerColor } from "./playerColor";
 import { GroupFoundBanner } from "./GroupFoundBanner";
+import { NewSongNotice } from "./NewSongNotice";
 import { GuessForm, type GuessFeedback } from "./GuessForm";
 import { HintSheet } from "./HintSheet";
 import { HintsCard } from "./HintsCard";
@@ -382,6 +383,8 @@ export function GameScreen() {
         {game.aloneAfter && !round.victory ? (
           <GroupFoundBanner winner={game.aloneAfter} you={you} onReveal={game.revealAnswer} />
         ) : null}
+        {/* A won round has its countdown's "Jouer"; a room expires at midnight anyway. */}
+        {day === null && !game.playingRoom && !round.victory ? <NewSongNotice roundDay={round.day} /> : null}
         <article className="lyrix-card lyrix-song">
           <TitleGuess
             titleTokens={slots.title}

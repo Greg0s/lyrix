@@ -403,3 +403,45 @@ describe("today's victory", () => {
     expect(cover(/^Chanson du jour, trouvée : Le refuge de novembre/)).toBeTruthy();
   });
 });
+
+// A tab left open on today's song went on with it past midnight, saying
+// nothing: only a winner had the countdown's "Jouer".
+describe("a tab left open past midnight", () => {
+  const notice = () => screen.queryByRole("region", { name: "Nouvelle chanson" });
+
+  async function nextDay(at: string): Promise<void> {
+    vi.setSystemTime(new Date(at));
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+  }
+
+  it("says the day's song changed once it has, and offers the new one", async () => {
+    await mount();
+    await screen.findByPlaceholderText("Propose un mot…");
+    expect(notice()).toBeNull();
+
+    // Midnight on the device, but the Worker's clock may lag: not yet.
+    await nextDay("2026-10-21T00:00:30Z");
+    expect(notice()).toBeNull();
+
+    await nextDay("2026-10-21T00:05:00Z");
+    expect(notice()).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Jouer la nouvelle" })).toBeTruthy();
+  });
+
+  it("leaves a won round to its countdown", async () => {
+    await mount();
+    submitGuess.mockResolvedValueOnce(won(TODAY, "novembre"));
+    await propose("novembre");
+    await nextDay("2026-10-21T00:05:00Z");
+    expect(notice()).toBeNull();
+  });
+
+  it("never shows on a day of the archives", async () => {
+    fetchRound.mockImplementation(async () => round(DAY));
+    await mount(`/archives/${DAY}`);
+    await nextDay("2026-10-21T00:05:00Z");
+    expect(notice()).toBeNull();
+  });
+});
