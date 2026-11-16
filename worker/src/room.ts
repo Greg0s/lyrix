@@ -357,7 +357,7 @@ export class Room {
     this.#broadcast(room, event);
     // And the round as it stands, to the new socket alone: whatever it missed
     // while away, a (re)connection catches up on in one message.
-    let message: RoomRoundMessage | null = null;
+    let message: RoomRoundMessage;
     try {
       message = await this.#roundMessage(room);
     } catch (error) {
@@ -371,13 +371,21 @@ export class Room {
         }
         return;
       }
-    }
-    if (message) {
+      // Anything else is a bug: logged, and the connection closed the same
+      // way, so the member's client tries again instead of sitting there
+      // with no round and nobody knowing.
+      console.error("room: couldn't send the round to a connecting member", error);
       try {
-        socket.send(JSON.stringify(message));
+        socket.close(ROOM_CLOSE_TRY_AGAIN, "the round couldn't be loaded, try again");
       } catch {
-        // Closed while the song was being resolved: its close event follows.
+        // Already closed.
       }
+      return;
+    }
+    try {
+      socket.send(JSON.stringify(message));
+    } catch {
+      // Closed while the song was being resolved: its close event follows.
     }
   }
 

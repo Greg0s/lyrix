@@ -1232,6 +1232,24 @@ describe("a song LRCLIB can't give right now", () => {
     expect(await songIdOf(again)).toBe(pickDailyEntry().id);
   });
 
+  // Any other failure used to be swallowed: no log, no close, and the member
+  // sat in the room with no round until they happened to reconnect.
+  it("logs any other failure and has the member's connection try again", async () => {
+    lrclibUp();
+    const host = await createRoom("Camille");
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const secret = env.STATE_SECRET;
+    env.STATE_SECRET = "";
+    try {
+      const socket = await connect(host);
+      expect(socket.closed?.code).toBe(ROOM_CLOSE_TRY_AGAIN);
+      expect(error).toHaveBeenCalled();
+    } finally {
+      env.STATE_SECRET = secret;
+      error.mockRestore();
+    }
+  });
+
   it("replaces a round left pinned to the stand-in with the day's song, from scratch", async () => {
     lrclibUp();
     const host = await createRoom("Camille");

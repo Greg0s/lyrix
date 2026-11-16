@@ -590,3 +590,7 @@ A room's members and each day's guesses live in its Durable Object's storage, on
 ## 2026-11-16 — One failed KV read took every score away for a minute
 
 `readTable` (`worker/src/similarity.ts`) answered a KV read that threw with `null`, the same value as "this song has no table", and `loadSimilarityTable` memoized it for `MISS_MEMO_TTL_MS`: one hiccup meant no proximity score on any guess of that song, on that isolate, for a minute — the outage-read-as-an-answer mistake once more. A failed read is now logged and never remembered, so the next guess reads again. Test: `similarity.test.ts` ("doesn't remember a failed read as a missing table").
+
+## 2026-11-16 — A room swallowed every error but one at connection
+
+`admit` (`worker/src/room.ts`) caught the round's loading on (re)connection, closed the socket for `SongUnavailableError`, and dropped any other error without a word: no log, no close, and the member sat in the room with no round until they reconnected by chance. Any other error is now logged (`console.error`, Workers Logs) and closes the socket with `ROOM_CLOSE_TRY_AGAIN`, so the client tries again with its backoff. Test: `room.test.ts` ("logs any other failure and has the member's connection try again").
