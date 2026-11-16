@@ -598,3 +598,7 @@ A room's members and each day's guesses live in its Durable Object's storage, on
 ## 2026-11-16 — States from before the archives were accepted for ever
 
 `openState` still opened `<JSON>.<HMAC>` tokens signed before #40, whose comment said to drop them "a day after #40 ships", and a sealed state with no `day` was read as a round of today, whatever day it was. Both can only have been made before the archives, before `FIRST_SONG_DAY`: no round still playable holds one. The HMAC path is gone and `StatePayload.day` is required; such a state is refused like a forged one (400). Tests: `state.test.ts` ("a state from before the archives"), `guess.test.ts` ("refuses a state sealed with no day"). **Takeaway**: a compatibility path that says when it can go needs a date or a test that fails then, not a comment.
+
+## 2026-11-16 — The same word sent 150 times unlocked every hint
+
+`POST /api/guess` added one to the sealed guess count (`tried`) on every request, so a script sending one word 150 times unlocked all three hints; the client never sends a word twice, but the Worker can't count on that. A state now keeps its misses as 32-bit hashes (`missed`, `missedMark` in `worker/src/state.ts`, no word's text) until the last hint unlocks, and a word already found or already missed counts once (`progressAfterGuess`). The marks survive a hint, a resume and a room's "looking alone". Tests: `hints.test.ts` ("count a word sent again once…", "still count a repeated miss once…", "stop remembering misses…").

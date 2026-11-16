@@ -1,5 +1,5 @@
 import { isDayKey } from "../../src/game/daily";
-import { isHintId } from "../../src/game/hints";
+import { HINT_THRESHOLDS, isHintId } from "../../src/game/hints";
 import type { HintId } from "../../src/game/types";
 
 export interface StatePayload {
@@ -18,12 +18,36 @@ export interface StatePayload {
   tried?: number;
   /** The hints revealed, in the order chosen. Missing when none is, or from a state sealed before hints. */
   hints?: HintId[];
+  /**
+   * The words missed so far, as `missedMark`s, so the same word sent again
+   * doesn't count towards a hint twice (found words are in `foundKeys`).
+   * Kept only until the last hint unlocks: past it, counting stops mattering.
+   */
+  missed?: string[];
 }
 
-/** Where a round stands with its hints: what the guess count allows, and what was taken. */
+/** Where a round stands with its hints: what the guess count allows, what was taken, which misses were counted. */
 export interface HintProgress {
   tried: number;
   used: readonly HintId[];
+  missed?: readonly string[];
+}
+
+/** The guess count past which no hint unlocks: what is missed is no longer kept. */
+export const LAST_HINT_THRESHOLD = Math.max(...HINT_THRESHOLDS);
+
+/**
+ * A missed word's mark in the state: a 32-bit FNV-1a hash of its key, so the
+ * state grows by a few bytes per miss and holds no word's text. Two words
+ * sharing a mark means one of them isn't counted: harmless.
+ */
+export function missedMark(key: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) {
+    hash ^= key.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(36);
 }
 
 /**
@@ -31,7 +55,36 @@ export interface HintProgress {
  * found words are the guesses it is sure of (a missed one left no trace).
  */
 export function hintProgressOf(payload: StatePayload): HintProgress {
-  return { tried: payload.tried ?? payload.foundKeys.length, used: payload.hints ?? [] };
+  return {
+    tried: payload.tried ?? payload.foundKeys.length,
+    used: payload.hints ?? [],
+    ...(payload.missed ? { missed: payload.missed } : {}),
+  };
+}
+
+/**
+ * The hint progress after a guess. A word already found, or already missed,
+ * counts once: sending the same word again by script used to unlock every hint.
+ */
+export function progressAfterGuess(
+  before: HintProgress,
+  foundKeys: readonly string[],
+  key: string,
+  found: boolean
+): HintProgress {
+  const mark = missedMark(key);
+  const missed = before.missed ?? [];
+  if (foundKeys.includes(key) || missed.includes(mark)) return before;
+  const tried = before.tried + 1;
+  if (tried >= LAST_HINT_THRESHOLD) return { tried, used: before.used };
+  return { tried, used: before.used, ...(found ? (before.missed ? { missed } : {}) : { missed: [...missed, mark] }) };
+}
+
+/** Several states' misses put together, for a merged round (or none past the last hint). */
+export function mergedMissed(tried: number, ...lists: (readonly string[] | undefined)[]): { missed?: string[] } {
+  if (tried >= LAST_HINT_THRESHOLD) return {};
+  const missed = [...new Set(lists.flatMap((list) => list ?? []))];
+  return missed.length > 0 ? { missed } : {};
 }
 
 const encoder = new TextEncoder();
@@ -105,7 +158,11 @@ function isStatePayload(value: unknown): value is StatePayload {
     (candidate.hints === undefined ||
       (Array.isArray(candidate.hints) &&
         candidate.hints.every(isHintId) &&
-        new Set(candidate.hints).size === candidate.hints.length))
+        new Set(candidate.hints).size === candidate.hints.length)) &&
+    (candidate.missed === undefined ||
+      (Array.isArray(candidate.missed) &&
+        candidate.missed.length <= LAST_HINT_THRESHOLD &&
+        candidate.missed.every((mark) => typeof mark === "string")))
   );
 }
 

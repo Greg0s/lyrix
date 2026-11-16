@@ -88,6 +88,7 @@ export function sealRound(
       day,
       tried: progress.tried,
       ...(progress.used.length > 0 ? { hints: [...progress.used] } : {}),
+      ...(progress.missed && progress.missed.length > 0 ? { missed: [...progress.missed] } : {}),
     },
     env.STATE_SECRET
   );

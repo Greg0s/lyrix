@@ -41,7 +41,7 @@ import {
 import { recordEvent, roundKind } from "./events";
 import { getSongById, getSongOfDay, SongUnavailableError } from "./songs";
 import { pickSingerName } from "./singerNames";
-import { hintProgressOf, openState, type HintProgress } from "./state";
+import { hintProgressOf, mergedMissed, openState, type HintProgress } from "./state";
 
 /**
  * One room ("salon", issue #29) per Durable Object, addressed by its code
@@ -200,7 +200,8 @@ function hintProgress(round: RoundRecord): HintProgress {
 function mergedProgress(a: HintProgress, b: HintProgress): HintProgress {
   const used: HintId[] = [...a.used];
   for (const id of b.used) if (!used.includes(id)) used.push(id);
-  return { tried: Math.max(a.tried, b.tried), used };
+  const tried = Math.max(a.tried, b.tried);
+  return { tried, used, ...mergedMissed(tried, a.missed, b.missed) };
 }
 
 function json(body: unknown, status: number): Response {

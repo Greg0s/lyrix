@@ -21,7 +21,7 @@ import {
 } from "./round";
 import { roomRoutes, type RoomsEnv } from "./roomRoutes";
 import { getSongById, getSongOfDay, SongUnavailableError, type SongsEnv } from "./songs";
-import { hintProgressOf, openState, type HintProgress } from "./state";
+import { hintProgressOf, mergedMissed, openState, progressAfterGuess, type HintProgress } from "./state";
 import { visitRoutes } from "./visit";
 
 type Env = RoundEnv & RoomsEnv;
@@ -151,7 +151,8 @@ app.post("/api/round/resume", async (c) => {
   const progresses = opened.map(hintProgressOf);
   const used: HintId[] = [];
   for (const id of progresses.flatMap((progress) => progress.used)) if (!used.includes(id)) used.push(id);
-  const progress: HintProgress = { tried: Math.max(...progresses.map((p) => p.tried)), used };
+  const tried = Math.max(...progresses.map((p) => p.tried));
+  const progress: HintProgress = { tried, used, ...mergedMissed(tried, ...progresses.map((p) => p.missed)) };
   return c.json(await buildRoundView(song, foundKeys, c.env, day, progress));
 });
 
@@ -194,9 +195,10 @@ app.post("/api/guess", async (c) => {
   const outcome = await evaluateGuess(c.env, song, new Set(payload.foundKeys), trimmed);
   const foundKeys = outcome.found ? [...payload.foundKeys, outcome.key] : payload.foundKeys;
   const { day } = payload;
-  // Every guess answered counts towards the next hint, found or not.
+  // Every new word answered counts towards the next hint, found or not; the
+  // same word sent again doesn't.
   const before = hintProgressOf(payload);
-  const progress: HintProgress = { tried: before.tried + 1, used: before.used };
+  const progress = progressAfterGuess(before, payload.foundKeys, outcome.key, outcome.found);
   const won = isVictory(song, new Set(foundKeys));
 
   // Statistics (events.ts): a round's first guess, and the one that wins it.
@@ -272,7 +274,7 @@ app.post("/api/round/hint", async (c) => {
   if (!canReveal(progress, hint)) {
     return c.json({ error: "no hint is unlocked yet" }, 409);
   }
-  const next: HintProgress = { tried: progress.tried, used: [...progress.used, hint] };
+  const next: HintProgress = { ...progress, used: [...progress.used, hint] };
   const { day } = payload;
   recordEvent(c.env, "hint", { mode: "solo", kind: roundKind(day, utcDay()), hint, tries: progress.tried });
   const answer: HintAnswer = {
