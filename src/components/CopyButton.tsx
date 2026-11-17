@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { track, type TrackedEvent } from "../analytics";
 
 /** How long "Copié !" stays up before the button reads its label again. */
 export const COPIED_MS = 1600;
@@ -22,6 +23,8 @@ interface CopyButtonProps {
    * its accessible name and tooltip. A tick replaces the icon while "Copié !".
    */
   icon?: "copy" | "link";
+  /** The click Umami counts it as (src/analytics.ts). */
+  trackAs?: TrackedEvent;
 }
 
 type Flash = { kind: "copied" | "failed"; seq: number };
@@ -70,7 +73,7 @@ function canShare(): boolean {
 }
 
 /** Copies a value to the clipboard (or shares it, on a phone), and says so for a moment. */
-export function CopyButton({ value, label, tone, shareLabel, icon }: CopyButtonProps) {
+export function CopyButton({ value, label, tone, shareLabel, icon, trackAs }: CopyButtonProps) {
   const [flash, setFlash] = useState<Flash | null>(null);
   const [share] = useState(() => shareLabel !== undefined && canShare());
 
@@ -108,6 +111,7 @@ export function CopyButton({ value, label, tone, shareLabel, icon }: CopyButtonP
       type="button"
       className={`lyrix-copy is-${tone}${icon ? " is-icon" : ""}${flash?.kind === "copied" ? " is-done" : ""}`}
       onClick={() => void copy()}
+      {...(trackAs ? track(trackAs, { via: share ? "share" : "copy" }) : {})}
       title={icon ? idle : undefined}
       aria-live="polite"
     >

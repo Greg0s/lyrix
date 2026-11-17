@@ -1,4 +1,5 @@
 import { memo, type CSSProperties } from "react";
+import { EVENTS, track } from "../analytics";
 import { useRovingBlanks } from "../hooks/useRovingBlanks";
 import { triesLabel } from "../game/archive";
 import { longDayLabel } from "../game/frenchDates";
@@ -125,7 +126,12 @@ export const TitleGuess = memo(function TitleGuess({
             </div>
           </div>
           <label className="lyrix-reveal-all">
-            <input type="checkbox" checked={revealAllLyrics} onChange={onToggleRevealAllLyrics} />
+            <input
+              type="checkbox"
+              checked={revealAllLyrics}
+              onChange={onToggleRevealAllLyrics}
+              {...track(EVENTS.showAllLyrics)}
+            />
             Afficher tous les lyrics
           </label>
           <VictoryFoot

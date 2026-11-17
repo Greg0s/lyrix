@@ -1,4 +1,5 @@
 import { memo, useEffect, useState } from "react";
+import { EVENTS, track } from "../analytics";
 import { applyTheme, currentTheme, saveTheme, watchSystemTheme, type Theme } from "../theme";
 
 /**
@@ -27,7 +28,14 @@ export const ThemeToggle = memo(function ThemeToggle() {
 
   const label = theme === "dark" ? "Passer en mode clair" : "Passer en mode sombre";
   return (
-    <button type="button" className="lyrix-theme-toggle" onClick={toggle} aria-label={label} title={label}>
+    <button
+      type="button"
+      className="lyrix-theme-toggle"
+      onClick={toggle}
+      aria-label={label}
+      title={label}
+      {...track(EVENTS.toggleTheme, { to: theme === "dark" ? "light" : "dark" })}
+    >
       {theme === "dark" ? <SunIcon /> : <MoonIcon />}
     </button>
   );

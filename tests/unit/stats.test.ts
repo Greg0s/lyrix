@@ -138,9 +138,12 @@ describe("the player's opposition", () => {
     expect(isStatsOptedOut()).toBe(false);
     setStatsOptedOut(true);
     expect(localStorage.getItem("lyrix:no-stats")).toBe("1");
+    // Umami's tracker (scripts/lib/umami.ts) stops too.
+    expect(localStorage.getItem("umami.disabled")).toBe("1");
     expect(statsAllowed()).toBe(false);
     setStatsOptedOut(false);
     expect(localStorage.getItem("lyrix:no-stats")).toBeNull();
+    expect(localStorage.getItem("umami.disabled")).toBeNull();
     expect(statsAllowed()).toBe(true);
   });
 

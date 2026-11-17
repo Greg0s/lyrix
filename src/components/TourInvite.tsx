@@ -1,4 +1,5 @@
 import { memo, useEffect, useId, useRef, useState } from "react";
+import { EVENTS, track } from "../analytics";
 import { prefersReducedMotion } from "../reducedMotion";
 import { INVITE_LEAVE_MS } from "../tour";
 
@@ -52,10 +53,16 @@ export const TourInvite = memo(function TourInvite({ onStart, onSkip }: TourInvi
           Je te fais faire le tour de l'écran en une minute&nbsp;: où chercher, quoi taper, comment lire les indices.
         </p>
         <div className="lyrix-invite-actions">
-          <button ref={startRef} type="button" className="lyrix-invite-start" onClick={() => choose(onStart)}>
+          <button
+            ref={startRef}
+            type="button"
+            className="lyrix-invite-start"
+            onClick={() => choose(onStart)}
+            {...track(EVENTS.startTour, { from: "invite" })}
+          >
             Faire la visite
           </button>
-          <button type="button" className="lyrix-invite-skip" onClick={() => choose(onSkip)}>
+          <button type="button" className="lyrix-invite-skip" onClick={() => choose(onSkip)} {...track(EVENTS.skipTour)}>
             Non merci, je joue
           </button>
         </div>

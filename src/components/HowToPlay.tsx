@@ -1,4 +1,5 @@
 import { FAQ, RULES_SUMMARY } from "../rules";
+import { EVENTS, track } from "../analytics";
 import { nearStyle } from "./heatStyle";
 
 interface HowToPlayProps {
@@ -45,7 +46,12 @@ export function HowToPlay({ onClose, onReplayTour }: HowToPlayProps) {
           <button type="button" className="lyrix-button" onClick={onClose}>
             C'est parti
           </button>
-          <button type="button" className="lyrix-button is-outline" onClick={onReplayTour}>
+          <button
+            type="button"
+            className="lyrix-button is-outline"
+            onClick={onReplayTour}
+            {...track(EVENTS.startTour, { from: "rules" })}
+          >
             Revoir la visite guidée
           </button>
         </div>

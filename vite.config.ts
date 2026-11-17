@@ -5,6 +5,7 @@ import { invitePagePlugin } from "./scripts/lib/invitePage";
 import { rulesPagePlugin } from "./scripts/lib/rulesPage";
 import { unlistedPagesPlugin } from "./scripts/lib/unlistedPages";
 import { serviceWorkerPlugin } from "./scripts/lib/serviceWorker";
+import { umamiPlugin } from "./scripts/lib/umami";
 
 // Where the dev server forwards /api/*: by default the Worker `npm run dev:all`
 // starts on wrangler's default port. playwright.config.ts points it at the
@@ -18,7 +19,8 @@ export default defineConfig({
   // rulesPagePlugin: the page the rules' address (/comment-jouer) answers with, titled and described as the rules.
   // unlistedPagesPlugin: the legal notice's and the archives' pages, under their own titles and kept out of search results.
   // serviceWorkerPlugin: /sw.js, which keeps the app shell for an installed Lyrix (#79).
-  plugins: [react(), apiPreconnectPlugin(), invitePagePlugin(), rulesPagePlugin(), unlistedPagesPlugin(), serviceWorkerPlugin()],
+  // umamiPlugin: the Umami audience script, in production builds only.
+  plugins: [react(), apiPreconnectPlugin(), invitePagePlugin(), rulesPagePlugin(), unlistedPagesPlugin(), serviceWorkerPlugin(), umamiPlugin()],
   server: {
     proxy: {
       // ws: rooms keep their members live over a WebSocket on /api/rooms/:code/ws.

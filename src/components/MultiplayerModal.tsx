@@ -1,4 +1,5 @@
 import { useId, useState, type FormEvent } from "react";
+import { EVENTS, track } from "../analytics";
 import type { RoomFailure } from "../api/rooms";
 import {
   graphemes,
@@ -213,7 +214,7 @@ function RoomForms({ invite, initialTab, currentRoom, onCreate, onJoin, onJoined
                   {error.text}
                 </p>
               ) : null}
-              <button type="submit" className="lyrix-button is-block" aria-disabled={pending}>
+              <button type="submit" className="lyrix-button is-block" aria-disabled={pending} {...track(EVENTS.createRoom)}>
                 {pending ? "Création du salon…" : "Créer le salon"}
               </button>
             </div>
@@ -253,7 +254,12 @@ function RoomForms({ invite, initialTab, currentRoom, onCreate, onJoin, onJoined
                   {error.text}
                 </p>
               ) : null}
-              <button type="submit" className="lyrix-button is-accent is-block" aria-disabled={pending}>
+              <button
+                type="submit"
+                className="lyrix-button is-accent is-block"
+                aria-disabled={pending}
+                {...track(EVENTS.joinRoom)}
+              >
                 {pending ? "Connexion au salon…" : "Rejoindre le salon"}
               </button>
             </div>
@@ -281,8 +287,9 @@ function InRoom({ room, onDone, onLeave }: InRoomProps) {
             label="Copier le lien"
             shareLabel="Partager le lien"
             tone="light"
+            trackAs={EVENTS.shareInvite}
           />
-          <CopyButton value={room.code} label="Copier le code" tone="light" />
+          <CopyButton value={room.code} label="Copier le code" tone="light" trackAs={EVENTS.copyRoomCode} />
         </div>
       </div>
       <p className="lyrix-mp-text">
@@ -297,7 +304,7 @@ function InRoom({ room, onDone, onLeave }: InRoomProps) {
       <button type="button" className="lyrix-button is-accent is-block" onClick={onDone}>
         Chercher ensemble
       </button>
-      <button type="button" className="lyrix-button is-block" onClick={onLeave}>
+      <button type="button" className="lyrix-button is-block" onClick={onLeave} {...track(EVENTS.leaveRoom)}>
         Quitter le salon
       </button>
     </div>
