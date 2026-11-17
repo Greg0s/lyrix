@@ -1,4 +1,5 @@
 import { memo, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { EVENTS, track } from "../analytics";
 import { hintCardText, hintRows } from "../game/hints";
 import { memberName, type RoomHint } from "../game/room";
 import type { HintId, RoundHints } from "../game/types";
@@ -85,6 +86,7 @@ export const HintsCard = memo(function HintsCard({ hints, victory, group, reveal
                     type="button"
                     className="lyrix-hint is-choice"
                     aria-disabled={revealing}
+                    {...track(EVENTS.revealHint, { hint: row.id, from: "card" })}
                     onClick={() => {
                       if (!revealing) onReveal(row.id);
                     }}

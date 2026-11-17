@@ -24,7 +24,7 @@ The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header
 - **Database**: none. Cloudflare D1 is reserved for a later phase (accounts, leaderboard) — do not add it now. Workers KV holds only the precomputed similarity tables (see below) and the songs resolved from LRCLIB with their covers (`SONGS`), not application data.
 - **Rooms** ("salons", #29): one SQLite-backed Durable Object per room code (`worker/src/room.ts`), members kept live over hibernatable WebSockets, everything deleted at the next UTC midnight. Creating and joining are rate-limited per client with the Workers Rate Limiting binding (`worker/src/roomRoutes.ts`). Each room also plays a round together (#30): today's song, or a day of the archives any member takes the room to; its object holds the room's guesses, one round per day, and sends every member the same masked view.
 - **Semantic proximity scoring**: French word embeddings, precomputed offline into a per-song score table — see `docs/SIMILARITY.md`.
-- **Statistics**: Workers Analytics Engine (the `EVENTS` dataset, `lyrix_events`), written by the Worker (`worker/src/events.ts`) and read back with `npm run stats` (`scripts/stats.ts`, the SQL API). Plus Umami, the developer's own cookieless instance (on Vercel), its script added to index.html's head by production builds only (`scripts/lib/umami.ts`, asked for by the developer): the only third-party script, and no other may be added.
+- **Statistics**: Workers Analytics Engine (the `EVENTS` dataset, `lyrix_events`), written by the Worker (`worker/src/events.ts`) and read back with `npm run stats` (`scripts/stats.ts`, the SQL API). Plus Umami, the developer's own cookieless instance (on Vercel), its script added to index.html's head by production builds only (`scripts/lib/umami.ts`, asked for by the developer): the only third-party script, and no other may be added. It also counts a few clicks, as `data-umami-event` attributes (`track()`, `src/analytics.ts`): a control's name and fixed labels only, never a typed word, room code, pseudo or song; a shipped event name is never renamed.
 - **Installable (PWA, #79)**: `public/manifest.webmanifest` and a hand-written service worker (`src/serviceWorker/sw.ts`, about 2 kB), bundled on its own into `/sw.js` by a Vite plugin (`scripts/lib/serviceWorker.ts`) that writes the build's file list in. No `vite-plugin-pwa`/Workbox.
 - **Planned, not yet in scope**: word-usage counter.
 
@@ -158,6 +158,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
   rules.ts               # the rules' page: its title, description and FAQ (also in its built HTML)
   legal.ts               # the legal page's facts: contact (CONTACT_EMAIL), host, last update
   stats.ts               # the audience report: counts screens, sends it on hiding the tab; the opt-out
+  analytics.ts           # the clicks Umami counts: event names, track() -> data-umami-event attributes
   errorReport.ts         # uncaught errors and rejections, reported to the Worker (a few per load, each once)
   roundPrefetch.ts       # today's round, asked for by main.tsx before React renders (fresh loads only)
   pwa.ts                 # registers the service worker (production builds only); OFFLINE_MESSAGE

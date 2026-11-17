@@ -1,4 +1,5 @@
 import { hintCardText, hintRows } from "../game/hints";
+import { EVENTS, track } from "../analytics";
 import type { HintId, RoundHints } from "../game/types";
 import { HintIcon } from "./HintIcon";
 import { Modal } from "./Modal";
@@ -31,6 +32,7 @@ export function HintSheet({ hints, group, onReveal, onClosed }: HintSheetProps) 
                 <button
                   type="button"
                   className="lyrix-hint is-choice"
+                  {...track(EVENTS.revealHint, { hint: row.id, from: "sheet" })}
                   onClick={() => {
                     onReveal(row.id);
                     requestClose();

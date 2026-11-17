@@ -1,4 +1,5 @@
 import { capitalize, longDayLabel } from "../game/frenchDates";
+import { EVENTS, track } from "../analytics";
 import { ChevronIcon } from "./ChevronIcon";
 
 interface VictoryFootProps {
@@ -31,7 +32,12 @@ export function VictoryFoot({
           En attendant, {daysLeft} {daysLeft > 1 ? "chansons" : "chanson"} des 30 derniers jours{" "}
           {daysLeft > 1 ? "t'attendent" : "t'attend"}.
         </p>
-        <button type="button" className="lyrix-button is-accent" onClick={onOpenArchives}>
+        <button
+          type="button"
+          className="lyrix-button is-accent"
+          onClick={onOpenArchives}
+          {...track(EVENTS.openArchives, { from: "victory" })}
+        >
           Voir les archives
         </button>
       </div>
@@ -48,7 +54,12 @@ export function VictoryFoot({
         <p className="lyrix-victory-foot-text">Tu as trouvé toutes les chansons des 30 derniers jours&nbsp;!</p>
       )}
       <div className="lyrix-victory-actions">
-        <button type="button" className="lyrix-button is-ghost" onClick={onOpenArchives}>
+        <button
+          type="button"
+          className="lyrix-button is-ghost"
+          onClick={onOpenArchives}
+          {...track(EVENTS.openArchives, { from: "victory" })}
+        >
           Toutes les archives
         </button>
         {nextDay ? (
@@ -56,6 +67,7 @@ export function VictoryFoot({
             type="button"
             className="lyrix-button is-accent lyrix-victory-play"
             onClick={() => onPlayDay(nextDay)}
+            {...track(EVENTS.playNextDay)}
             aria-label={`Jouer la chanson du ${longDayLabel(nextDay)}`}
           >
             Jouer

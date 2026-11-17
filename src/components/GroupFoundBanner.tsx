@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { EVENTS, track } from "../analytics";
 import { memberName, type RoomMember } from "../game/room";
 import { playerStyle } from "./playerColor";
 
@@ -25,7 +26,7 @@ export const GroupFoundBanner = memo(function GroupFoundBanner({ winner, you, on
           ton côté&nbsp;: le mot gagnant est encore caché pour toi.
         </span>
       </p>
-      <button type="button" className="lyrix-button is-accent" onClick={onReveal}>
+      <button type="button" className="lyrix-button is-accent" onClick={onReveal} {...track(EVENTS.revealGroupAnswer)}>
         Afficher la réponse
       </button>
     </section>

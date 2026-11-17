@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useState } from "react";
+import { EVENTS, track } from "../analytics";
 import { playerCountLabel } from "../game/room";
 import { prefersReducedMotion } from "../reducedMotion";
 import { TODAY, type Route } from "../routes";
@@ -69,6 +70,7 @@ export const AppHeader = memo(function AppHeader({
             type="button"
             className="lyrix-pill is-dark"
             onClick={onOpenMultiplayer}
+            {...track(EVENTS.openMultiplayer, { from: "header" })}
             aria-label={inRoom ? roomLabel : "Jouer à plusieurs"}
           >
             <span className="lyrix-pill-icon">
@@ -91,6 +93,7 @@ export const AppHeader = memo(function AppHeader({
             type="button"
             className={`lyrix-pill is-outline${archivesOpen ? " is-current" : ""}`}
             onClick={onToggleArchives}
+            {...track(EVENTS.openArchives, { from: "header" })}
             aria-label="Archives"
             data-tour="archives"
             aria-current={archivesOpen ? "page" : undefined}
@@ -102,6 +105,7 @@ export const AppHeader = memo(function AppHeader({
             type="button"
             className={`lyrix-pill is-outline${helpOpen ? " is-current" : ""}`}
             onClick={onToggleHelp}
+            {...track(EVENTS.openHelp)}
             aria-label="Comment jouer"
             data-tour="help"
             aria-current={helpOpen ? "page" : undefined}

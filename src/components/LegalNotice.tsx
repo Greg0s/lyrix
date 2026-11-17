@@ -177,7 +177,7 @@ export function LegalNotice({ onClose, contact = CONTACT_EMAIL }: LegalNoticePro
           <p>
             Le site charge aussi Umami, un outil libre de mesure d'audience sans cookie, installé par l'éditeur sur son
             propre serveur chez Vercel. À chaque page vue, ton navigateur lui envoie l'adresse de la page, le site qui
-            t'a amené ici, la langue et la taille de ton écran. Umami en déduit ton pays, ton navigateur et ton type
+            t'a amené ici, la langue et la taille de ton écran, ainsi que le nom de quelques boutons quand tu les utilises (créer un salon, révéler un indice, ouvrir les archives…), jamais ce que tu tapes. Umami en déduit ton pays, ton navigateur et ton type
             d'appareil, et distingue les visiteurs par une empreinte anonymisée de ton adresse IP et de ton navigateur,
             renouvelée chaque mois&nbsp;: ton adresse IP n'est pas conservée, et aucun cookie ni identifiant n'est
             déposé sur ton appareil. Umami ne sert qu'à l'éditeur, n'envoie rien si ton navigateur demande à ne pas être suivi (Do

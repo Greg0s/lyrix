@@ -1,4 +1,5 @@
 import { memo, useState } from "react";
+import { EVENTS, track } from "../analytics";
 import { dismissPromo, isPromoDismissed } from "../promoStorage";
 import { GroupIcon } from "./GroupIcon";
 
@@ -23,7 +24,7 @@ export const MultiplayerPromo = memo(function MultiplayerPromo({ onOpen }: Multi
 
   return (
     <div className="lyrix-promo-wrap">
-      <button type="button" className="lyrix-promo" onClick={onOpen}>
+      <button type="button" className="lyrix-promo" onClick={onOpen} {...track(EVENTS.openMultiplayer, { from: "promo" })}>
         <span className="lyrix-promo-icon">
           <GroupIcon />
         </span>
@@ -34,7 +35,13 @@ export const MultiplayerPromo = memo(function MultiplayerPromo({ onOpen }: Multi
           </span>
         </span>
       </button>
-      <button type="button" className="lyrix-promo-close" onClick={dismiss} aria-label="Masquer cette suggestion">
+      <button
+        type="button"
+        className="lyrix-promo-close"
+        onClick={dismiss}
+        aria-label="Masquer cette suggestion"
+        {...track(EVENTS.dismissPromo)}
+      >
         ✕
       </button>
     </div>

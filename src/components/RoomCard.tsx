@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { EVENTS, track } from "../analytics";
 import { inviteUrl, playerCountLabel } from "../game/room";
 import type { RoomView } from "../hooks/useRoom";
 import { CopyButton } from "./CopyButton";
@@ -24,13 +25,14 @@ export const RoomCard = memo(function RoomCard({ room, onLeave }: RoomCardProps)
       <div className="lyrix-room-code-row">
         <span className="lyrix-room-code">{room.code}</span>
         <div className="lyrix-room-code-actions">
-          <CopyButton value={room.code} label="Copier le code" tone="dark" icon="copy" />
+          <CopyButton value={room.code} label="Copier le code" tone="dark" icon="copy" trackAs={EVENTS.copyRoomCode} />
           <CopyButton
             value={inviteUrl(room.code, window.location.origin)}
             label="Copier le lien d’invitation"
             shareLabel="Partager le lien d’invitation"
             tone="dark"
             icon="link"
+            trackAs={EVENTS.shareInvite}
           />
         </div>
       </div>
@@ -38,7 +40,7 @@ export const RoomCard = memo(function RoomCard({ room, onLeave }: RoomCardProps)
       <p className={`lyrix-room-waiting${room.connected ? "" : " is-offline"}`} role="status">
         {room.connected ? "En attente de joueurs…" : "Connexion au salon perdue, nouvelle tentative…"}
       </p>
-      <button type="button" className="lyrix-room-leave" onClick={onLeave}>
+      <button type="button" className="lyrix-room-leave" onClick={onLeave} {...track(EVENTS.leaveRoom)}>
         Quitter le salon
       </button>
     </section>
