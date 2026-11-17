@@ -110,6 +110,12 @@ interface SharedRound extends RoomSession {
   revealed: boolean;
   /** The solo round to keep looking on was asked for (see useGame's effect): once per room session and day. */
   aloneRequested: boolean;
+  /**
+   * That request is on its way: the solo round on screen is about to be
+   * replaced, so no guess or hint is sent on it meanwhile, whose answer would
+   * land over the group's progress or be dropped from it.
+   */
+  aloneLoading: boolean;
   /** Every day the room played, for the group's collection in the archives. */
   days: RoomDaySummary[];
   /** The hints the group revealed, with who picked each (RoomRound.hints). */
@@ -164,7 +170,7 @@ function withRoomRound(shared: SharedRound, update: RoomRound): SharedRound {
     days: update.days ?? shared.days,
     hints: update.hints ?? [],
     ...(otherDay || shared.round === null
-      ? { revealed: isAnswerRevealed(shared.code, update.round.day), aloneRequested: false }
+      ? { revealed: isAnswerRevealed(shared.code, update.round.day), aloneRequested: false, aloneLoading: false }
       : {}),
   };
 }
@@ -226,6 +232,12 @@ interface GameState {
    * celebration never plays over a round the player didn't just win.
    */
   celebration: number;
+  /**
+   * The rooms the player left are joining their own rounds (see useGame's
+   * merge effect): the solo round on screen is about to be replaced, so no
+   * guess or hint is sent on it meanwhile.
+   */
+  merging: boolean;
 }
 
 const initialState: GameState = {
@@ -242,6 +254,7 @@ const initialState: GameState = {
   songUnavailable: false,
   revealingHint: false,
   celebration: 0,
+  merging: false,
 };
 
 /** Today's round straight from storage, when its view was saved: no network, no loading screen. */
@@ -263,13 +276,13 @@ function hydratedState(day: string | null): GameState | null {
     songUnavailable: false,
     revealingHint: false,
     celebration: 0,
+    merging: false,
   };
 }
 
 const NO_ROOM_DAYS: RoomDaySummary[] = [];
 const NO_ROOM_HINTS: RoomHint[] = [];
 
-/** The player's own words, then the words the group found that they hadn't: what a round merged with a room's lists. */
 /** Every word either list tried, each once: `own` first, as it was. */
 function withOtherTabWords(own: readonly TriedWord[], other: readonly TriedWord[]): TriedWord[] {
   const keys = new Set(own.map((word) => word.key));
@@ -285,9 +298,43 @@ function holdsMore(
   return a.words.some((word) => !keys.has(word.key)) || a.hints.some((hint) => !b.hints.includes(hint));
 }
 
-function withGroupFinds(own: readonly TriedWord[], group: readonly TriedWord[]): TriedWord[] {
+/**
+ * The player's own words, then the room's words they hadn't listed: what a
+ * round merged with a room's lists. Without who proposed them: the solo list
+ * is kept for 30 days, a teammate's pseudo only as long as the room.
+ */
+function withRoomWords(own: readonly TriedWord[], room: readonly TriedWord[]): TriedWord[] {
   const keys = new Set(own.map((word) => word.key));
-  return [...own, ...group.filter((word) => word.found && !keys.has(word.key))];
+  const added: TriedWord[] = [];
+  for (const { key, display, found, score, near } of room) {
+    if (keys.has(key)) continue;
+    keys.add(key);
+    added.push({ key, display, found, score, near });
+  }
+  return [...own, ...added];
+}
+
+/**
+ * What of the room's guesses joins the player's own list: every word anyone
+ * proposed in the room, missed ones included (decided with the developer), but
+ * `withheld` (the winning one, for a player looking alone). Only the found
+ * words used to join it, so the misses vanished from "Tes mots" the moment
+ * the group's list gave way to it.
+ */
+function roomWordsKept(guesses: readonly TriedWord[], withheld: string | null = null): TriedWord[] {
+  return withheld === null ? [...guesses] : guesses.filter((word) => word.key !== withheld);
+}
+
+/**
+ * A solo round is about to replace the one on screen (the group's progress
+ * signed for a player looking alone, or a room left joining their own round):
+ * nothing is sent on the one shown until it has.
+ */
+function syncing(state: GameState): boolean {
+  if (state.merging) return true;
+  const { shared } = state;
+  if (!shared || !lookingAlone(shared) || !onRoomDay(state) || wonAlone(state)) return false;
+  return !shared.aloneRequested || shared.aloneLoading;
 }
 
 /**
@@ -555,7 +602,7 @@ export function useGame(day: string | null = null) {
     // slower response clobber a faster one's revealed words.
     // A hint on its way too: its answer carries the state, which a guess
     // answered meanwhile would have moved on without it.
-    if (!raw || !round || submitting || revealingHint) return;
+    if (!raw || !round || submitting || revealingHint || syncing(state)) return;
 
     // Mirror the server's own normalization so a repeat guess is a free,
     // instant no-op instead of a round trip. In a room, anyone's counts.
@@ -683,7 +730,7 @@ export function useGame(day: string | null = null) {
       const state = stateRef.current;
       const shared = roomShown(state) ? state.shared : null;
       const round = shared ? shared.round : state.round;
-      if (!round?.hints || state.revealingHint || state.submitting) return;
+      if (!round?.hints || state.revealingHint || state.submitting || syncing(state)) return;
       setState((prev) => ({ ...prev, revealingHint: true }));
       try {
         if (shared) {
@@ -736,6 +783,7 @@ export function useGame(day: string | null = null) {
         veiled: false,
         revealed: false,
         aloneRequested: false,
+        aloneLoading: false,
         days: [],
         hints: [],
       };
@@ -818,8 +866,14 @@ export function useGame(day: string | null = null) {
   // loaded, so its own progress goes along. Without it, the solo round as is.
   const alone = lookingAlone(state.shared);
   // The solo round of the room's day only: the one the room's song is played on.
+  // Not while a guess is on its way, whose answer would land over the round
+  // signed; nor once the player has found the song on their own: their won
+  // round is complete as it is.
   const aloneSession =
-    alone && state.shared && !state.shared.aloneRequested && !state.loading && onRoomDay(state) ? state.shared : null;
+    alone && state.shared && !state.shared.aloneRequested && !state.loading && !state.submitting && onRoomDay(state) &&
+    !wonAlone(state)
+      ? state.shared
+      : null;
   const soloState = state.round?.state;
   useEffect(() => {
     if (!aloneSession?.round) return;
@@ -827,18 +881,24 @@ export function useGame(day: string | null = null) {
     const { day: roomDay } = aloneSession.round;
     // What the round the room signs holds of the group's, listed with the
     // player's own words: as of now, so no later find of the room's gets in.
-    const groupFinds = aloneSession.triedWords.filter((word) => word.key !== aloneSession.winningKey);
-    setState((prev) => (prev.shared ? { ...prev, shared: { ...prev.shared, aloneRequested: true } } : prev));
+    // The room's guesses go along, missed ones included.
+    const roomWords = roomWordsKept(aloneSession.triedWords, aloneSession.winningKey);
+    const done = (prev: GameState): GameState =>
+      prev.shared?.code === code ? { ...prev, shared: { ...prev.shared, aloneLoading: false } } : prev;
+    setState((prev) =>
+      prev.shared ? { ...prev, shared: { ...prev.shared, aloneRequested: true, aloneLoading: true } } : prev
+    );
     continueAlone(code, token, soloState, roomDay)
       .then((round) => {
         setState((prev) => {
-          if (prev.shared?.code !== code || (prev.day ?? utcDay()) !== round.day) return prev;
-          const triedWords = withGroupFinds(prev.triedWords, groupFinds);
+          if (prev.shared?.code !== code || (prev.day ?? utcDay()) !== round.day) return done(prev);
+          const triedWords = withRoomWords(prev.triedWords, roomWords);
           saveRoundSoon(round, triedWords);
-          return { ...prev, round, triedWords, error: null };
+          return done({ ...prev, round, triedWords, error: null });
         });
       })
-      .catch(() => {});
+      // The solo round as it was: the player looks on from their own progress.
+      .catch(() => setState(done));
   }, [aloneSession, soloState]);
 
   // While in a room, what it has found is kept aside, to join the player's own
@@ -853,6 +913,7 @@ export function useGame(day: string | null = null) {
       code: sharedNow.code,
       state: sharedNow.round.state,
       found: sharedNow.triedWords.filter((word) => word.found),
+      missed: sharedNow.triedWords.filter((word) => !word.found),
     });
   }, [sharedNow]);
 
@@ -870,6 +931,7 @@ export function useGame(day: string | null = null) {
     const snapshots = loadGroupSnapshots();
     if (snapshots.length === 0) return;
     merging.current = true;
+    setState((prev) => ({ ...prev, merging: true }));
     void (async () => {
       for (const snapshot of snapshots) {
         // The latest of the player's own first, a write of it still pending included.
@@ -884,7 +946,7 @@ export function useGame(day: string | null = null) {
           if (!isTransientFailure(error)) clearGroupSnapshot(snapshot);
           continue;
         }
-        const triedWords = withGroupFinds(own?.triedWords ?? [], snapshot.found);
+        const triedWords = withRoomWords(own?.triedWords ?? [], [...snapshot.found, ...(snapshot.missed ?? [])]);
         saveRound(merged, triedWords);
         clearGroupSnapshot(snapshot);
         // On screen if it is the solo round of that day.
@@ -893,6 +955,7 @@ export function useGame(day: string | null = null) {
         );
       }
       merging.current = false;
+      setState((prev) => ({ ...prev, merging: false }));
     })();
   }, [outOfRoom]);
 
@@ -945,6 +1008,8 @@ export function useGame(day: string | null = null) {
   const winner = state.shared ? groupWinner(state.shared) : null;
   return {
     ...state,
+    /** A guess is on its way, or the round on screen is about to be replaced: the dock waits. */
+    submitting: state.submitting || syncing(state),
     round: shared ? shared.round : state.round,
     triedWords: shared ? shared.triedWords : state.triedWords,
     inRoom: state.shared !== null,

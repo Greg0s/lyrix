@@ -1037,6 +1037,43 @@ describe("the room's round (#30)", () => {
     expect(window.localStorage.getItem(`lyrix:group:${utcDay()}:ABC234`)).toBeNull();
   });
 
+  it("keeps the room's misses among the player's words once they leave", async () => {
+    answer(204);
+    resumeRound.mockResolvedValue(round("merged", ["vent"]));
+    seedRoom(entry(camille.id, [camille, leo]));
+    await mountGame([roomGuess("piano", camille, false), roomGuess("guitare", leo, false), roomGuess("vent", leo, true)]);
+
+    fireEvent.click(within(roomCard() as HTMLElement).getByRole("button", { name: "Quitter le salon" }));
+
+    await waitFor(() => expect(lyricsText()).toContain("vent"));
+    const card = screen.getByRole("region", { name: "Tes mots" });
+    const chips = [...card.querySelectorAll(".lyrix-chip")].map((chip) => chip.textContent).sort();
+    expect(chips).toEqual(["guitare", "piano", "vent"]);
+  });
+
+  it("sends nothing on the solo round while the room's progress is joining it", async () => {
+    answer(204);
+    let merge: (view: RoundView) => void = () => {};
+    resumeRound.mockReturnValue(new Promise<RoundView>((resolve) => (merge = resolve)));
+    submitGuess.mockResolvedValue({ ...round("merged-2", ["vent"]), found: false, key: "piano", score: 12, near: [] });
+    seedRoom();
+    const input = await mountGame([roomGuess("vent", leo, true)]);
+    fireEvent.click(within(roomCard() as HTMLElement).getByRole("button", { name: "Quitter le salon" }));
+    await waitFor(() => expect(resumeRound).toHaveBeenCalled());
+
+    fireEvent.change(input, { target: { value: "piano" } });
+    fireEvent.submit(input);
+    expect(submitGuess).not.toHaveBeenCalled();
+
+    await act(async () => merge(round("merged", ["vent"])));
+    await waitFor(() => expect(lyricsText()).toContain("vent"));
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(submitGuess).toHaveBeenCalledWith("merged", "piano"));
+    await waitFor(() => expect(screen.getByText("piano", { selector: ".lyrix-chip" })).toBeTruthy());
+    expect(screen.getByText("vent", { selector: ".lyrix-chip" })).toBeTruthy();
+  });
+
   it("keeps the group's progress apart while the player is in the room", async () => {
     seedRoom();
     await mountGame([roomGuess("vent", leo, true)]);
@@ -1133,7 +1170,7 @@ describe("when the group finds the song without the player (#30)", () => {
 
   // The solo list was shown as it was before the room: empty, or the few
   // words tried alone, under lyrics holding everything the group found.
-  it("lists what the group found but the winning word among the player's own words", async () => {
+  it("lists what the group tried but the winning word among the player's own words", async () => {
     answer(200, aloneRound);
     seedRoom(entry(camille.id, [camille, leo]));
     await mountGame([roomGuess("guitare", leo, false), ...titleFound.slice(1)]);
@@ -1143,7 +1180,7 @@ describe("when the group finds the song without the player (#30)", () => {
     await waitFor(() => expect(lyricsText()).toContain("refuge"));
     const card = screen.getByRole("region", { name: "Tes mots" });
     const chips = [...card.querySelectorAll(".lyrix-chip")].map((chip) => chip.textContent).sort();
-    expect(chips).toEqual(["de", "le", "refuge"]);
+    expect(chips).toEqual(["de", "guitare", "le", "refuge"]);
     expect(document.querySelector('[data-stat="found"] .lyrix-stat-value')?.textContent).toBe("3");
   });
 
@@ -1287,6 +1324,67 @@ describe("when the group finds the song without the player (#30)", () => {
     latestSocket().receive(veiledMessage());
     await waitFor(() => expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy());
     expect(answerCalls()).toHaveLength(2);
+  });
+
+  // Greg's report: when a teammate found the song, "Tes mots" was rewritten,
+  // the words proposed in the room and missed gone from it.
+  it("keeps the room's misses among the player's words, its winning word aside", async () => {
+    answer(200, aloneRound);
+    seedRoom(entry(camille.id, [camille, leo]));
+    const before = [roomGuess("guitare", leo, false), roomGuess("piano", camille, false), ...titleFound.slice(1)];
+    await mountGame(before);
+
+    latestSocket().receive(roundMessage([titleFound[0] as RoomGuess, ...before], "novembre", "novembre"));
+
+    await waitFor(() => expect(lyricsText()).toContain("refuge"));
+    const card = screen.getByRole("region", { name: "Tes mots" });
+    const chips = [...card.querySelectorAll(".lyrix-chip")].map((chip) => chip.textContent).sort();
+    expect(chips).toEqual(["de", "guitare", "le", "piano", "refuge"]);
+    // Kept for 30 days with the round: never with a teammate's pseudo.
+    flushSavedRound();
+    expect(window.localStorage.getItem(`lyrix:day:${utcDay()}`)).not.toContain("Léo");
+    expect(window.localStorage.getItem(`lyrix:view:${utcDay()}`)).not.toContain("Léo");
+  });
+
+  it("sends nothing on the solo round while the group's progress is on its way to it", async () => {
+    let sign: (response: Response) => void = () => {};
+    fetchMock.mockReturnValueOnce(new Promise<Response>((resolve) => (sign = resolve)));
+    submitGuess.mockResolvedValue({ ...round("alone-state-2", ["le", "refuge", "de"]), found: false, key: "piano", score: 12, near: [] });
+    seedRoom(entry(camille.id, [camille, leo]));
+    const input = await mountGame(titleFound.slice(1));
+    latestSocket().receive(roundMessage(titleFound, "novembre", "novembre"));
+    await waitFor(() => expect(aloneCalls()).toHaveLength(1));
+
+    fireEvent.change(input, { target: { value: "piano" } });
+    fireEvent.submit(input);
+
+    // Sent on the round about to be replaced, its answer would have landed
+    // over the group's progress, in the lyrics and in "Tes mots".
+    expect(submitGuess).not.toHaveBeenCalled();
+    expect(document.querySelector(".lyrix-submit")?.getAttribute("aria-disabled")).toBe("true");
+
+    await act(async () => sign(new Response(JSON.stringify(aloneRound), { status: 200 })));
+    await waitFor(() => expect(lyricsText()).toContain("refuge"));
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(submitGuess).toHaveBeenCalledWith("alone-state", "piano"));
+    const card = screen.getByRole("region", { name: "Tes mots" });
+    await waitFor(() => expect(card.querySelectorAll(".lyrix-chip")).toHaveLength(4));
+    expect(lyricsText()).toContain("refuge");
+  });
+
+  it("asks for nothing once the player has found the song on their own", async () => {
+    saveRound(round("won", ["le", "refuge", "de", "novembre"]), [
+      { key: "novembre", display: "novembre", found: true, score: 100, near: [] },
+    ]);
+    flushSavedRound();
+    seedRoom(entry(camille.id, [camille, leo]));
+    render(<GameScreen />);
+
+    latestSocket().receive(roundMessage(titleFound, undefined, "novembre"));
+
+    await waitFor(() => expect(screen.getByText("Bravo, tu l'as trouvée !")).toBeTruthy());
+    expect(aloneCalls()).toHaveLength(0);
   });
 
   it("stays quiet about the room's later finds while the player looks alone", async () => {

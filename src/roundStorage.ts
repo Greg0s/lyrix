@@ -434,6 +434,8 @@ export interface GroupSnapshot {
   code: string;
   state: string;
   found: TriedWord[];
+  /** The room's guesses that found nothing, listed among the player's words too. Absent from older snapshots. */
+  missed?: TriedWord[];
 }
 
 function groupKey(day: string, code: string): string {
@@ -447,7 +449,8 @@ function parseGroupSnapshot(value: unknown): GroupSnapshot | null {
   if (!isDayKey(candidate.day) || typeof candidate.code !== "string" || typeof candidate.state !== "string" || !found) {
     return null;
   }
-  return { day: candidate.day, code: candidate.code, state: candidate.state, found };
+  const missed = candidate.missed === undefined ? [] : parseTriedWords(candidate.missed);
+  return { day: candidate.day, code: candidate.code, state: candidate.state, found, ...(missed?.length ? { missed } : {}) };
 }
 
 export function saveGroupSnapshot(snapshot: GroupSnapshot, storage: Storage | undefined = globalThis.localStorage): void {
