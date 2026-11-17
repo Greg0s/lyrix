@@ -80,13 +80,23 @@ export function progressAfterGuess(
   if (alreadyFound || missed.includes(mark)) return before;
   const tried = before.tried + 1;
   if (tried >= LAST_HINT_THRESHOLD) return { tried, used: before.used };
-  return { tried, used: before.used, ...(found ? (before.missed ? { missed } : {}) : { missed: [...missed, mark] }) };
+  return { tried, used: before.used, ...(found ? (before.missed ? { missed } : {}) : { missed: capped([...missed, mark]) }) };
+}
+
+/**
+ * At most as many marks as a state may hold, the latest kept: two states
+ * merged can hold more distinct misses together than either, and a state
+ * with too many no longer opened (docs/LEARNINGS.md, 2026-11-17). A mark let
+ * go only means that word could count once more.
+ */
+function capped(missed: string[]): string[] {
+  return missed.length > LAST_HINT_THRESHOLD ? missed.slice(-LAST_HINT_THRESHOLD) : missed;
 }
 
 /** Several states' misses put together, for a merged round (or none past the last hint). */
 export function mergedMissed(tried: number, ...lists: (readonly string[] | undefined)[]): { missed?: string[] } {
   if (tried >= LAST_HINT_THRESHOLD) return {};
-  const missed = [...new Set(lists.flatMap((list) => list ?? []))];
+  const missed = capped([...new Set(lists.flatMap((list) => list ?? []))]);
   return missed.length > 0 ? { missed } : {};
 }
 
