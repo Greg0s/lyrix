@@ -16,6 +16,8 @@ import { parseRoute, type Route } from "./routes";
  */
 
 const OPT_OUT_KEY = "lyrix:no-stats";
+/** Umami's own switch (scripts/lib/umami.ts): its tracker sends nothing while this key holds a value. */
+const UMAMI_OPT_OUT_KEY = "umami.disabled";
 
 function storage(): Storage | undefined {
   try {
@@ -37,8 +39,13 @@ export function isStatsOptedOut(): boolean {
 export function setStatsOptedOut(optedOut: boolean): void {
   memoryOptOut = optedOut;
   try {
-    if (optedOut) storage()?.setItem(OPT_OUT_KEY, "1");
-    else storage()?.removeItem(OPT_OUT_KEY);
+    if (optedOut) {
+      storage()?.setItem(OPT_OUT_KEY, "1");
+      storage()?.setItem(UMAMI_OPT_OUT_KEY, "1");
+    } else {
+      storage()?.removeItem(OPT_OUT_KEY);
+      storage()?.removeItem(UMAMI_OPT_OUT_KEY);
+    }
   } catch {
     // Storage refused (private mode): the choice lasts as long as the page.
   }

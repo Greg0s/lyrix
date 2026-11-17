@@ -125,7 +125,7 @@ export function LegalNotice({ onClose, contact = CONTACT_EMAIL }: LegalNoticePro
             <dd>
               Comme tout site, Lyrix la reçoit à chaque requête. Elle sert à t'envoyer les pages, à protéger le site des
               abus et à limiter le nombre de salons créés ou rejoints par minute&nbsp;; Lyrix ne la conserve pas, pas même
-              pour la mesure d'audience. Les
+              pour la mesure d'audience (Umami s'en sert sans la garder, voir plus bas). Les
               journaux techniques du serveur, qui servent à diagnostiquer une panne, sont effacés au bout de quelques
               jours.
             </dd>
@@ -136,17 +136,18 @@ export function LegalNotice({ onClose, contact = CONTACT_EMAIL }: LegalNoticePro
               identifiant, ni ce que tu as tapé, ni le code d'un salon. Ces rapports sont effacés des journaux du serveur
               au bout de quelques jours et comptés anonymement avec les statistiques ci-dessous.
             </dd>
-            <dt>Aucun service tiers</dt>
+            <dt>Un seul autre service</dt>
             <dd>
-              Le site ne charge rien depuis un autre service&nbsp;: ni police, ni script, ni traceur. Aucune donnée
-              n'est vendue, partagée à des fins publicitaires ni utilisée pour te profiler.
+              En dehors de la mesure d'audience Umami décrite plus bas, le site ne charge rien depuis un autre
+              service&nbsp;: ni police, ni traceur publicitaire. Aucune donnée n'est vendue, partagée à des fins
+              publicitaires ni utilisée pour te profiler.
             </dd>
           </dl>
           <p>
             Le responsable de ces traitements est l'éditeur. Ils reposent sur son intérêt légitime à faire fonctionner
-            le jeu que tu utilises et à le protéger des abus (article 6.1.f du RGPD). Son seul sous-traitant,{" "}
-            {HOST.name}, est établi aux États-Unis et adhère au Data Privacy Framework UE–États-Unis, qui encadre ce
-            transfert.
+            le jeu que tu utilises et à le protéger des abus (article 6.1.f du RGPD). Ses sous-traitants, {HOST.name}{" "}
+            et Vercel, Inc. (qui héberge la mesure d'audience Umami), sont établis aux États-Unis et adhèrent au Data
+            Privacy Framework UE–États-Unis, qui encadre ce transfert.
           </p>
         </section>
 
@@ -168,6 +169,15 @@ export function LegalNotice({ onClose, contact = CONTACT_EMAIL }: LegalNoticePro
             si tu coches cette case&nbsp;:
           </p>
           <StatsOptOut />
+          <p>
+            Le site charge aussi Umami, un outil libre de mesure d'audience sans cookie, installé par l'éditeur sur son
+            propre serveur chez Vercel. À chaque page vue, ton navigateur lui envoie l'adresse de la page, le site qui
+            t'a amené ici, la langue et la taille de ton écran. Umami en déduit ton pays, ton navigateur et ton type
+            d'appareil, et distingue les visiteurs par une empreinte anonymisée de ton adresse IP et de ton navigateur,
+            renouvelée chaque mois&nbsp;: ton adresse IP n'est pas conservée, et aucun cookie ni identifiant n'est
+            déposé sur ton appareil. Umami ne sert qu'à l'éditeur, n'envoie rien si ton navigateur demande à ne pas être suivi (Do
+            Not Track), et s'arrête aussi quand tu coches la case ci-dessus.
+          </p>
         </section>
 
         <section aria-labelledby="lyrix-legal-requests">
