@@ -48,7 +48,7 @@ export const TriedWords = memo(function TriedWords({ triedWords, group }: TriedW
   const freshClass = triedWords.length % 2 ? " is-fresh-a" : " is-fresh-b";
 
   return (
-    <section className={`lyrix-card lyrix-words${open ? " is-open" : ""}`} aria-label={title}>
+    <section className={`lyrix-card lyrix-words${open ? " is-open" : ""}`} aria-label={title} data-tour="words">
       {/* Disclosure pattern: the button lives inside the heading, never the other way round. */}
       <h2 className="lyrix-words-heading">
         <button

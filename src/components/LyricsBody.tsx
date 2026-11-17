@@ -44,7 +44,12 @@ export const LyricsBody = memo(function LyricsBody({ sections, revealAll = false
           <p className="lyrix-section-label">{section.label}</p>
           <div className="lyrix-section-lines">
             {section.lines.map((line, lineIndex) => (
-              <p className="lyrix-lyric-line" key={lineIndex}>
+              <p
+                className="lyrix-lyric-line"
+                key={lineIndex}
+                // Where the guided tour points at the lyrics (src/tour.ts): one line, never taller than the screen.
+                data-tour={sectionIndex === 0 && lineIndex === 0 ? "lyrics" : undefined}
+              >
                 <TokenRun tokens={line.tokens} revealAll={revealAll} lastFoundKey={lastFoundKey} />
               </p>
             ))}

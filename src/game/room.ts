@@ -24,6 +24,14 @@ import type { DisplayToken, HintId, NearSlot, RoundView } from "./types";
 export const ROOM_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 export const ROOM_CODE_LENGTH = 6;
 export const PSEUDO_MAX_LENGTH = 16;
+/**
+ * The most members a room takes: a join beyond it is refused (409). A room is
+ * one value in its Durable Object's storage, sent whole to every member, so
+ * nothing in it may grow without bound.
+ */
+export const MAX_ROOM_MEMBERS = 20;
+/** The most words a room may propose on one day's song, for the same reason (a guess beyond it: 403). */
+export const MAX_ROOM_GUESSES = 2_000;
 /** How the local player is named when they left "Ton pseudo" empty. */
 export const OWN_FALLBACK_NAME = "Toi";
 
@@ -132,6 +140,16 @@ export interface RoomRound {
    * looking on their own (POST /api/rooms/:code/alone).
    */
   winningKey?: string;
+  /** Once the group has found the song: who completed the title. Sent to every member, veiled or not. */
+  winner?: RoomMember;
+  /**
+   * Sent instead of the answer to a member who neither completed the title
+   * nor asked for the answer (POST /api/rooms/:code/answer): the round as it
+   * stood but for the winning word, which is left out of `guesses`, `round`
+   * and `winningKey`, and the days it won shown as before their winning word.
+   * The answer used to reach every member and was only hidden on screen.
+   */
+  veiled?: boolean;
   /** Every day the room played, the current one included. */
   days?: RoomDaySummary[];
 }
@@ -454,6 +472,7 @@ function parseRoomRound(value: Record<string, unknown>): RoomRound | null {
   const days = Array.isArray(value.days)
     ? value.days.map(parseRoomDaySummary).filter((summary): summary is RoomDaySummary => summary !== null)
     : undefined;
+  const winner = value.winner === undefined ? null : parseRoomMember(value.winner);
   // A malformed hint is dropped too: the round's own hints still show its text.
   const hints = Array.isArray(value.hints)
     ? value.hints.map(parseRoomHint).filter((hint): hint is RoomHint => hint !== null)
@@ -463,6 +482,8 @@ function parseRoomRound(value: Record<string, unknown>): RoomRound | null {
     guesses,
     ...(hints && hints.length > 0 ? { hints } : {}),
     ...(typeof value.winningKey === "string" ? { winningKey: value.winningKey } : {}),
+    ...(winner ? { winner } : {}),
+    ...(value.veiled === true ? { veiled: true } : {}),
     ...(days ? { days } : {}),
   };
 }

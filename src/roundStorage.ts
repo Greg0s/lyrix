@@ -40,6 +40,15 @@ export interface SavedDay {
   triedWords: TriedWord[];
   /** Only for today's round: the view it can resume from without the network. */
   round?: RoundView;
+  /** The hints revealed as of `state`, when the song has any. */
+  hintsUsed?: readonly string[];
+}
+
+/** The day a storage key holds the round of, for a `storage` event from another tab; null for any other key. */
+export function savedDayOfKey(key: string | null): string | null {
+  if (key === null || !key.startsWith(DAY_PREFIX)) return null;
+  const day = key.slice(DAY_PREFIX.length);
+  return isDayKey(day) ? day : null;
 }
 
 // Parses rather than type-guards, so a round saved before proximity scoring
@@ -142,7 +151,7 @@ function readDay(storage: Storage, day: string): DayEntry | null {
 function resumableView(value: unknown, saved: DayEntry, today: string): RoundView | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
-  const { title, sections, victory, artist, day } = candidate;
+  const { title, sections, victory, artist, year, cover, day } = candidate;
   if (typeof title !== "object" || title === null || !Array.isArray(sections) || typeof victory !== "boolean") {
     return null;
   }
@@ -159,6 +168,8 @@ function resumableView(value: unknown, saved: DayEntry, today: string): RoundVie
     sections: sections as RoundView["sections"],
     victory,
     ...(typeof artist === "string" ? { artist } : {}),
+    ...(typeof year === "number" ? { year } : {}),
+    ...(typeof cover === "string" ? { cover } : {}),
     ...(saved.hints ? { hints: saved.hints } : {}),
   };
 }
@@ -262,8 +273,17 @@ function write(storage: Storage, round: RoundView, triedWords: TriedWord[], toda
   // Last: the largest write, and the only one a full storage may refuse
   // without costing the day its progress.
   if (day === today && before !== revealed) {
-    const { day: viewDay, title, sections, victory, artist } = round;
-    const view = { day: viewDay, title, sections, victory, ...(artist !== undefined ? { artist } : {}), revealed };
+    const { day: viewDay, title, sections, victory, artist, year, cover } = round;
+    const view = {
+      day: viewDay,
+      title,
+      sections,
+      victory,
+      ...(artist !== undefined ? { artist } : {}),
+      ...(year !== undefined ? { year } : {}),
+      ...(cover !== undefined ? { cover } : {}),
+      revealed,
+    };
     storage.setItem(VIEW_PREFIX + day, JSON.stringify(view));
   }
 }
@@ -289,11 +309,12 @@ export function loadSavedDay(
     const saved = readDay(storage, day);
     if (!saved) return null;
     const { state, triedWords } = saved;
-    if (day !== utcDay(now)) return { state, triedWords };
+    const base: SavedDay = saved.hints ? { state, triedWords, hintsUsed: saved.hints.used } : { state, triedWords };
+    if (day !== utcDay(now)) return base;
     // Should the view's write have failed, or another tab have saved since,
     // the view must not stand for another state than the round carries on with.
     const round = resumableView(readJson(storage, VIEW_PREFIX + day), saved, day);
-    return round ? { state, triedWords, round } : { state, triedWords };
+    return round ? { ...base, round } : base;
   } catch {
     return null;
   }
@@ -413,6 +434,8 @@ export interface GroupSnapshot {
   code: string;
   state: string;
   found: TriedWord[];
+  /** The room's guesses that found nothing, listed among the player's words too. Absent from older snapshots. */
+  missed?: TriedWord[];
 }
 
 function groupKey(day: string, code: string): string {
@@ -426,7 +449,8 @@ function parseGroupSnapshot(value: unknown): GroupSnapshot | null {
   if (!isDayKey(candidate.day) || typeof candidate.code !== "string" || typeof candidate.state !== "string" || !found) {
     return null;
   }
-  return { day: candidate.day, code: candidate.code, state: candidate.state, found };
+  const missed = candidate.missed === undefined ? [] : parseTriedWords(candidate.missed);
+  return { day: candidate.day, code: candidate.code, state: candidate.state, found, ...(missed?.length ? { missed } : {}) };
 }
 
 export function saveGroupSnapshot(snapshot: GroupSnapshot, storage: Storage | undefined = globalThis.localStorage): void {

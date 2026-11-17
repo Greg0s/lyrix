@@ -361,19 +361,6 @@
   background: var(--color-surface-hover);
 }
 
-.lyrix-help-dot {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--color-ink);
-  color: var(--color-page-bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
 /* Sun in the dark theme, moon in the light one (ThemeToggle.tsx); the icon pops in on each switch. */
 .lyrix-theme-toggle {
   width: 38px;
@@ -777,15 +764,18 @@
   animation: lyrix-hint 0.45s var(--ease-out);
 }
 
-/* Tapping or focusing a bar: how many letters it hides, for a moment (see Blank in WordToken.tsx). */
+/*
+ * Tapping or focusing a bar: how many letters it hides, for a moment (see Blank in WordToken.tsx).
+ * A dark fill in both themes: a light one under dark text vanished in Samsung Internet's dark mode.
+ */
 .token-peek {
   position: absolute;
   bottom: calc(100% + 4px);
   left: 50%;
   z-index: 5;
   pointer-events: none;
-  background: var(--color-ink);
-  color: var(--color-page-bg);
+  background: var(--color-solid-raised);
+  color: var(--color-on-ink);
   font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 700;
@@ -820,10 +810,91 @@
   animation: lyrix-victory-in 0.6s cubic-bezier(0.34, 1.45, 0.64, 1) both;
 }
 
+/* The sleeve, then what was found: the artist first, the title and year under it. */
+.lyrix-victory-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
 .lyrix-victory-text {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+}
+
+/* On a phone, the sleeve sits above the text, so Artiste and Année keep the panel's whole width side by side. */
+@media (max-width: 559px) {
+  .lyrix-victory-main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+}
+
+/*
+ * The song's sleeve (VictoryCover): its album cover, shown only once loaded.
+ * Until then it takes no room, and a song without a cover has none at all.
+ */
+.lyrix-victory-cover {
+  position: relative;
+  flex: none;
+  width: clamp(68px, 16vw, 88px);
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.lyrix-victory-cover:not(.has-image) {
+  display: none;
+}
+
+.lyrix-victory-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: lyrix-cover-in 0.3s var(--ease-out);
+}
+
+/* The song's facts, side by side like a record's label: Artiste, then Année. */
+.lyrix-victory-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 0;
+  margin: 2px 0 6px;
+}
+
+.lyrix-victory-facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-right: 18px;
+}
+
+.lyrix-victory-facts > div + div {
+  padding-left: 18px;
+  border-left: 1px solid var(--color-solid-raised);
+}
+
+.lyrix-victory-facts dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-on-ink-muted);
+}
+
+.lyrix-victory-facts dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color-on-ink-accent);
+  overflow-wrap: anywhere;
 }
 
 .lyrix-victory-text p {
@@ -842,8 +913,13 @@
 }
 
 .lyrix-victory-song {
-  font-size: 1rem;
-  color: var(--color-on-ink-soft);
+  font-family: var(--font-display);
+  /* The same size on every screen: the facts under it stay a step smaller, as on a desktop. */
+  font-size: 1.3rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-on-ink);
 }
 
 .lyrix-victory-note {
@@ -1288,6 +1364,17 @@
 
 .lyrix-button.is-accent:hover {
   background: var(--accent-hover);
+}
+
+/* A second choice beside a solid button, on a light surface. */
+.lyrix-button.is-outline {
+  background: transparent;
+  color: var(--color-ink);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+
+.lyrix-button.is-outline:hover {
+  background: var(--color-surface-hover);
 }
 
 .lyrix-button.is-block {
@@ -2148,6 +2235,12 @@
 .lyrix-help {
   gap: 16px;
   padding: 28px;
+}
+
+.lyrix-help-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .lyrix-help-title {
@@ -3416,4 +3509,301 @@ a.lyrix-day-step:hover {
 
 .lyrix-static-status {
   color: var(--color-ink-faint);
+}
+
+/* ---------- Guided tour (ProductTour.tsx) ---------- */
+
+/*
+ * The screen dimmed but for the element a step points at: the highlight's
+ * shadow is the dimming, so the hole follows it as it moves. Over the header
+ * and the dock, under nothing: a dialog never opens during the tour.
+ */
+.lyrix-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  animation: lyrix-fade-in 0.22s ease;
+}
+
+.lyrix-tour-catcher {
+  position: absolute;
+  inset: 0;
+}
+
+.lyrix-tour-spotlight {
+  position: fixed;
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 3px var(--accent-solid),
+    0 0 0 100vmax var(--color-backdrop);
+  pointer-events: none;
+  transition:
+    top 0.3s var(--ease-out),
+    left 0.3s var(--ease-out),
+    width 0.3s var(--ease-out),
+    height 0.3s var(--ease-out);
+}
+
+.lyrix-tour-tip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: min(340px, calc(100vw - 32px));
+  box-sizing: border-box;
+  /* Raised: in the dark theme, a plain surface would melt into the dimmed page. */
+  background: var(--color-surface-raised);
+  color: var(--color-ink);
+  border-radius: 18px;
+  padding: 18px 18px 14px;
+  box-shadow: var(--shadow-modal);
+  font-family: var(--font-ui);
+  transition:
+    top 0.3s var(--ease-out),
+    left 0.3s var(--ease-out);
+}
+
+/* The arrow, pointing at the target's middle (placeTip, src/tour.ts). */
+.lyrix-tour-tip::before {
+  content: "";
+  position: absolute;
+  left: var(--tour-arrow-left, 50%);
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  background: var(--color-surface-raised);
+  border-radius: 3px;
+  transform: rotate(45deg);
+}
+
+.lyrix-tour-tip[data-side="below"]::before {
+  top: -6px;
+}
+
+.lyrix-tour-tip[data-side="above"]::before {
+  bottom: -6px;
+}
+
+.lyrix-tour-content {
+  position: relative;
+  animation: lyrix-rise 0.28s var(--ease-out);
+}
+
+.lyrix-tour-count {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+}
+
+.lyrix-tour-title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  line-height: 1.25;
+}
+
+.lyrix-tour-body {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--color-ink-soft);
+}
+
+.lyrix-tour-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.lyrix-tour-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.lyrix-tour-tip button {
+  border: none;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.12s ease;
+}
+
+.lyrix-tour-tip button:active {
+  transform: scale(0.97);
+}
+
+.lyrix-tour-tip button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.lyrix-tour-skip {
+  background: transparent;
+  color: var(--color-ink-muted);
+  padding-left: 4px;
+}
+
+.lyrix-tour-skip:hover {
+  color: var(--color-ink);
+}
+
+.lyrix-tour-back {
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+}
+
+.lyrix-tour-back:hover {
+  background: var(--color-surface-hover);
+}
+
+.lyrix-tour-next {
+  background: var(--accent-solid);
+  color: var(--color-on-bright);
+}
+
+.lyrix-tour-next:hover {
+  background: var(--accent-hover);
+}
+
+/* ---------- Tour invitation (TourInvite.tsx) ---------- */
+
+/* In the dock's place, coming in a moment after the round: the screen is seen first. */
+.lyrix-invite-panel {
+  background: var(--color-solid);
+  color: var(--color-on-ink);
+  border-radius: 20px;
+  padding: 16px 18px 14px;
+  box-shadow: var(--shadow-dock);
+  font-family: var(--font-ui);
+  transform-origin: 50% 100%;
+  animation: lyrix-invite-in 0.55s var(--ease-out) 0.9s both;
+}
+
+/* Out the way it came, before the dock (or the tour) takes its place: INVITE_LEAVE_MS long. */
+.lyrix-invite-panel.is-answered {
+  pointer-events: none;
+  animation: lyrix-invite-out 280ms ease-in both;
+}
+
+/* Up from the bottom edge, the panel then its lines in turn. */
+.lyrix-invite-panel > * {
+  animation: lyrix-rise 0.4s var(--ease-out) both;
+}
+
+.lyrix-invite-panel > :nth-child(1) {
+  animation-delay: 1.05s;
+}
+
+.lyrix-invite-panel > :nth-child(2) {
+  animation-delay: 1.1s;
+}
+
+.lyrix-invite-panel > :nth-child(3) {
+  animation-delay: 1.15s;
+}
+
+.lyrix-invite-panel > :nth-child(4) {
+  animation-delay: 1.2s;
+}
+
+/*
+ * Below 880px the round comes after the side column, and a dock taller than
+ * usual would be held back at its top: fixed, the invitation shows in full.
+ */
+@media (max-width: 879px) {
+  .lyrix-invite {
+    position: fixed;
+    left: max(16px, env(safe-area-inset-left, 0px));
+    right: max(16px, env(safe-area-inset-right, 0px));
+    z-index: 20;
+  }
+}
+
+.lyrix-invite-kicker {
+  margin: 0 0 2px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-on-ink-accent);
+}
+
+.lyrix-invite-title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.lyrix-invite-body {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--color-on-ink-soft);
+}
+
+.lyrix-invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.lyrix-invite-actions button {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
+}
+
+.lyrix-invite-actions button:active {
+  transform: scale(0.97);
+}
+
+.lyrix-invite-actions button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.lyrix-invite-start {
+  flex: 1 1 auto;
+  background: var(--accent-solid);
+  color: var(--color-on-bright);
+}
+
+.lyrix-invite-start:hover {
+  background: var(--accent-hover);
+}
+
+.lyrix-invite-skip {
+  background: transparent;
+  color: var(--color-on-ink-muted);
+}
+
+.lyrix-invite-skip:hover {
+  color: var(--color-on-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyrix-invite-panel,
+  .lyrix-invite-panel > * {
+    animation: none;
+  }
 }

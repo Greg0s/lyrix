@@ -9,7 +9,9 @@ import { resetFreshRoundMemo } from "../../../worker/src/freshRound";
 import app from "../../../worker/src/index";
 import { resetSimilarityMemo, SIMILARITY_TABLE_VERSION, type SimilarityKv } from "../../../worker/src/similarity";
 import { getSongById, resetSongMemo } from "../../../worker/src/songs";
-import { openState, sealState } from "../../../worker/src/state";
+import { coverToken } from "../../../worker/src/covers";
+import { SONG_FACTS } from "../../../worker/src/songFacts";
+import { openState, sealState, type StatePayload } from "../../../worker/src/state";
 import { encodeNear, type ReadableNear } from "./similarityTableFixture";
 import { titleLeaks } from "./titleLeak";
 
@@ -142,8 +144,11 @@ describe("GET /api/round", () => {
     expect(words.every((t) => !t.revealed && /^_+$/.test(t.text))).toBe(true);
   });
 
-  it("omits the artist before victory", async () => {
-    expect((await getRound()).artist).toBeUndefined();
+  it("omits the artist, year and cover before victory", async () => {
+    const round = await getRound();
+    expect(round.artist).toBeUndefined();
+    expect(round.year).toBeUndefined();
+    expect(round.cover).toBeUndefined();
   });
 
   it("returns the same song for repeated calls the same day", async () => {
@@ -340,13 +345,13 @@ describe("GET /api/round?day=", () => {
     expect(fetched.mock.calls.length).toBe(resolved);
   });
 
-  it("takes a state sealed before the archives as a round of today", async () => {
+  // A state with no day was read as today's, for ever. One can only have been
+  // sealed before the archives, before FIRST_SONG_DAY: none is a round left.
+  it("refuses a state sealed with no day", async () => {
     at("2026-10-20T10:00:00Z");
     const song = await playedSong(await getRound());
-    const legacy = await sealState({ songId: song.id, foundKeys: [] }, env.STATE_SECRET);
-    const { status, body } = await guess(legacy, "xylophoneinexistant");
-    expect(status).toBe(200);
-    expect(body.day).toBe("2026-10-20");
+    const dayless = await sealState({ songId: song.id, foundKeys: [] } as unknown as StatePayload, env.STATE_SECRET);
+    expect((await guess(dayless, "xylophoneinexistant")).status).toBe(400);
   });
 });
 
@@ -416,13 +421,10 @@ describe("POST /api/round/resume", () => {
     expect((await resume({ states: [forged] })).status).toBe(400);
   });
 
-  it("files a state sealed before the archives under the day it is told", async () => {
+  it("refuses a state sealed with no day, whatever day it is told", async () => {
     const song = await playedSong(await dayRound("2026-10-19"));
-    const legacy = await sealState({ songId: song.id, foundKeys: ["ligne"] }, env.STATE_SECRET);
-    const { status, body } = await resume({ states: [legacy], day: "2026-10-19" });
-    expect(status).toBe(200);
-    expect(body.day).toBe("2026-10-19");
-    expect((await openState(body.state, env.STATE_SECRET))?.day).toBe("2026-10-19");
+    const dayless = await sealState({ songId: song.id, foundKeys: ["ligne"] } as unknown as StatePayload, env.STATE_SECRET);
+    expect((await resume({ states: [dayless], day: "2026-10-19" })).status).toBe(400);
   });
 
   it("refuses a malformed request", async () => {
@@ -466,6 +468,18 @@ describe("POST /api/guess", () => {
     expect(body.found).toBe(true);
   });
 
+  // Regression test: the lyrics are tokenized with an elision apart
+  // ("l'amour" -> "l", "'", "amour"), the guess used to be compared whole, so
+  // "l'amour" was never found where "amour" was.
+  it("finds a word typed with an elided word in front, or punctuation around it", async () => {
+    for (const typed of ["l'couplet", "qu’couplet", "« couplet ! »"]) {
+      const round = await getRound();
+      const { body } = await guess(round.state, typed);
+      expect(body.found).toBe(true);
+      expect(body.key).toBe("couplet");
+    }
+  });
+
   it("does not reveal anything for a word that is not in the song", async () => {
     const round = await getRound();
     const { body } = await guess(round.state, "xylophoneinexistant");
@@ -488,6 +502,10 @@ describe("POST /api/guess", () => {
 
     expect(last?.victory).toBe(true);
     expect(last?.artist).toBe(song.artist);
+    expect(last?.year).toBe(SONG_FACTS[song.id]?.year);
+    // The cover's address names the song by a token, never by its id (a slug of its title).
+    expect(last?.cover).toBe(await coverToken(song.id, env.STATE_SECRET));
+    expect(last?.cover).not.toContain(song.id);
   });
 
   it("rejects a tampered state token", async () => {

@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import type { RoundView } from "../../src/game/types";
 import { FEMALE_SINGERS, MALE_SINGERS } from "../../worker/src/singerNames";
+import { TOUR_SEEN } from "../../playwright.config";
 import { lyricsOnlyWord, titleWords as titleWordsOf } from "./titleWords";
 
 /**
@@ -29,7 +30,7 @@ let titleWords: string[] = [];
 let lyricsWord = "";
 
 async function openGame(browser: Browser): Promise<Page> {
-  const context = await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] });
+  const context = await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"], storageState: TOUR_SEEN });
   contexts.push(context);
   const page = await context.newPage();
   const roundResponse = page.waitForResponse((res) => res.url().includes("/api/round"));
@@ -257,7 +258,7 @@ test("invites a player with a link: an invitation's preview, then the room's cod
   expect(html).toContain("og-invite.png");
   expect(html).not.toContain(code);
 
-  const guest = await (await browser.newContext()).newPage();
+  const guest = await (await browser.newContext({ storageState: TOUR_SEEN })).newPage();
   contexts.push(guest.context());
   await guest.goto(link);
   await expect(dialog(guest).getByLabel("Code du salon")).toHaveValue(code);

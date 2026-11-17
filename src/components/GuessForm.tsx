@@ -53,7 +53,7 @@ export function GuessForm({ value, onChange, onSubmit, submitting, feedback, inp
   const parity = feedback && feedback.seq % 2 ? "a" : "b";
 
   return (
-    <div className="lyrix-dock">
+    <div className="lyrix-dock" data-tour="guess">
       <form className="lyrix-form" onSubmit={handleSubmit}>
         <div className={`lyrix-form-row${feedback?.shake ? ` is-shake-${parity}` : ""}`}>
           <input

@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { markTourSeen } from "../../../src/tourStorage";
 import { CELEBRATION_MS } from "../../../src/components/confetti";
 import { utcDay } from "../../../src/game/daily";
 import type { GuessDelta, GuessResult, RoundView } from "../../../src/game/types";
@@ -82,6 +83,8 @@ async function mountGame(): Promise<HTMLInputElement> {
 beforeEach(() => {
   wordTokenRenders.count = 0;
   window.localStorage.clear();
+  // A first visit's guided tour is productTour.test.tsx's: here, the player has seen it.
+  markTourSeen();
   fetchRound.mockReset().mockResolvedValue(round());
   submitGuess.mockReset();
   resumeRound.mockReset();
@@ -907,6 +910,27 @@ describe("feedback on a guess", () => {
     // The other copy of the animation, so the second miss shakes too.
     expect(row.className).toMatch(/is-shake-/);
     expect(row.className).not.toBe(firstShake);
+  });
+
+  it("takes a word as already tried once found with an elision, and asks the Worker about an elided word not yet sent", async () => {
+    submitGuess.mockResolvedValueOnce({ ...round("state-1"), found: true, key: "j'aime", score: 100, near: [] });
+    // A song with no "l'aime": the Worker keys the guess as the word alone.
+    submitGuess.mockResolvedValueOnce({ ...round("state-1"), found: true, key: "aime", score: 100, near: [] });
+
+    const input = await mountGame();
+    fireEvent.change(input, { target: { value: "J’aime" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(submitGuess).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(input, { target: { value: "aime" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(screen.getByText("« aime » a déjà été proposé.")).toBeTruthy());
+    expect(submitGuess).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(input, { target: { value: "l'aime" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(screen.getByText("« l'aime » a déjà été proposé.")).toBeTruthy());
+    expect(submitGuess).toHaveBeenCalledTimes(2);
   });
 
   it("highlights every occurrence of the word just found, until the next guess", async () => {

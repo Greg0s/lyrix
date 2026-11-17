@@ -5,10 +5,11 @@ import { describe, expect, it } from "vitest";
 const root = join(__dirname, "../../..");
 
 /**
- * The archives and the legal notice have addresses of their own (/archives,
- * /archives/2026-09-26, /mentions-legales, src/routes.ts) that no file
- * answers to (the rules' one, /comment-jouer, is answered by the page the
- * build emits for it, scripts/lib/rulesPage.ts). Cloudflare Pages serves the root
+ * A day of the archives has an address of its own (/archives/2026-09-26,
+ * src/routes.ts) that no file answers to (the rules', the archives' and the
+ * legal notice's, /comment-jouer, /archives and /mentions-legales, are
+ * answered by the pages the build emits for them, scripts/lib/rulesPage.ts
+ * and scripts/lib/unlistedPages.ts). Cloudflare Pages serves the root
  * index.html for any such path, its SPA fallback, as long as the site has no
  * 404.html; and a _redirects rewrite to /index.html would be redirected to /
  * by Pages' pretty URLs, losing the address. So: neither.

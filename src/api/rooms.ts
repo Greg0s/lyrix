@@ -15,7 +15,7 @@ import { apiUrl, GUESS_TIMEOUT_MS, ROOM_ENTRY_TIMEOUT_MS, withTimeout } from "./
 const TAB_ID = generateTabId();
 
 /** Why creating or joining a room didn't work, as the player needs to hear it. */
-export type RoomFailure = "not-found" | "rate-limited" | "unavailable";
+export type RoomFailure = "not-found" | "full" | "rate-limited" | "unavailable";
 
 export type RoomResult = { ok: true; entry: RoomEntry } | { ok: false; failure: RoomFailure };
 
@@ -34,6 +34,7 @@ async function enter(path: string, pseudo: string): Promise<RoomResult> {
         signal,
       });
       if (response.status === 404) return failure("not-found");
+      if (response.status === 409) return failure("full");
       if (response.status === 429) return failure("rate-limited");
       if (!response.ok) return failure("unavailable");
       const entry = parseRoomEntry(await response.json().catch(() => null));
@@ -134,6 +135,26 @@ export async function continueAlone(
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok || !isRoundView(body)) throw new Error(`continuing alone failed with status ${response.status}`);
   return body;
+}
+
+/**
+ * Once the room has found the song, its answer, for a member who didn't
+ * complete the title: until they ask, the room sends them its round without
+ * the winning word (RoomRound.veiled). Throws when it couldn't be had.
+ */
+export function revealRoomAnswer(code: string, token: string, day: string): Promise<RoomRound> {
+  return withTimeout(GUESS_TIMEOUT_MS, async (signal) => {
+    const response = await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/answer`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, day }),
+      signal,
+    });
+    const body: unknown = await response.json().catch(() => null);
+    const round = response.ok ? parseRoomRoundAnswer(body) : null;
+    if (!round) throw new Error(`revealing the answer failed with status ${response.status}`);
+    return round;
+  });
 }
 
 /**

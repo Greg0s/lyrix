@@ -11,25 +11,30 @@ import { useRoute } from "../hooks/useRoute";
 import { OFFLINE_MESSAGE } from "../pwa";
 import { isAnswerRevealed } from "../roomStorage";
 import { loadArchive } from "../roundStorage";
+import { isTourSeen, markTourSeen } from "../tourStorage";
 import { utcDay } from "../game/daily";
+import { baseKey } from "../game/normalize";
 import { ARCHIVES, HELP, isPageRoute, LEGAL, TODAY } from "../routes";
 import { AppHeader } from "./AppHeader";
 import { ArchivesScreen } from "./ArchivesScreen";
 import { DayBar } from "./DayBar";
 import { playerColor } from "./playerColor";
 import { GroupFoundBanner } from "./GroupFoundBanner";
+import { NewSongNotice } from "./NewSongNotice";
 import { GuessForm, type GuessFeedback } from "./GuessForm";
 import { HintSheet } from "./HintSheet";
 import { HintsCard } from "./HintsCard";
 import { HowToPlay } from "./HowToPlay";
 import { LegalNotice } from "./LegalNotice";
 import { LyricsBody } from "./LyricsBody";
-import { MultiplayerModal } from "./MultiplayerModal";
+import { MultiplayerModal, type Tab as MultiplayerTab } from "./MultiplayerModal";
 import { MultiplayerPromo } from "./MultiplayerPromo";
+import { ProductTour } from "./ProductTour";
 import { ProgressCard } from "./ProgressCard";
 import { RoomCard } from "./RoomCard";
 import { RouteLink } from "./RouteLink";
 import { TitleGuess } from "./TitleGuess";
+import { TourInvite } from "./TourInvite";
 import { TriedWords } from "./TriedWords";
 
 function feedbackMessage({ word, found, duplicate, nearCount }: Feedback): string {
@@ -115,7 +120,17 @@ export function GameScreen() {
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setDialog(which);
   }, []);
-  const openMultiplayer = useCallback(() => openDialog("multiplayer"), [openDialog]);
+  // The tab the multiplayer dialog opens on: "Rejoindre" from the header, "Créer
+  // un salon" from the side column's "Chercher à plusieurs" card, which offers it.
+  const [multiplayerTab, setMultiplayerTab] = useState<MultiplayerTab>("join");
+  const openMultiplayer = useCallback(() => {
+    setMultiplayerTab("join");
+    openDialog("multiplayer");
+  }, [openDialog]);
+  const openCreateRoom = useCallback(() => {
+    setMultiplayerTab("create");
+    openDialog("multiplayer");
+  }, [openDialog]);
   const openHints = useCallback(() => openDialog("hints"), [openDialog]);
   // Once a dialog is gone, the player is back to guessing: give them the input.
   // Not on a touch screen, where focusing the input pops the on-screen keyboard
@@ -133,6 +148,32 @@ export function GameScreen() {
     () => setRevealedDay((revealed) => (revealed === day ? undefined : day)),
     [day]
   );
+  // The guided tour, for a first visit only (src/tourStorage.ts). Never for a
+  // player with a day already in the archives: they played before it existed.
+  const [tourPending, setTourPending] = useState(() => !isTourSeen() && Object.keys(loadArchive()).length === 0);
+  // First offered in the dock's place (TourInvite), taken only if the player says so.
+  const [tourStarted, setTourStarted] = useState(false);
+  const startTour = useCallback(() => setTourStarted(true), []);
+  // Asked for again from the rules' page ("Revoir la visite guidée"): the tour
+  // itself, straight away, over today's song, won or not.
+  const [tourReplay, setTourReplay] = useState(false);
+  const replayTour = useCallback(() => {
+    setTourReplay(true);
+    navigate(TODAY);
+  }, [navigate]);
+  // Gone, the player is back to guessing, as after a dialog (see closeDialog).
+  // After the commit: declined, the invitation still holds the input's place.
+  const finishTour = useCallback(() => {
+    setTourPending(false);
+    setTourReplay(false);
+  }, []);
+  const tourOn = tourPending || tourReplay;
+  const tourWasOn = useRef(tourOn);
+  useEffect(() => {
+    const done = tourWasOn.current && !tourOn;
+    tourWasOn.current = tourOn;
+    if (done && !isTouchScreen()) inputRef.current?.focus();
+  }, [tourOn]);
   const { submit } = game;
   const onSubmit = useCallback(() => void submit(), [submit]);
 
@@ -173,6 +214,15 @@ export function GameScreen() {
     const archive = loadArchive();
     return { daysLeft: daysToFind(archive).length, nextDay: day === null ? null : nextDayToFind(archive, day) };
   }, [won, day]);
+
+  // Over a round still to find, once nothing else is open (an invite link's
+  // dialog comes first). Marked seen the moment it shows: offered once, ever.
+  const showTour =
+    tourPending && (route.name === "today" || route.name === "day") && round !== null && !won && dialog === null;
+  useEffect(() => {
+    if (showTour) markTourSeen();
+  }, [showTour]);
+  const showReplay = tourReplay && route.name === "today" && round !== null && dialog === null;
 
   // In a room, its days as this player may see them, for the archives screen.
   const { roomDays, roomRevealed } = game;
@@ -216,6 +266,7 @@ export function GameScreen() {
         <MultiplayerModal
           room={room.view}
           invite={invite}
+          tab={multiplayerTab}
           onCreate={room.create}
           onLeave={room.leave}
           onJoin={room.join}
@@ -243,7 +294,7 @@ export function GameScreen() {
   );
 
   if (route.name === "archives") return shell(<ArchivesScreen onNavigate={navigate} group={groupDays} />);
-  if (route.name === "help") return shell(<HowToPlay onClose={goToday} />);
+  if (route.name === "help") return shell(<HowToPlay onClose={goToday} onReplayTour={replayTour} />);
   if (route.name === "legal") return shell(<LegalNotice onClose={goToday} />);
 
   if (game.error && !round) {
@@ -280,7 +331,9 @@ export function GameScreen() {
   const you = room.view?.you ?? null;
   const group = game.playingRoom && you !== null ? { you } : null;
   // A teammate's find is highlighted like the player's own, while it is the latest news.
-  const lastFoundKey = notice ? (notice.foundKey ?? null) : feedback?.found ? feedback.key : null;
+  // A found "j'aime" highlights its "aime" (the key the lyrics' words are compared by).
+  const foundKey = notice ? (notice.foundKey ?? null) : feedback?.found ? feedback.key : null;
+  const lastFoundKey = foundKey === null ? null : baseKey(foundKey);
   let guessFeedback: GuessFeedback | null = null;
   // No network: nothing the player sends can be checked, and nothing a room
   // sends arrives, so that is what the line says until it comes back.
@@ -333,12 +386,16 @@ export function GameScreen() {
         {game.aloneAfter && !round.victory ? (
           <GroupFoundBanner winner={game.aloneAfter} you={you} onReveal={game.revealAnswer} />
         ) : null}
+        {/* A won round has its countdown's "Jouer"; a room expires at midnight anyway. */}
+        {day === null && !game.playingRoom && !round.victory ? <NewSongNotice roundDay={round.day} /> : null}
         <article className="lyrix-card lyrix-song">
           <TitleGuess
             titleTokens={slots.title}
             victory={round.victory}
             group={group !== null}
             artist={round.artist}
+            year={round.year}
+            cover={round.cover}
             lastFoundKey={lastFoundKey}
             revealAllLyrics={revealAllLyrics}
             onToggleRevealAllLyrics={toggleRevealAllLyrics}
@@ -353,15 +410,19 @@ export function GameScreen() {
           <LyricsBody sections={slots.sections} revealAll={revealAllLyrics} lastFoundKey={lastFoundKey} />
         </article>
 
-        <GuessForm
-          value={game.inputValue}
-          onChange={game.setInputValue}
-          onSubmit={onSubmit}
-          submitting={game.submitting}
-          feedback={guessFeedback}
-          inputRef={inputRef}
-          placeholder={group ? "Propose un mot au groupe…" : "Propose un mot…"}
-        />
+        {showTour && !tourStarted && !tourReplay ? (
+          <TourInvite onStart={startTour} onSkip={finishTour} />
+        ) : (
+          <GuessForm
+            value={game.inputValue}
+            onChange={game.setInputValue}
+            onSubmit={onSubmit}
+            submitting={game.submitting}
+            feedback={guessFeedback}
+            inputRef={inputRef}
+            placeholder={group ? "Propose un mot au groupe…" : "Propose un mot…"}
+          />
+        )}
       </div>
 
       <aside className="lyrix-aside" ref={trackStickyHeight}>
@@ -372,7 +433,7 @@ export function GameScreen() {
         <ProgressCard percent={percent} foundCount={foundCount} triedCount={triedWords.length} />
         <TriedWords triedWords={triedWords} group={group} />
         {/* Where it was before the hints card came: right under "Tes mots", not below the hints. */}
-        {room.view || day !== null ? null : <MultiplayerPromo onOpen={openMultiplayer} />}
+        {room.view || day !== null ? null : <MultiplayerPromo onOpen={openCreateRoom} />}
         {round.hints ? (
           <HintsCard
             hints={round.hints}
@@ -383,6 +444,7 @@ export function GameScreen() {
           />
         ) : null}
       </aside>
+      {(showTour && tourStarted) || showReplay ? <ProductTour onDone={finishTour} /> : null}
     </main>
   );
 }

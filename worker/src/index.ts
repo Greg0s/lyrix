@@ -5,6 +5,7 @@ import { canReveal, isHintId } from "../../src/game/hints";
 import type { GuessResult, HintAnswer, HintId } from "../../src/game/types";
 import { recordEvent, roundKind, type EventsEnv } from "./events";
 import { clientErrorRoutes } from "./clientError";
+import { coverRoutes, prepareCovers } from "./covers";
 import { freshRoundBody } from "./freshRound";
 import { prepareSongs } from "./prepare";
 import { isVictory } from "../../src/game/mask";
@@ -20,7 +21,7 @@ import {
 } from "./round";
 import { roomRoutes, type RoomsEnv } from "./roomRoutes";
 import { getSongById, getSongOfDay, SongUnavailableError, type SongsEnv } from "./songs";
-import { hintProgressOf, openState, type HintProgress } from "./state";
+import { hintProgressOf, mergedMissed, openState, progressAfterGuess, type HintProgress } from "./state";
 import { visitRoutes } from "./visit";
 
 type Env = RoundEnv & RoomsEnv;
@@ -100,7 +101,7 @@ const MAX_RESUMED_STATES = 4;
  * Several states of the same round (same song, same day) are merged, their
  * found words put together - how a room's progress joins the player's own.
  * Only states the Worker sealed itself count, so nothing found can be forged.
- * `day` names the round of a state sealed before the archives, which has none.
+ * `day`, which clients still send, is checked but not needed: every state names its own.
  */
 app.post("/api/round/resume", async (c) => {
   let body: unknown;
@@ -131,8 +132,8 @@ app.post("/api/round/resume", async (c) => {
     return c.json({ error: "invalid or expired round state" }, 400);
   }
   const [first] = opened;
-  const day = first.day ?? hint ?? utcDay();
-  if (opened.some((payload) => payload.songId !== first.songId || (payload.day ?? hint ?? utcDay()) !== day)) {
+  const { day } = first;
+  if (opened.some((payload) => payload.songId !== first.songId || payload.day !== day)) {
     return c.json({ error: "those states are not of the same round" }, 400);
   }
 
@@ -150,7 +151,8 @@ app.post("/api/round/resume", async (c) => {
   const progresses = opened.map(hintProgressOf);
   const used: HintId[] = [];
   for (const id of progresses.flatMap((progress) => progress.used)) if (!used.includes(id)) used.push(id);
-  const progress: HintProgress = { tried: Math.max(...progresses.map((p) => p.tried)), used };
+  const tried = Math.max(...progresses.map((p) => p.tried));
+  const progress: HintProgress = { tried, used, ...mergedMissed(tried, ...progresses.map((p) => p.missed)) };
   return c.json(await buildRoundView(song, foundKeys, c.env, day, progress));
 });
 
@@ -192,11 +194,11 @@ app.post("/api/guess", async (c) => {
 
   const outcome = await evaluateGuess(c.env, song, new Set(payload.foundKeys), trimmed);
   const foundKeys = outcome.found ? [...payload.foundKeys, outcome.key] : payload.foundKeys;
-  // A state sealed before the archives has no day: it can only be a round of today.
-  const day = payload.day ?? utcDay();
-  // Every guess answered counts towards the next hint, found or not.
+  const { day } = payload;
+  // Every new word answered counts towards the next hint, found or not; the
+  // same word sent again doesn't.
   const before = hintProgressOf(payload);
-  const progress: HintProgress = { tried: before.tried + 1, used: before.used };
+  const progress = progressAfterGuess(before, payload.foundKeys, outcome.key, outcome.found);
   const won = isVictory(song, new Set(foundKeys));
 
   // Statistics (events.ts): a round's first guess, and the one that wins it.
@@ -272,8 +274,8 @@ app.post("/api/round/hint", async (c) => {
   if (!canReveal(progress, hint)) {
     return c.json({ error: "no hint is unlocked yet" }, 409);
   }
-  const next: HintProgress = { tried: progress.tried, used: [...progress.used, hint] };
-  const day = payload.day ?? utcDay();
+  const next: HintProgress = { ...progress, used: [...progress.used, hint] };
+  const { day } = payload;
   recordEvent(c.env, "hint", { mode: "solo", kind: roundKind(day, utcDay()), hint, tries: progress.tried });
   const answer: HintAnswer = {
     state: await sealRound(song, payload.foundKeys, c.env, day, next),
@@ -288,6 +290,9 @@ app.route("/api/visit", visitRoutes);
 // An error a player's browser met (src/errorReport.ts), logged and counted.
 app.route("/api/client-error", clientErrorRoutes);
 
+// A won round's album cover (RoundView.cover), served by the Worker itself.
+app.route("/api/cover", coverRoutes);
+
 // Rooms ("salons", issue #29), and the round each plays together (#30).
 app.route("/api/rooms", roomRoutes);
 
@@ -295,9 +300,16 @@ export default {
   fetch: app.fetch,
   /** The app's own in-process requests, for the tests (Hono's app.request). */
   request: app.request,
-  /** The scheduled runs (worker/wrangler.toml's [triggers]): the days to come get their songs ahead of time. */
+  /** The scheduled runs (worker/wrangler.toml's [triggers]): the days to come get their songs, then their covers, ahead of time. */
   scheduled(_controller: ScheduledController, env: SongsEnv & EventsEnv, ctx: ExecutionContext): void {
-    ctx.waitUntil(prepareSongs(env));
+    ctx.waitUntil(
+      prepareSongs(env).then((prepared) =>
+        prepareCovers(
+          prepared.flatMap((day) => (day.song ? [day.song] : [])),
+          env
+        )
+      )
+    );
   },
 };
 // The room's Durable Object class, which the runtime looks up by name (see worker/wrangler.toml).

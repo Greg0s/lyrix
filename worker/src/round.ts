@@ -1,13 +1,22 @@
 import { analyzeSong } from "../../src/game/analyze";
 import { HINT_IDS } from "../../src/game/hints";
-import { buildSectionsView, buildTitleView, isVictory, songWordKeys } from "../../src/game/mask";
-import { normalize } from "../../src/game/normalize";
+import {
+  buildSectionsView,
+  buildTitleView,
+  isVictory,
+  revealedKeys,
+  revealedPositions,
+  songGuessKey,
+  songWordKeys,
+} from "../../src/game/mask";
+import { baseKey } from "../../src/game/normalize";
 import { MAX_PROXIMITY_SCORE } from "../../src/game/similarity";
 import { wordPositions } from "../../src/game/slots";
 import type { GuessDelta, HintId, NearSlot, RevealedSlot, RoundHints, RoundView, Song } from "../../src/game/types";
 import type { EventsEnv } from "./events";
 import { proximityHint, type SimilarityEnv } from "./similarity";
-import { hintValues } from "./songFacts";
+import { coverToken, hasCoverLookup } from "./covers";
+import { hintValues, songYear } from "./songFacts";
 import type { SongsEnv } from "./songs";
 import { sealState, type HintProgress } from "./state";
 
@@ -87,6 +96,7 @@ export function sealRound(
       day,
       tried: progress.tried,
       ...(progress.used.length > 0 ? { hints: [...progress.used] } : {}),
+      ...(progress.missed && progress.missed.length > 0 ? { missed: [...progress.missed] } : {}),
     },
     env.STATE_SECRET
   );
@@ -107,6 +117,9 @@ export async function buildRoundView(
   const victory = isVictory(song, foundSet);
   const state = await sealRound(song, foundSet, env, day, progress);
   const hints = roundHints(song, progress, victory);
+  const year = victory ? songYear(song.id) : null;
+  // A cover names its song: its address only ever rides along with a win.
+  const cover = victory && hasCoverLookup(song.id) ? await coverToken(song.id, env.STATE_SECRET) : null;
 
   return {
     state,
@@ -119,6 +132,8 @@ export async function buildRoundView(
     sections: buildSectionsView(song, foundSet, devReveal, victory),
     victory,
     ...(victory ? { artist: song.artist } : {}),
+    ...(year !== null ? { year } : {}),
+    ...(cover !== null ? { cover } : {}),
     ...(hints ? { hints } : {}),
   };
 }
@@ -133,8 +148,17 @@ export interface GuessOutcome {
 /** How many word occurrences `foundKeys` reveal: what a delta's `revealed` says, in O(found words). */
 export function revealedCount(song: Song, foundKeys: Iterable<string>): number {
   const positions = wordPositions(song);
+  const { elidedPositions } = analyzeSong(song);
+  const keys = new Set(foundKeys);
+  const revealed = revealedKeys(keys);
   let count = 0;
-  for (const key of new Set(foundKeys)) count += positions.get(key)?.length ?? 0;
+  // Every word revealed everywhere, once...
+  for (const key of revealed) count += positions.get(key)?.length ?? 0;
+  // ...and the elisions an elided key reveals, unless that elided word is found everywhere already.
+  for (const key of keys) {
+    const glued = elidedPositions.get(key);
+    if (glued && !revealed.has(key.slice(0, key.indexOf("'")))) count += glued.length;
+  }
   return count;
 }
 
@@ -160,7 +184,7 @@ export async function buildGuessDelta(
   const hints = roundHints(song, progress, false);
   const { wordTexts } = analyzeSong(song);
   const reveal: RevealedSlot[] = outcome.found
-    ? (wordPositions(song).get(outcome.key) ?? []).map((position) => ({ position, text: wordTexts[position] ?? "" }))
+    ? revealedPositions(song, outcome.key).map((position) => ({ position, text: wordTexts[position] ?? "" }))
     : [];
   return {
     kind: "delta",
@@ -180,8 +204,8 @@ export async function evaluateGuess(
   foundKeys: ReadonlySet<string>,
   word: string
 ): Promise<GuessOutcome> {
-  const key = normalize(word);
-  const found = songWordKeys(song).has(key);
+  const key = songGuessKey(song, word);
+  const found = songWordKeys(song).has(baseKey(key));
   // A found word is its own closest match and reveals itself, so it needs no
   // table lookup. A missed one gets its score plus the positions of the hidden
   // words it is close to - never those words themselves, and never a vector.

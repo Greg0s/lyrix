@@ -311,6 +311,13 @@ describe("the archive summary", () => {
     expect(storage.getItem(ARCHIVE_KEY)).not.toContain("refuge");
   });
 
+  it("keeps a won round's year and cover with today's view, for an instant reload", () => {
+    const storage = fakeStorage();
+    const won = roundOf(TODAY, "w", { victory: true, artist: "Louane", year: 2014, cover: "token" });
+    saveRound(won, triedWords, storage, NOW);
+    expect(loadSavedRound(storage, NOW)?.round).toMatchObject({ artist: "Louane", year: 2014, cover: "token" });
+  });
+
   it("names the artist once the song is found, and only then", () => {
     const storage = fakeStorage();
     saveRound(roundOf("2026-09-26", "s", { title: { tokens: [found] }, victory: true, artist: "Louane" }), [], storage, NOW);

@@ -3,3 +3,10 @@
 # keep the last version's app shell, and a deploy would not reach its player.
 /sw.js
   Cache-Control: no-cache
+
+# A day of the archives (/archives/<day>) is answered by the SPA fallback,
+# index.html with the home page's canonical link: kept out of search results
+# like the archives' own page (scripts/lib/unlistedPages.ts), which says so
+# in its HTML.
+/archives/*
+  X-Robots-Tag: noindex

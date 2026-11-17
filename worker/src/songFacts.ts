@@ -139,6 +139,10 @@ export const SONG_FACTS: Readonly<Record<string, SongFacts>> = {
   "allumer-le-feu": { year: 1998, artist: "man", origin: "fr", style: "Rock" },
   // The made-up song dev and e2e play (songs.ts): never served in production.
   [DEV_STANDIN_SONG_ID]: { year: 1996, artist: "woman", origin: "fr", style: "Chanson" },
+  // SPARES (catalog.ts): played only on a day whose own song LRCLIB has no lyrics for.
+  "tous-les-cris-les-sos": { year: 1985, artist: "man", origin: "fr", style: "Variété" },
+  "le-temps-de-lamour": { year: 1962, artist: "woman", origin: "fr", style: "Pop" },
+  "la-seine": { year: 2011, artist: "woman", origin: "fr", style: "Pop" },
 };
 
 /** "Années 60", "Années 2000": how French names a decade, the twentieth century's by its last two digits. */
@@ -161,4 +165,10 @@ export function hintValues(songId: string): Record<HintId, string> | null {
   if (!Object.prototype.hasOwnProperty.call(SONG_FACTS, songId)) return null;
   const facts = SONG_FACTS[songId] as SongFacts;
   return { era: decadeText(facts.year), artistType: artistTypeText(facts), style: facts.style };
+}
+
+/** The song's release year, shown once the round is won (RoundView.year); null for a song with no facts. */
+export function songYear(songId: string): number | null {
+  if (!Object.prototype.hasOwnProperty.call(SONG_FACTS, songId)) return null;
+  return (SONG_FACTS[songId] as SongFacts).year;
 }

@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { markTourSeen } from "../../../src/tourStorage";
 import type { GuessResult, RoundView } from "../../../src/game/types";
 import { ApiError } from "../../../src/api/base";
 import { flushSavedRound, loadArchive, loadSavedDay, saveRound } from "../../../src/roundStorage";
@@ -89,6 +90,8 @@ function cover(name: RegExp): HTMLElement {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], now: NOW });
   window.localStorage.clear();
+  // A first visit's guided tour is productTour.test.tsx's: here, the player has seen it.
+  markTourSeen();
   // Like fetch: a request aborted before its answer arrives rejects.
   fetchRound.mockReset().mockImplementation(async (signal?: AbortSignal, day?: string) => {
     await Promise.resolve();
@@ -364,6 +367,28 @@ describe("a day of the archives", () => {
   });
 });
 
+describe("a device whose clock runs ahead of the Worker's", () => {
+  // At the countdown's end, "Jouer" reloads the page a second early: the
+  // device is on the next day, the Worker still on the one just won.
+  const AHEAD = new Date("2026-10-21T00:00:01Z");
+
+  it("resumes the day the Worker serves instead of overwriting its victory", async () => {
+    saveRound(won(TODAY, "novembre"), [{ key: "novembre", display: "novembre", found: true, score: 100, near: [] }]);
+    flushSavedRound();
+    vi.setSystemTime(AHEAD);
+    fetchRound.mockImplementation(async () => round(TODAY));
+    resumeRound.mockResolvedValue(won(TODAY, "novembre"));
+
+    await mount();
+    await screen.findByText("novembre", { selector: ".lyrix-chip" });
+    flushSavedRound();
+
+    expect(resumeRound).toHaveBeenCalledWith([`${TODAY}-won`], TODAY, expect.anything());
+    expect(loadSavedDay(TODAY, window.localStorage, AHEAD)?.state).toBe(`${TODAY}-won`);
+    expect(loadArchive(window.localStorage, AHEAD)[TODAY]).toMatchObject({ victory: true, tries: 1 });
+  });
+});
+
 describe("today's victory", () => {
   it("points to the days of the archives still to find", async () => {
     await mount();
@@ -376,5 +401,109 @@ describe("today's victory", () => {
     });
     expect(window.location.pathname).toBe("/archives");
     expect(cover(/^Chanson du jour, trouvée : Le refuge de novembre/)).toBeTruthy();
+  });
+});
+
+// A tab left open on today's song went on with it past midnight, saying
+// nothing: only a winner had the countdown's "Jouer".
+describe("a tab left open past midnight", () => {
+  const notice = () => screen.queryByRole("region", { name: "Nouvelle chanson" });
+
+  async function nextDay(at: string): Promise<void> {
+    vi.setSystemTime(new Date(at));
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+  }
+
+  it("says the day's song changed once it has, and offers the new one", async () => {
+    await mount();
+    await screen.findByPlaceholderText("Propose un mot…");
+    expect(notice()).toBeNull();
+
+    // Midnight on the device, but the Worker's clock may lag: not yet.
+    await nextDay("2026-10-21T00:00:30Z");
+    expect(notice()).toBeNull();
+
+    await nextDay("2026-10-21T00:05:00Z");
+    expect(notice()).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Jouer la nouvelle" })).toBeTruthy();
+  });
+
+  it("leaves a won round to its countdown", async () => {
+    await mount();
+    submitGuess.mockResolvedValueOnce(won(TODAY, "novembre"));
+    await propose("novembre");
+    await nextDay("2026-10-21T00:05:00Z");
+    expect(notice()).toBeNull();
+  });
+
+  it("never shows on a day of the archives", async () => {
+    fetchRound.mockImplementation(async () => round(DAY));
+    await mount(`/archives/${DAY}`);
+    await nextDay("2026-10-21T00:05:00Z");
+    expect(notice()).toBeNull();
+  });
+});
+
+// Two tabs on the same day each saved their own round over the other's: the
+// words found in one vanished from storage, the archives and the next visit.
+describe("two tabs on the same day", () => {
+  const chip = (word: string) => screen.queryByText(word, { selector: ".lyrix-chip" });
+  const tried = (key: string, found: boolean) => ({ key, display: key, found, score: found ? 100 : 12, near: [] });
+
+  /** The other tab saving its round, as this one hears it. */
+  async function otherTabSaves(state: string, words: ReturnType<typeof tried>[]): Promise<void> {
+    // This tab's own save first: the other tab's comes after it.
+    flushSavedRound();
+    saveRound(round(TODAY, state), words);
+    flushSavedRound();
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent("storage", { key: `lyrix:day:${TODAY}`, newValue: "{}" }));
+    });
+  }
+
+  it("merges what the other tab found, and saves both", async () => {
+    await mount();
+    submitGuess.mockResolvedValueOnce(answer(TODAY, "vent", true));
+    await propose("vent");
+    resumeRound.mockResolvedValueOnce(round(TODAY, "merged"));
+
+    await otherTabSaves("other", [tried("jardin", true), tried("orage", false)]);
+
+    expect(resumeRound).toHaveBeenCalledWith([`${TODAY}-vent`, "other"], TODAY);
+    await screen.findByText("jardin", { selector: ".lyrix-chip" });
+    expect(chip("vent")).not.toBeNull();
+    expect(chip("orage")).not.toBeNull();
+    flushSavedRound();
+    const saved = loadSavedDay(TODAY);
+    expect(saved?.state).toBe("merged");
+    expect(saved?.triedWords.map((word) => word.key).sort()).toEqual(["jardin", "orage", "vent"]);
+  });
+
+  it("writes its own round back over one missing its words, without asking the Worker", async () => {
+    await mount();
+    submitGuess.mockResolvedValueOnce(answer(TODAY, "vent", true));
+    await propose("vent");
+    flushSavedRound();
+
+    await otherTabSaves("other", []);
+    flushSavedRound();
+
+    expect(resumeRound).not.toHaveBeenCalled();
+    expect(loadSavedDay(TODAY)?.state).toBe(`${TODAY}-vent`);
+  });
+
+  it("stops once both hold the same words", async () => {
+    await mount();
+    submitGuess.mockResolvedValueOnce(answer(TODAY, "vent", true));
+    await propose("vent");
+    flushSavedRound();
+
+    await otherTabSaves("other", [tried("vent", true)]);
+    flushSavedRound();
+
+    expect(resumeRound).not.toHaveBeenCalled();
+    expect(loadSavedDay(TODAY)?.state).toBe("other");
   });
 });
