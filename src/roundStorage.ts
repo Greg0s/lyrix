@@ -424,7 +424,7 @@ export interface GroupSnapshot {
   code: string;
   state: string;
   found: TriedWord[];
-  /** The player's own guesses in the room that found nothing: theirs to keep listed too. Absent from older snapshots. */
+  /** The room's guesses that found nothing, listed among the player's words too. Absent from older snapshots. */
   missed?: TriedWord[];
 }
 

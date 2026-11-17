@@ -290,14 +290,14 @@ function withRoomWords(own: readonly TriedWord[], room: readonly TriedWord[]): T
 }
 
 /**
- * What of the room's guesses joins the player's own list: every word the
- * group found but `withheld` (the winning one, for a player looking alone),
- * and every word the player proposed in the room, missed ones included. Only
- * the found words used to join it, so the player's own misses in the room
- * vanished from "Tes mots" the moment the group's list gave way to it.
+ * What of the room's guesses joins the player's own list: every word anyone
+ * proposed in the room, missed ones included (decided with the developer), but
+ * `withheld` (the winning one, for a player looking alone). Only the found
+ * words used to join it, so the misses vanished from "Tes mots" the moment
+ * the group's list gave way to it.
  */
-function roomWordsKept(guesses: readonly TriedWord[], you: string, withheld: string | null = null): TriedWord[] {
-  return guesses.filter((word) => word.key !== withheld && (word.found || word.by?.id === you));
+function roomWordsKept(guesses: readonly TriedWord[], withheld: string | null = null): TriedWord[] {
+  return withheld === null ? [...guesses] : guesses.filter((word) => word.key !== withheld);
 }
 
 /**
@@ -809,8 +809,8 @@ export function useGame(day: string | null = null) {
     const { day: roomDay } = aloneSession.round;
     // What the round the room signs holds of the group's, listed with the
     // player's own words: as of now, so no later find of the room's gets in.
-    // The player's own guesses in the room go along, missed ones included.
-    const roomWords = roomWordsKept(aloneSession.triedWords, aloneSession.you, aloneSession.winningKey);
+    // The room's guesses go along, missed ones included.
+    const roomWords = roomWordsKept(aloneSession.triedWords, aloneSession.winningKey);
     const done = (prev: GameState): GameState =>
       prev.shared?.code === code ? { ...prev, shared: { ...prev.shared, aloneLoading: false } } : prev;
     setState((prev) =>
@@ -841,7 +841,7 @@ export function useGame(day: string | null = null) {
       code: sharedNow.code,
       state: sharedNow.round.state,
       found: sharedNow.triedWords.filter((word) => word.found),
-      missed: sharedNow.triedWords.filter((word) => !word.found && word.by?.id === sharedNow.you),
+      missed: sharedNow.triedWords.filter((word) => !word.found),
     });
   }, [sharedNow]);
 

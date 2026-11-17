@@ -1037,7 +1037,7 @@ describe("the room's round (#30)", () => {
     expect(window.localStorage.getItem(`lyrix:group:${utcDay()}:ABC234`)).toBeNull();
   });
 
-  it("keeps the player's own misses in the room among their words once they leave", async () => {
+  it("keeps the room's misses among the player's words once they leave", async () => {
     answer(204);
     resumeRound.mockResolvedValue(round("merged", ["vent"]));
     seedRoom(entry(camille.id, [camille, leo]));
@@ -1048,7 +1048,7 @@ describe("the room's round (#30)", () => {
     await waitFor(() => expect(lyricsText()).toContain("vent"));
     const card = screen.getByRole("region", { name: "Tes mots" });
     const chips = [...card.querySelectorAll(".lyrix-chip")].map((chip) => chip.textContent).sort();
-    expect(chips).toEqual(["piano", "vent"]);
+    expect(chips).toEqual(["guitare", "piano", "vent"]);
   });
 
   it("sends nothing on the solo round while the room's progress is joining it", async () => {
@@ -1170,7 +1170,7 @@ describe("when the group finds the song without the player (#30)", () => {
 
   // The solo list was shown as it was before the room: empty, or the few
   // words tried alone, under lyrics holding everything the group found.
-  it("lists what the group found but the winning word among the player's own words", async () => {
+  it("lists what the group tried but the winning word among the player's own words", async () => {
     answer(200, aloneRound);
     seedRoom(entry(camille.id, [camille, leo]));
     await mountGame([roomGuess("guitare", leo, false), ...titleFound.slice(1)]);
@@ -1180,7 +1180,7 @@ describe("when the group finds the song without the player (#30)", () => {
     await waitFor(() => expect(lyricsText()).toContain("refuge"));
     const card = screen.getByRole("region", { name: "Tes mots" });
     const chips = [...card.querySelectorAll(".lyrix-chip")].map((chip) => chip.textContent).sort();
-    expect(chips).toEqual(["de", "le", "refuge"]);
+    expect(chips).toEqual(["de", "guitare", "le", "refuge"]);
     expect(document.querySelector('[data-stat="found"] .lyrix-stat-value')?.textContent).toBe("3");
   });
 
@@ -1280,8 +1280,8 @@ describe("when the group finds the song without the player (#30)", () => {
   });
 
   // Greg's report: when a teammate found the song, "Tes mots" was rewritten,
-  // the words the player had proposed in the room and missed gone from it.
-  it("keeps the player's own misses in the room among their words, and nobody else's", async () => {
+  // the words proposed in the room and missed gone from it.
+  it("keeps the room's misses among the player's words, its winning word aside", async () => {
     answer(200, aloneRound);
     seedRoom(entry(camille.id, [camille, leo]));
     const before = [roomGuess("guitare", leo, false), roomGuess("piano", camille, false), ...titleFound.slice(1)];
@@ -1292,7 +1292,7 @@ describe("when the group finds the song without the player (#30)", () => {
     await waitFor(() => expect(lyricsText()).toContain("refuge"));
     const card = screen.getByRole("region", { name: "Tes mots" });
     const chips = [...card.querySelectorAll(".lyrix-chip")].map((chip) => chip.textContent).sort();
-    expect(chips).toEqual(["de", "le", "piano", "refuge"]);
+    expect(chips).toEqual(["de", "guitare", "le", "piano", "refuge"]);
     // Kept for 30 days with the round: never with a teammate's pseudo.
     flushSavedRound();
     expect(window.localStorage.getItem(`lyrix:day:${utcDay()}`)).not.toContain("Léo");
