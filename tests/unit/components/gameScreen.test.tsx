@@ -912,6 +912,27 @@ describe("feedback on a guess", () => {
     expect(row.className).not.toBe(firstShake);
   });
 
+  it("takes a word as already tried once found with an elision, and asks the Worker about an elided word not yet sent", async () => {
+    submitGuess.mockResolvedValueOnce({ ...round("state-1"), found: true, key: "j'aime", score: 100, near: [] });
+    // A song with no "l'aime": the Worker keys the guess as the word alone.
+    submitGuess.mockResolvedValueOnce({ ...round("state-1"), found: true, key: "aime", score: 100, near: [] });
+
+    const input = await mountGame();
+    fireEvent.change(input, { target: { value: "J’aime" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(submitGuess).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(input, { target: { value: "aime" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(screen.getByText("« aime » a déjà été proposé.")).toBeTruthy());
+    expect(submitGuess).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(input, { target: { value: "l'aime" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(screen.getByText("« l'aime » a déjà été proposé.")).toBeTruthy());
+    expect(submitGuess).toHaveBeenCalledTimes(2);
+  });
+
   it("highlights every occurrence of the word just found, until the next guess", async () => {
     const found: GuessResult = {
       ...round("state-1"),

@@ -1,4 +1,4 @@
-import { normalize } from "./normalize";
+import { elidedKey, isElidedWord, isElisionApostrophe, normalize } from "./normalize";
 import { isNumberWord, tokenize } from "./tokenize";
 import type { Song } from "./types";
 
@@ -30,6 +30,11 @@ export interface AnalyzedToken {
   key: string;
   /** The blank shown while the word is hidden; `""` for a punctuation run. */
   blank: string;
+  /**
+   * For an elided word glued to the next one ("j" in "j'aime"): the key of the
+   * two together ("j'aime"), which a guess of "j'aime" finds. Absent otherwise.
+   */
+  elided?: string;
 }
 
 export interface AnalyzedLine {
@@ -61,6 +66,12 @@ export interface SongAnalysis {
    */
   wordTexts: readonly string[];
   /**
+   * Elided key ("j'aime") -> the positions of the elided words glued to that
+   * word ("j" in each "j'aime"): what a guess of "j'aime" reveals on top of
+   * every "aime". A key never holds an apostrophe otherwise.
+   */
+  elidedPositions: ReadonlyMap<string, readonly number[]>;
+  /**
    * The song's numbers ("2015"), each once, in reading order. A similarity
    * table has no entry for a number, so the Worker compares a guessed number
    * with these by value instead (see numberHint in worker/src/similarity.ts).
@@ -71,11 +82,19 @@ export interface SongAnalysis {
 const cache = new WeakMap<Song, SongAnalysis>();
 
 function analyzeLine(text: string): AnalyzedToken[] {
-  return tokenize(text).map((token) =>
+  const tokens: AnalyzedToken[] = tokenize(text).map((token) =>
     token.isWord
       ? { text: token.text, isWord: true, key: normalize(token.text), blank: "_".repeat(token.text.length) }
       : { text: token.text, isWord: false, key: "", blank: "" }
   );
+  // "j", "'", "aime": the "j" is the elided word of "j'aime".
+  for (let i = 0; i + 2 < tokens.length; i++) {
+    const [word, glue, next] = [tokens[i], tokens[i + 1], tokens[i + 2]];
+    if (word.isWord && isElidedWord(word.key) && !glue.isWord && isElisionApostrophe(glue.text) && next.isWord) {
+      word.elided = elidedKey(word.key, next.key);
+    }
+  }
+  return tokens;
 }
 
 function analyze(song: Song): SongAnalysis {
@@ -83,6 +102,7 @@ function analyze(song: Song): SongAnalysis {
   const positions = new Map<string, number[]>();
   const numberKeys: string[] = [];
   const wordTexts: string[] = [];
+  const elidedPositions = new Map<string, number[]>();
   let position = 0;
 
   const visit = (text: string): AnalyzedToken[] => {
@@ -96,6 +116,11 @@ function analyze(song: Song): SongAnalysis {
       } else {
         positions.set(token.key, [position]);
         if (isNumberWord(token.key)) numberKeys.push(token.key);
+      }
+      if (token.elided) {
+        const glued = elidedPositions.get(token.elided);
+        if (glued) glued.push(position);
+        else elidedPositions.set(token.elided, [position]);
       }
       wordTexts.push(token.text);
       position += 1;
@@ -117,6 +142,7 @@ function analyze(song: Song): SongAnalysis {
     wordKeys,
     positions,
     wordTexts,
+    elidedPositions,
     numberKeys,
   };
 }

@@ -5,7 +5,7 @@ import { continueAlone, revealRoomAnswer, revealRoomHint, submitRoomGuess } from
 import { utcDay } from "../game/daily";
 import { applyReveal, isGuessDelta, revealedWords, withHints } from "../game/delta";
 import { availableHints, HINT_LABELS } from "../game/hints";
-import { guessKey } from "../game/normalize";
+import { baseKey, elidedGuessKey, guessKey } from "../game/normalize";
 import {
   memberName,
   type RoomDaySummary,
@@ -559,9 +559,13 @@ export function useGame(day: string | null = null) {
 
     // Mirror the server's own normalization so a repeat guess is a free,
     // instant no-op instead of a round trip. In a room, anyone's counts.
-    const key = guessKey(raw);
-    const by = shared ? triedWords.find((word) => word.key === key)?.by : undefined;
-    if (triedWords.some((word) => word.key === key)) {
+    // "j'aime" is a guess of its own (it reveals the "j'" too), unless already
+    // tried; "aime" after a found "j'aime" was found with it.
+    const key = elidedGuessKey(raw) ?? guessKey(raw);
+    const triedAs = (key: string) => (word: TriedWord) => word.key === key || (word.found && baseKey(word.key) === key);
+    const tried = triedAs(key);
+    const by = shared ? triedWords.find(tried)?.by : undefined;
+    if (triedWords.some(tried)) {
       setState((prev) => ({
         ...prev,
         inputValue: "",
@@ -605,6 +609,17 @@ export function useGame(day: string | null = null) {
       }
 
       const result = await submitGuess(round.state, raw);
+      // "j'aime" in a song that never glues "j'" to "aime" is the "aime" already tried.
+      if (result.key !== key && triedWords.some(triedAs(result.key))) {
+        setState((prev) => ({
+          ...prev,
+          inputValue: prev.inputValue === inputValue ? "" : prev.inputValue,
+          submitting: false,
+          notice: null,
+          feedback: { word: raw, key: result.key, found: false, duplicate: true, nearCount: 0, seq: nextSeq(prev.feedback) },
+        }));
+        return;
+      }
       // What the guess changed, applied to the round it was made on (the one
       // whose state was sent); a full view (a win, or an older Worker) as is.
       const next = isGuessDelta(result) ? applyReveal(round, result.reveal, result.state, result.hints) : result;
