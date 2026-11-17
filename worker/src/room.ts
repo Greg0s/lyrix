@@ -25,8 +25,8 @@ import {
 } from "../../src/game/room";
 import { dayStart, isPlayableDay, utcDay } from "../../src/game/daily";
 import { canReveal, isHintId } from "../../src/game/hints";
-import { buildTitleView, isVictory } from "../../src/game/mask";
-import { guessKey } from "../../src/game/normalize";
+import { buildTitleView, isVictory, songGuessKey } from "../../src/game/mask";
+import { baseKey } from "../../src/game/normalize";
 import { revealedPercent } from "../../src/game/progress";
 import type { HintId, RoundView, Song } from "../../src/game/types";
 import {
@@ -210,6 +210,15 @@ function veiledSummary(summary: RoomDaySummary): RoomDaySummary {
   const veiled: RoomDaySummary = { ...summary, title: summary.titleBeforeWin ?? summary.title };
   delete veiled.artist;
   return veiled;
+}
+
+/**
+ * Whether a guess already in the room stands for `key`: the same key, or a
+ * found "j'aime" for "aime", which it revealed everywhere already. "j'aime"
+ * after "aime" is new: it reveals the elision.
+ */
+function sameWord(guess: RoomGuess, key: string): boolean {
+  return guess.key === key || (guess.found && baseKey(guess.key) === key);
 }
 
 function foundKeys(round: RoundRecord): Set<string> {
@@ -443,7 +452,7 @@ export class Room {
     const { round, song } = loaded;
     // A word someone already proposed changes nothing: answered before any
     // work on it, the similarity lookup included.
-    const proposed = round.guesses.find((guess) => guess.key === guessKey(trimmed));
+    const proposed = round.guesses.find((guess) => sameWord(guess, songGuessKey(song, trimmed)));
     if (proposed) {
       const result: RoomGuessResult = { ...(await this.#roundOf(room, round, song, member.id)), guess: proposed, duplicate: true };
       return json(result, 200);
@@ -456,7 +465,7 @@ export class Room {
     // Checked again now, with nothing awaited between here and the write below:
     // the similarity table is awaited above, and another guess of the same
     // word could have landed meanwhile.
-    const earlier = round.guesses.find((guess) => guess.key === outcome.key);
+    const earlier = round.guesses.find((guess) => sameWord(guess, outcome.key));
     if (earlier) {
       const result: RoomGuessResult = { ...(await this.#roundOf(room, round, song, member.id)), guess: earlier, duplicate: true };
       return json(result, 200);

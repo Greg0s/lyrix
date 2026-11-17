@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { guessKey, normalize } from "../../../src/game/normalize";
+import { baseKey, elidedGuessKey, guessKey, normalize } from "../../../src/game/normalize";
 
 describe("normalize", () => {
   it("lowercases input", () => {
@@ -44,5 +44,27 @@ describe("guessKey", () => {
     expect(guessKey("aujourd'hui")).toBe("aujourd'hui");
     expect(guessKey("l")).toBe("l");
     expect(guessKey("l'")).toBe("l");
+  });
+});
+
+describe("elidedGuessKey", () => {
+  it("keeps the elision of a guess, with a plain apostrophe", () => {
+    expect(elidedGuessKey("J’aime !")).toBe("j'aime");
+    expect(elidedGuessKey("qu'il")).toBe("qu'il");
+    expect(elidedGuessKey("L'Amour")).toBe("l'amour");
+  });
+
+  it("has none for a word without an elision", () => {
+    expect(elidedGuessKey("aime")).toBeNull();
+    expect(elidedGuessKey("aujourd'hui")).toBeNull();
+  });
+});
+
+describe("baseKey", () => {
+  it("drops an elision, and only an elision", () => {
+    expect(baseKey("j'aime")).toBe("aime");
+    expect(baseKey("qu'il")).toBe("il");
+    expect(baseKey("aime")).toBe("aime");
+    expect(baseKey("aujourd'hui")).toBe("aujourd'hui");
   });
 });

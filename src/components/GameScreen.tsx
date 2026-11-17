@@ -13,6 +13,7 @@ import { isAnswerRevealed } from "../roomStorage";
 import { loadArchive } from "../roundStorage";
 import { isTourSeen, markTourSeen } from "../tourStorage";
 import { utcDay } from "../game/daily";
+import { baseKey } from "../game/normalize";
 import { ARCHIVES, HELP, isPageRoute, LEGAL, TODAY } from "../routes";
 import { AppHeader } from "./AppHeader";
 import { ArchivesScreen } from "./ArchivesScreen";
@@ -330,7 +331,9 @@ export function GameScreen() {
   const you = room.view?.you ?? null;
   const group = game.playingRoom && you !== null ? { you } : null;
   // A teammate's find is highlighted like the player's own, while it is the latest news.
-  const lastFoundKey = notice ? (notice.foundKey ?? null) : feedback?.found ? feedback.key : null;
+  // A found "j'aime" highlights its "aime" (the key the lyrics' words are compared by).
+  const foundKey = notice ? (notice.foundKey ?? null) : feedback?.found ? feedback.key : null;
+  const lastFoundKey = foundKey === null ? null : baseKey(foundKey);
   let guessFeedback: GuessFeedback | null = null;
   // No network: nothing the player sends can be checked, and nothing a room
   // sends arrives, so that is what the line says until it comes back.

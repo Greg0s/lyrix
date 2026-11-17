@@ -1,5 +1,6 @@
 import { isDayKey } from "../../src/game/daily";
 import { HINT_THRESHOLDS, isHintId } from "../../src/game/hints";
+import { baseKey } from "../../src/game/normalize";
 import type { HintId } from "../../src/game/types";
 
 export interface StatePayload {
@@ -74,7 +75,9 @@ export function progressAfterGuess(
 ): HintProgress {
   const mark = missedMark(key);
   const missed = before.missed ?? [];
-  if (foundKeys.includes(key) || missed.includes(mark)) return before;
+  // "aime" after "j'aime": found everywhere already.
+  const alreadyFound = foundKeys.some((foundKey) => foundKey === key || baseKey(foundKey) === key);
+  if (alreadyFound || missed.includes(mark)) return before;
   const tried = before.tried + 1;
   if (tried >= LAST_HINT_THRESHOLD) return { tried, used: before.used };
   return { tried, used: before.used, ...(found ? (before.missed ? { missed } : {}) : { missed: [...missed, mark] }) };

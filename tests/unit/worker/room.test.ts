@@ -641,6 +641,20 @@ describe("the room's round (#30)", () => {
     expect(hostSocket.sent).toHaveLength(heardBefore);
   });
 
+  // "s'allume" is in the song whole: it is found with its elision, and the word alone after it is the same word.
+  it("reveals a word typed with the elision the lyrics give it, elision included, and takes the word alone as a duplicate", async () => {
+    const host = await createRoom("Camille");
+    const hostSocket = await connect(host);
+
+    const found = await guessIn(host, "S’allume");
+    expect(found.guess).toMatchObject({ key: "s'allume", found: true });
+    expect(revealed(hostSocket.lastRound().round)).toEqual(["s", "allume"]);
+
+    const again = await guessIn(host, "allume");
+    expect(again.duplicate).toBe(true);
+    expect(again.guesses).toHaveLength(1);
+  });
+
   it("keeps the round across the object's eviction: a reconnection catches up", async () => {
     const host = await createRoom("Camille");
     const guest = await joinRoom(host.room.code, "Léo");
