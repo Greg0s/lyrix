@@ -1,6 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CatalogEntry } from "../../../worker/src/catalog";
-import { bestMatch, parseLrclibTrack, type LrclibTrack } from "../../../worker/src/lrclib";
+import {
+  BODY_TIMEOUT_MS,
+  bestMatch,
+  parseLrclibTrack,
+  searchTrack,
+  SEARCH_TIMEOUT_MS,
+  type LrclibTrack,
+} from "../../../worker/src/lrclib";
 
 const entry: CatalogEntry = { id: "papaoutai", artist: "Stromae", title: "Papaoutai" };
 
@@ -68,5 +75,70 @@ describe("bestMatch", () => {
 
   it("returns null for an empty list", () => {
     expect(bestMatch([], entry)).toBeNull();
+  });
+});
+
+describe("searchTrack's timeouts", () => {
+  const track = { artistName: "Stromae", instrumental: false, plainLyrics: "Des paroles", syncedLyrics: null };
+
+  /** A fetch answering at once, its body arriving `bodyDelayMs` later, cut off like a real one when its signal aborts. */
+  function slowBody(bodyDelayMs: number, text = JSON.stringify([track])) {
+    return vi.fn(async (_url: unknown, init?: RequestInit) => {
+      const signal = init?.signal;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const timer = setTimeout(() => {
+            controller.enqueue(new TextEncoder().encode(text));
+            controller.close();
+          }, bodyDelayMs);
+          signal?.addEventListener("abort", () => {
+            clearTimeout(timer);
+            controller.error(new DOMException("aborted", "AbortError"));
+          });
+        },
+      });
+      return new Response(stream, { status: 200 });
+    });
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // Fake timers leave the platform's AbortSignal.timeout alone: run it on them too.
+    vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new DOMException("timed out", "TimeoutError")), ms);
+      return controller.signal;
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  // A big answer used to be cut off SEARCH_TIMEOUT_MS after the request was
+  // sent, mid-read, and reported as a malformed body.
+  it("lets a large answer finish arriving after the search timeout", async () => {
+    vi.stubGlobal("fetch", slowBody(SEARCH_TIMEOUT_MS + 2_000));
+    const result = searchTrack(entry, []);
+    await vi.advanceTimersByTimeAsync(SEARCH_TIMEOUT_MS + 2_000);
+    expect(await result).toEqual([track]);
+  });
+
+  it("says an answer that never finishes timed out, not that it is malformed", async () => {
+    vi.stubGlobal("fetch", slowBody(BODY_TIMEOUT_MS * 10));
+    const result = searchTrack(entry, []);
+    const settled = expect(result).rejects.toThrow(/timed out reading the answer/);
+    await vi.advanceTimersByTimeAsync(BODY_TIMEOUT_MS + 1);
+    await settled;
+  });
+
+  it("still calls a body that isn't JSON malformed", async () => {
+    vi.stubGlobal("fetch", slowBody(0, "<html>"));
+    const result = searchTrack(entry, []);
+    const settled = expect(result).rejects.toThrow(/malformed body/);
+    await vi.advanceTimersByTimeAsync(1);
+    await settled;
   });
 });

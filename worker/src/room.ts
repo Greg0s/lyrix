@@ -25,8 +25,8 @@ import {
 } from "../../src/game/room";
 import { dayStart, isPlayableDay, utcDay } from "../../src/game/daily";
 import { canReveal, isHintId } from "../../src/game/hints";
-import { buildTitleView, isVictory } from "../../src/game/mask";
-import { guessKey } from "../../src/game/normalize";
+import { buildTitleView, isVictory, songGuessKey } from "../../src/game/mask";
+import { baseKey } from "../../src/game/normalize";
 import { revealedPercent } from "../../src/game/progress";
 import type { HintId, RoundView, Song } from "../../src/game/types";
 import {
@@ -41,7 +41,7 @@ import {
 import { recordEvent, roundKind } from "./events";
 import { getSongById, getSongOfDay, SongUnavailableError } from "./songs";
 import { pickSingerName } from "./singerNames";
-import { hintProgressOf, openState, type HintProgress } from "./state";
+import { hintProgressOf, mergedMissed, openState, type HintProgress } from "./state";
 
 /**
  * One room ("salon", issue #29) per Durable Object, addressed by its code
@@ -100,6 +100,8 @@ interface RoundRecord {
   summary?: RoomDaySummary;
   /** The hints the group revealed, in the order chosen, and who picked each. */
   hints?: RoomHint[];
+  /** Once won: the members (by id) who asked to see the answer (POST /answer). */
+  answered?: string[];
 }
 
 interface SocketAttachment {
@@ -187,6 +189,44 @@ function tokensOnly(tokens: RoundView["title"]["tokens"]): RoundView["title"]["t
   return tokens.map(({ text, isWord, revealed }) => ({ text, isWord, revealed }));
 }
 
+/** Who completed the title, once someone has. */
+function winnerOf(round: RoundRecord): RoomMember | undefined {
+  if (round.winningKey === undefined) return undefined;
+  return round.guesses.find((guess) => guess.key === round.winningKey)?.by;
+}
+
+/**
+ * Whether a member may be sent the answer to a round: before the win anyone,
+ * after it only the member who completed the title and those who asked for
+ * it. Anyone else is sent the round veiled (RoomRound.veiled).
+ */
+function knowsAnswer(round: RoundRecord, memberId: string | null): boolean {
+  if (round.winningKey === undefined) return true;
+  return memberId !== null && (winnerOf(round)?.id === memberId || (round.answered ?? []).includes(memberId));
+}
+
+/** A won day's summary as a member who doesn't know its answer sees it: the title before the winning word, no artist. */
+function veiledSummary(summary: RoomDaySummary): RoomDaySummary {
+  // A day won before summaries kept their title before the win shows none of its title.
+  const title =
+    summary.titleBeforeWin ??
+    summary.title.map((token) =>
+      token.isWord && token.revealed ? { text: "_".repeat(token.text.length), isWord: true, revealed: false } : token
+    );
+  const veiled: RoomDaySummary = { ...summary, title };
+  delete veiled.artist;
+  return veiled;
+}
+
+/**
+ * Whether a guess already in the room stands for `key`: the same key, or a
+ * found "j'aime" for "aime", which it revealed everywhere already. "j'aime"
+ * after "aime" is new: it reveals the elision.
+ */
+function sameWord(guess: RoomGuess, key: string): boolean {
+  return guess.key === key || (guess.found && baseKey(guess.key) === key);
+}
+
 function foundKeys(round: RoundRecord): Set<string> {
   return new Set(round.guesses.filter((guess) => guess.found).map((guess) => guess.key));
 }
@@ -200,7 +240,8 @@ function hintProgress(round: RoundRecord): HintProgress {
 function mergedProgress(a: HintProgress, b: HintProgress): HintProgress {
   const used: HintId[] = [...a.used];
   for (const id of b.used) if (!used.includes(id)) used.push(id);
-  return { tried: Math.max(a.tried, b.tried), used };
+  const tried = Math.max(a.tried, b.tried);
+  return { tried, used, ...mergedMissed(tried, a.missed, b.missed) };
 }
 
 function json(body: unknown, status: number): Response {
@@ -221,6 +262,9 @@ export class Room {
   // built at: a duplicate guess, a (re)connection or a move to a day already
   // played answers with it rather than mask the whole song and seal a state again.
   readonly #views = new WeakMap<RoundRecord, { guesses: number; hints: number; view: RoundView }>();
+  // The same, of the round without its winning word: what a member who
+  // doesn't know the answer is sent (see knowsAnswer).
+  readonly #veiledViews = new WeakMap<RoundRecord, { guesses: number; hints: number; view: RoundView }>();
 
   constructor(
     private readonly ctx: RoomContext,
@@ -246,6 +290,7 @@ export class Room {
     if (route === "POST /alone") return this.#alone(await readBody(request));
     if (route === "POST /hint") return this.#hint(await readBody(request));
     if (route === "POST /day") return this.#setDay(await readBody(request));
+    if (route === "POST /answer") return this.#answer(await readBody(request));
     return json({ error: "not found" }, 404);
   }
 
@@ -357,9 +402,9 @@ export class Room {
     this.#broadcast(room, event);
     // And the round as it stands, to the new socket alone: whatever it missed
     // while away, a (re)connection catches up on in one message.
-    let message: RoomRoundMessage | null = null;
+    let message: RoomRoundMessage;
     try {
-      message = await this.#roundMessage(room);
+      message = await this.#roundMessage(room, member.id);
     } catch (error) {
       // LRCLIB couldn't give the song: the client reconnects, with its
       // backoff, and asks again (src/hooks/useRoom.ts).
@@ -371,13 +416,21 @@ export class Room {
         }
         return;
       }
-    }
-    if (message) {
+      // Anything else is a bug: logged, and the connection closed the same
+      // way, so the member's client tries again instead of sitting there
+      // with no round and nobody knowing.
+      console.error("room: couldn't send the round to a connecting member", error);
       try {
-        socket.send(JSON.stringify(message));
+        socket.close(ROOM_CLOSE_TRY_AGAIN, "the round couldn't be loaded, try again");
       } catch {
-        // Closed while the song was being resolved: its close event follows.
+        // Already closed.
       }
+      return;
+    }
+    try {
+      socket.send(JSON.stringify(message));
+    } catch {
+      // Closed while the song was being resolved: its close event follows.
     }
   }
 
@@ -405,9 +458,9 @@ export class Room {
     const { round, song } = loaded;
     // A word someone already proposed changes nothing: answered before any
     // work on it, the similarity lookup included.
-    const proposed = round.guesses.find((guess) => guess.key === guessKey(trimmed));
+    const proposed = round.guesses.find((guess) => sameWord(guess, songGuessKey(song, trimmed)));
     if (proposed) {
-      const result: RoomGuessResult = { ...(await this.#roundOf(room, round, song)), guess: proposed, duplicate: true };
+      const result: RoomGuessResult = { ...(await this.#roundOf(room, round, song, member.id)), guess: proposed, duplicate: true };
       return json(result, 200);
     }
     if (round.guesses.length >= MAX_ROOM_GUESSES) {
@@ -418,9 +471,9 @@ export class Room {
     // Checked again now, with nothing awaited between here and the write below:
     // the similarity table is awaited above, and another guess of the same
     // word could have landed meanwhile.
-    const earlier = round.guesses.find((guess) => guess.key === outcome.key);
+    const earlier = round.guesses.find((guess) => sameWord(guess, outcome.key));
     if (earlier) {
-      const result: RoomGuessResult = { ...(await this.#roundOf(room, round, song)), guess: earlier, duplicate: true };
+      const result: RoomGuessResult = { ...(await this.#roundOf(room, round, song, member.id)), guess: earlier, duplicate: true };
       return json(result, 200);
     }
 
@@ -439,12 +492,11 @@ export class Room {
     this.#summarizeFrom(round, song, view);
     await this.ctx.storage.put(roundKey(roundDay(round)), round);
 
-    const current = await this.#roundOf(room, round, song, view);
-    const message: RoomRoundMessage = { type: "round", ...current, latest: guess.key };
+    const current = await this.#roundOf(room, round, song, member.id, view);
     // Not to the tab that guessed: this answer brings it the same round, and
     // the room's round is the largest thing it ever sends. The member's other
     // tabs still get it.
-    this.#send(JSON.stringify(message), (ws) => isTabOf(ws, member, tab));
+    await this.#sendRound(room, round, song, { latest: guess.key }, (ws) => isTabOf(ws, member, tab), view);
     const result: RoomGuessResult = { ...current, guess, duplicate: false };
     return json(result, 200);
   }
@@ -508,7 +560,7 @@ export class Room {
     const progress = hintProgress(round);
     if (!roundHints(song, progress, false)) return json({ error: "this song has no hints" }, 404);
     if (isVictory(song, foundKeys(round))) return json({ error: "the round is already won" }, 409);
-    if (progress.used.includes(hint)) return json(await this.#roundOf(room, round, song), 200);
+    if (progress.used.includes(hint)) return json(await this.#roundOf(room, round, song, member.id), 200);
     if (!canReveal(progress, hint)) return json({ error: "no hint is unlocked yet" }, 409);
 
     // Nothing awaited between the checks above and this write: two members
@@ -521,10 +573,9 @@ export class Room {
     this.#views.set(round, { guesses, hints, view });
     await this.ctx.storage.put(roundKey(roundDay(round)), round);
 
-    const current = await this.#roundOf(room, round, song, view);
-    const message: RoomRoundMessage = { type: "round", ...current, latestHint: hint };
+    const current = await this.#roundOf(room, round, song, member.id, view);
     // Not to the tab that revealed it: this answer brings it the round (see #guess).
-    this.#send(JSON.stringify(message), (ws) => isTabOf(ws, member, tab));
+    await this.#sendRound(room, round, song, { latestHint: hint }, (ws) => isTabOf(ws, member, tab), view);
     return json(current, 200);
   }
 
@@ -545,16 +596,41 @@ export class Room {
     } catch {
       return json({ error: "the song is unavailable, try again" }, 503);
     }
-    const current = await this.#roundOf(room, loaded.round, loaded.song);
+    const current = await this.#roundOf(room, loaded.round, loaded.song, member.id);
     if (roomDay(room) === day) return json(current, 200);
 
     room.day = day;
     await this.#save(room);
     this.#broadcast(room, { kind: "day", member: publicMember(member), day });
-    const message: RoomRoundMessage = { type: "round", ...current };
     // Not to the tab that moved the room: this answer brings it the round (see #guess).
-    this.#send(JSON.stringify(message), (ws) => isTabOf(ws, member, tab));
+    await this.#sendRound(room, loaded.round, loaded.song, {}, (ws) => isTabOf(ws, member, tab));
     return json(current, 200);
+  }
+
+  /**
+   * A member who didn't complete the title asks to see the answer the group
+   * found: from now on they are sent the round in full, this answer first.
+   * Refused before the group has won, or for a day the room has left.
+   */
+  async #answer({ token, day }: Record<string, unknown>): Promise<Response> {
+    const room = await this.#load();
+    const member = room && typeof token === "string" ? room.members.find((m) => m.token === token) : undefined;
+    if (!room || !member) return json({ error: "not a member of a live room" }, 404);
+    if (day !== undefined && day !== roomDay(room)) return json({ error: "the room has moved to another day" }, 409);
+
+    let loaded: { round: RoundRecord; song: Song };
+    try {
+      loaded = await this.#loadRound(room, roomDay(room));
+    } catch {
+      return json({ error: "the song is unavailable, try again" }, 503);
+    }
+    const { round, song } = loaded;
+    if (round.winningKey === undefined) return json({ error: "the room hasn't found the song yet" }, 409);
+    if (!knowsAnswer(round, member.id)) {
+      round.answered = [...(round.answered ?? []), member.id];
+      await this.ctx.storage.put(roundKey(roundDay(round)), round);
+    }
+    return json(await this.#roundOf(room, round, song, member.id), 200);
   }
 
   /**
@@ -667,19 +743,120 @@ export class Room {
     });
   }
 
-  async #roundOf(room: RoomRecord, round: RoundRecord, song: Song, view?: RoundView): Promise<RoomRound> {
+  /** The view of a round without its winning word, built again only once a guess or a hint has changed it. */
+  async #veiledViewOf(round: RoundRecord, song: Song): Promise<RoundView> {
+    const last = this.#veiledViews.get(round);
+    const guesses = round.guesses.length;
+    const hints = round.hints?.length ?? 0;
+    if (last && last.guesses === guesses && last.hints === hints) return last.view;
+    const keys = foundKeys(round);
+    if (round.winningKey !== undefined) keys.delete(round.winningKey);
+    const view = await buildRoundView(song, keys, this.env, roundDay(round), hintProgress(round));
+    this.#veiledViews.set(round, { guesses, hints, view });
+    return view;
+  }
+
+  /** The room's days as `memberId` may see them: a day won without them shows no more than before its winning word. */
+  #daysFor(summaries: readonly RoomDaySummary[], memberId: string | null): RoomDaySummary[] {
+    return summaries.map((summary) => {
+      const round = this.#rounds.get(summary.day);
+      return summary.victory && round && !knowsAnswer(round, memberId) ? veiledSummary(summary) : summary;
+    });
+  }
+
+  /**
+   * The room's round as `memberId` is sent it: in full, or veiled when they
+   * don't know its answer (knowsAnswer). The answer, the lyrics in full
+   * included, used to reach every member and only be hidden on screen.
+   */
+  async #roundOf(
+    room: RoomRecord,
+    round: RoundRecord,
+    song: Song,
+    memberId: string | null,
+    view?: RoundView
+  ): Promise<RoomRound> {
+    const days = this.#daysFor(await this.#summaries(room), memberId);
+    const hints = round.hints && round.hints.length > 0 ? { hints: round.hints } : {};
+    const winner = winnerOf(round);
+    if (knowsAnswer(round, memberId)) {
+      return {
+        round: view ?? (await this.#viewOf(round, song)),
+        guesses: round.guesses,
+        ...hints,
+        ...(round.winningKey !== undefined ? { winningKey: round.winningKey } : {}),
+        ...(winner ? { winner } : {}),
+        days,
+      };
+    }
     return {
-      round: view ?? (await this.#viewOf(round, song)),
-      guesses: round.guesses,
-      ...(round.hints && round.hints.length > 0 ? { hints: round.hints } : {}),
-      ...(round.winningKey !== undefined ? { winningKey: round.winningKey } : {}),
-      days: await this.#summaries(room),
+      round: await this.#veiledViewOf(round, song),
+      guesses: round.guesses.filter((guess) => guess.key !== round.winningKey),
+      ...hints,
+      ...(winner ? { winner } : {}),
+      veiled: true,
+      days,
     };
   }
 
-  async #roundMessage(room: RoomRecord): Promise<RoomRoundMessage> {
+  async #roundMessage(room: RoomRecord, memberId: string): Promise<RoomRoundMessage> {
     const { round, song } = await this.#loadRound(room, roomDay(room));
-    return { type: "round", ...(await this.#roundOf(room, round, song)) };
+    return { type: "round", ...(await this.#roundOf(room, round, song, memberId)) };
+  }
+
+  /**
+   * Sends every open connection but `except` the round as its member may see
+   * it, naming what changed it. Built once per kind of member, not per
+   * connection: the room's round is the largest thing it sends. A veiled
+   * member is never told the winning word was the latest guess.
+   */
+  async #sendRound(
+    room: RoomRecord,
+    round: RoundRecord,
+    song: Song,
+    news: { latest?: string; latestHint?: HintId },
+    except: (ws: RoomSocket) => boolean,
+    view?: RoundView
+  ): Promise<void> {
+    const sockets = this.#openSockets(except);
+    const texts = new Map<string, string>();
+    const textOf = new Map<RoomSocket, string>();
+    for (const ws of sockets) {
+      const memberId = attachedMemberId(ws);
+      const variant = this.#variantOf(room, round, memberId);
+      let text = texts.get(variant);
+      if (text === undefined) {
+        const current = await this.#roundOf(room, round, song, memberId, view);
+        const latest =
+          news.latest !== undefined && !(current.veiled && news.latest === round.winningKey) ? { latest: news.latest } : {};
+        const message: RoomRoundMessage = {
+          type: "round",
+          ...current,
+          ...latest,
+          ...(news.latestHint ? { latestHint: news.latestHint } : {}),
+        };
+        text = JSON.stringify(message);
+        texts.set(variant, text);
+      }
+      textOf.set(ws, text);
+    }
+    // Sent together, nothing awaited in between.
+    for (const [ws, text] of textOf) {
+      try {
+        ws.send(text);
+      } catch {
+        // Closing under us: its own close event will follow.
+      }
+    }
+  }
+
+  /** What a member's round message depends on: whether they know this round's answer, and each day's. */
+  #variantOf(room: RoomRecord, round: RoundRecord, memberId: string | null): string {
+    const days = (room.days ?? []).map((day) => {
+      const dayRound = this.#rounds.get(day);
+      return dayRound && knowsAnswer(dayRound, memberId) ? "1" : "0";
+    });
+    return `${knowsAnswer(round, memberId) ? "1" : "0"}|${days.join("")}`;
   }
 
   async webSocketMessage(ws: RoomSocket, message: string | ArrayBuffer): Promise<void> {

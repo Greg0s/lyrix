@@ -13,12 +13,14 @@ import { isAnswerRevealed } from "../roomStorage";
 import { loadArchive } from "../roundStorage";
 import { isTourSeen, markTourSeen } from "../tourStorage";
 import { utcDay } from "../game/daily";
+import { baseKey } from "../game/normalize";
 import { ARCHIVES, HELP, isPageRoute, LEGAL, TODAY } from "../routes";
 import { AppHeader } from "./AppHeader";
 import { ArchivesScreen } from "./ArchivesScreen";
 import { DayBar } from "./DayBar";
 import { playerColor } from "./playerColor";
 import { GroupFoundBanner } from "./GroupFoundBanner";
+import { NewSongNotice } from "./NewSongNotice";
 import { GuessForm, type GuessFeedback } from "./GuessForm";
 import { HintSheet } from "./HintSheet";
 import { HintsCard } from "./HintsCard";
@@ -329,7 +331,9 @@ export function GameScreen() {
   const you = room.view?.you ?? null;
   const group = game.playingRoom && you !== null ? { you } : null;
   // A teammate's find is highlighted like the player's own, while it is the latest news.
-  const lastFoundKey = notice ? (notice.foundKey ?? null) : feedback?.found ? feedback.key : null;
+  // A found "j'aime" highlights its "aime" (the key the lyrics' words are compared by).
+  const foundKey = notice ? (notice.foundKey ?? null) : feedback?.found ? feedback.key : null;
+  const lastFoundKey = foundKey === null ? null : baseKey(foundKey);
   let guessFeedback: GuessFeedback | null = null;
   // No network: nothing the player sends can be checked, and nothing a room
   // sends arrives, so that is what the line says until it comes back.
@@ -382,6 +386,8 @@ export function GameScreen() {
         {game.aloneAfter && !round.victory ? (
           <GroupFoundBanner winner={game.aloneAfter} you={you} onReveal={game.revealAnswer} />
         ) : null}
+        {/* A won round has its countdown's "Jouer"; a room expires at midnight anyway. */}
+        {day === null && !game.playingRoom && !round.victory ? <NewSongNotice roundDay={round.day} /> : null}
         <article className="lyrix-card lyrix-song">
           <TitleGuess
             titleTokens={slots.title}

@@ -138,6 +138,26 @@ export async function continueAlone(
 }
 
 /**
+ * Once the room has found the song, its answer, for a member who didn't
+ * complete the title: until they ask, the room sends them its round without
+ * the winning word (RoomRound.veiled). Throws when it couldn't be had.
+ */
+export function revealRoomAnswer(code: string, token: string, day: string): Promise<RoomRound> {
+  return withTimeout(GUESS_TIMEOUT_MS, async (signal) => {
+    const response = await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/answer`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, day }),
+      signal,
+    });
+    const body: unknown = await response.json().catch(() => null);
+    const round = response.ok ? parseRoomRoundAnswer(body) : null;
+    if (!round) throw new Error(`revealing the answer failed with status ${response.status}`);
+    return round;
+  });
+}
+
+/**
  * Takes the whole room to another day's song: today's, or a day of the
  * archives. The room's round of that day is this answer's; every other tab
  * and member is sent it over the socket. Throws when the room couldn't be

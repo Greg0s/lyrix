@@ -299,6 +299,21 @@ describe("loadSimilarityTable", () => {
     expect(await loadSimilarityTable(env, song)).toBeNull();
   });
 
+  // A failed read was remembered as "no table" for a minute: one KV hiccup
+  // took every score away from every guess on the isolate.
+  it("doesn't remember a failed read as a missing table: the next guess reads again", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const get = vi
+      .fn<() => Promise<string | null>>()
+      .mockRejectedValueOnce(new Error("KV unavailable"))
+      .mockResolvedValue(table({ orage: 42 }));
+    const env: SimilarityEnv = { SIMILARITY: { get } };
+    expect(await loadSimilarityTable(env, song)).toBeNull();
+    expect((await loadSimilarityTable(env, song))?.scores.orage).toBe(42);
+    expect(get).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
+  });
+
   it("survives a stored value that isn't valid JSON", async () => {
     const env: SimilarityEnv = { SIMILARITY: fakeKv({ [song.id]: "{not json" }) };
     expect(await loadSimilarityTable(env, song)).toBeNull();

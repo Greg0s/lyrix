@@ -40,6 +40,15 @@ export interface SavedDay {
   triedWords: TriedWord[];
   /** Only for today's round: the view it can resume from without the network. */
   round?: RoundView;
+  /** The hints revealed as of `state`, when the song has any. */
+  hintsUsed?: readonly string[];
+}
+
+/** The day a storage key holds the round of, for a `storage` event from another tab; null for any other key. */
+export function savedDayOfKey(key: string | null): string | null {
+  if (key === null || !key.startsWith(DAY_PREFIX)) return null;
+  const day = key.slice(DAY_PREFIX.length);
+  return isDayKey(day) ? day : null;
 }
 
 // Parses rather than type-guards, so a round saved before proximity scoring
@@ -300,11 +309,12 @@ export function loadSavedDay(
     const saved = readDay(storage, day);
     if (!saved) return null;
     const { state, triedWords } = saved;
-    if (day !== utcDay(now)) return { state, triedWords };
+    const base: SavedDay = saved.hints ? { state, triedWords, hintsUsed: saved.hints.used } : { state, triedWords };
+    if (day !== utcDay(now)) return base;
     // Should the view's write have failed, or another tab have saved since,
     // the view must not stand for another state than the round carries on with.
     const round = resumableView(readJson(storage, VIEW_PREFIX + day), saved, day);
-    return round ? { state, triedWords, round } : { state, triedWords };
+    return round ? { ...base, round } : base;
   } catch {
     return null;
   }

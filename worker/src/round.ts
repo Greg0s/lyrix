@@ -1,7 +1,15 @@
 import { analyzeSong } from "../../src/game/analyze";
 import { HINT_IDS } from "../../src/game/hints";
-import { buildSectionsView, buildTitleView, isVictory, songWordKeys } from "../../src/game/mask";
-import { guessKey } from "../../src/game/normalize";
+import {
+  buildSectionsView,
+  buildTitleView,
+  isVictory,
+  revealedKeys,
+  revealedPositions,
+  songGuessKey,
+  songWordKeys,
+} from "../../src/game/mask";
+import { baseKey } from "../../src/game/normalize";
 import { MAX_PROXIMITY_SCORE } from "../../src/game/similarity";
 import { wordPositions } from "../../src/game/slots";
 import type { GuessDelta, HintId, NearSlot, RevealedSlot, RoundHints, RoundView, Song } from "../../src/game/types";
@@ -88,6 +96,7 @@ export function sealRound(
       day,
       tried: progress.tried,
       ...(progress.used.length > 0 ? { hints: [...progress.used] } : {}),
+      ...(progress.missed && progress.missed.length > 0 ? { missed: [...progress.missed] } : {}),
     },
     env.STATE_SECRET
   );
@@ -139,8 +148,17 @@ export interface GuessOutcome {
 /** How many word occurrences `foundKeys` reveal: what a delta's `revealed` says, in O(found words). */
 export function revealedCount(song: Song, foundKeys: Iterable<string>): number {
   const positions = wordPositions(song);
+  const { elidedPositions } = analyzeSong(song);
+  const keys = new Set(foundKeys);
+  const revealed = revealedKeys(keys);
   let count = 0;
-  for (const key of new Set(foundKeys)) count += positions.get(key)?.length ?? 0;
+  // Every word revealed everywhere, once...
+  for (const key of revealed) count += positions.get(key)?.length ?? 0;
+  // ...and the elisions an elided key reveals, unless that elided word is found everywhere already.
+  for (const key of keys) {
+    const glued = elidedPositions.get(key);
+    if (glued && !revealed.has(key.slice(0, key.indexOf("'")))) count += glued.length;
+  }
   return count;
 }
 
@@ -166,7 +184,7 @@ export async function buildGuessDelta(
   const hints = roundHints(song, progress, false);
   const { wordTexts } = analyzeSong(song);
   const reveal: RevealedSlot[] = outcome.found
-    ? (wordPositions(song).get(outcome.key) ?? []).map((position) => ({ position, text: wordTexts[position] ?? "" }))
+    ? revealedPositions(song, outcome.key).map((position) => ({ position, text: wordTexts[position] ?? "" }))
     : [];
   return {
     kind: "delta",
@@ -186,8 +204,8 @@ export async function evaluateGuess(
   foundKeys: ReadonlySet<string>,
   word: string
 ): Promise<GuessOutcome> {
-  const key = guessKey(word);
-  const found = songWordKeys(song).has(key);
+  const key = songGuessKey(song, word);
+  const found = songWordKeys(song).has(baseKey(key));
   // A found word is its own closest match and reveals itself, so it needs no
   // table lookup. A missed one gets its score plus the positions of the hidden
   // words it is close to - never those words themselves, and never a vector.

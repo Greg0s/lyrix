@@ -101,6 +101,46 @@ describe("hints in a round", () => {
     expect((await openState(found.body.state, env.STATE_SECRET))?.tried).toBe(2);
   });
 
+  // 150 sends of one word by script used to unlock all three hints.
+  it("count a word sent again once, missed or found, delta or not", async () => {
+    const { round } = await todaysRound();
+    let state = round.state;
+    for (const [word, delta] of [
+      ["xylophone", true],
+      ["xylophone", false],
+      ["Xylophone !", true],
+      ["ligne", false],
+      ["ligne", true],
+    ] as const) {
+      const { body } = await post<GuessDelta>("/api/guess", { state, word, delta });
+      state = body.state;
+    }
+    expect((await openState(state, env.STATE_SECRET))?.tried).toBe(2);
+    const { body } = await post<GuessDelta>("/api/guess", { state, word: "trombone", delta: true });
+    expect(body.hints?.tried).toBe(3);
+  });
+
+  it("still count a repeated miss once after a hint is revealed or the round resumed", async () => {
+    const { round } = await todaysRound();
+    const { body: first } = await post<GuessDelta>("/api/guess", { state: round.state, word: "xylophone", delta: true });
+    const opened = await openState(first.state, env.STATE_SECRET);
+    if (!opened) throw new Error("the state does not open");
+    // The first hint unlocked, with the miss above remembered.
+    const near = await sealState({ ...opened, tried: 50 }, env.STATE_SECRET);
+    const revealed = await reveal(near, "era");
+    const { body: resumed } = await post<RoundView>("/api/round/resume", { states: [revealed.body.state] });
+    const { body: again } = await post<GuessDelta>("/api/guess", { state: resumed.state, word: "xylophone", delta: true });
+    expect(again.hints?.tried).toBe(50);
+  });
+
+  it("stop remembering misses once the last hint is unlocked", async () => {
+    const { song } = await todaysRound();
+    const { body } = await post<GuessDelta>("/api/guess", { state: await stateAfter(song, 149), word: "xylophone", delta: true });
+    const opened = await openState(body.state, env.STATE_SECRET);
+    expect(opened?.tried).toBe(150);
+    expect(opened?.missed).toBeUndefined();
+  });
+
   it("reads a state sealed before hints as having counted its found words", async () => {
     const { song } = await todaysRound();
     const legacy = await sealState({ songId: song.id, foundKeys: ["ligne", "couplet"], day: utcDay() }, env.STATE_SECRET);

@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { sealState, openState } from "../../../worker/src/state";
+import { sealState, openState, type StatePayload } from "../../../worker/src/state";
 import { fromBase64Url, toBase64Url } from "./titleLeak";
+
+const DAY = "2026-11-16";
 
 describe("sealState / openState", () => {
   it("round-trips a payload", async () => {
-    const token = await sealState({ songId: "abc", foundKeys: ["le", "ete"] }, "secret");
-    expect(await openState(token, "secret")).toEqual({ songId: "abc", foundKeys: ["le", "ete"] });
+    const token = await sealState({ songId: "abc", foundKeys: ["le", "ete"], day: DAY }, "secret");
+    expect(await openState(token, "secret")).toEqual({ songId: "abc", foundKeys: ["le", "ete"], day: DAY });
   });
 
   it("round-trips the day a round is the song of", async () => {
@@ -19,12 +21,12 @@ describe("sealState / openState", () => {
   });
 
   it("rejects a token signed with a different secret", async () => {
-    const token = await sealState({ songId: "abc", foundKeys: [] }, "secret-a");
+    const token = await sealState({ songId: "abc", foundKeys: [], day: DAY }, "secret-a");
     expect(await openState(token, "secret-b")).toBeNull();
   });
 
   it("rejects a tampered token", async () => {
-    const token = await sealState({ songId: "abc", foundKeys: [] }, "secret");
+    const token = await sealState({ songId: "abc", foundKeys: [], day: DAY }, "secret");
     // The first character, not the last: that one can hold padding bits base64 decoding drops.
     const tampered = (token[0] === "a" ? "b" : "a") + token.slice(1);
     expect(await openState(tampered, "secret")).toBeNull();
@@ -41,7 +43,7 @@ describe("sealState / openState", () => {
   // Regression test for #40: the state used to be signed but not encrypted,
   // so its base64url payload named the day's song to anyone who decoded it.
   it("keeps its payload unreadable, however the token is decoded", async () => {
-    const token = await sealState({ songId: "le-refuge-de-novembre", foundKeys: ["jardin"] }, "secret");
+    const token = await sealState({ songId: "le-refuge-de-novembre", foundKeys: ["jardin"], day: DAY }, "secret");
     const decoded = token
       .split(".")
       .map(fromBase64Url)
@@ -53,7 +55,7 @@ describe("sealState / openState", () => {
   });
 
   it("seals the same payload differently every time", async () => {
-    const payload = { songId: "abc", foundKeys: [] };
+    const payload = { songId: "abc", foundKeys: [], day: DAY };
     expect(await sealState(payload, "secret")).not.toBe(await sealState(payload, "secret"));
   });
 });
@@ -69,19 +71,18 @@ async function legacyToken(payload: unknown, secret: string): Promise<string> {
   return `${body}.${toBase64Url(signature)}`;
 }
 
-describe("a state signed before #40", () => {
-  // A round started before the deploy must not restart mid-day.
-  it("still opens, with the secret it was signed with", async () => {
-    const token = await legacyToken({ songId: "abc", foundKeys: ["le"] }, "secret");
-    expect(await openState(token, "secret")).toEqual({ songId: "abc", foundKeys: ["le"] });
-    expect(await openState(token, "other-secret")).toBeNull();
+// States signed before #40 (HMAC, readable) and sealed before the archives
+// (no day) were accepted for ever, a day with none read as today's. Both
+// predate FIRST_SONG_DAY: no round still playable can hold one.
+describe("a state from before the archives", () => {
+  it("is refused when signed the old way, even with the right secret", async () => {
+    const token = await legacyToken({ songId: "abc", foundKeys: ["le"], day: DAY }, "secret");
+    expect(await openState(token, "secret")).toBeNull();
   });
 
-  it("is still refused once tampered with", async () => {
-    const token = await legacyToken({ songId: "abc", foundKeys: [] }, "secret");
-    const [, signature] = token.split(".");
-    const forged = `${toBase64Url(JSON.stringify({ songId: "abc", foundKeys: ["le"] }))}.${signature}`;
-    expect(await openState(forged, "secret")).toBeNull();
+  it("is refused when sealed with no day", async () => {
+    const token = await sealState({ songId: "abc", foundKeys: [] } as unknown as StatePayload, "secret");
+    expect(await openState(token, "secret")).toBeNull();
   });
 });
 
@@ -92,22 +93,22 @@ describe("the state key", () => {
   it("is derived once per secret, however many tokens it seals", async () => {
     const importKey = vi.spyOn(crypto.subtle, "importKey");
 
-    const token = await sealState({ songId: "abc", foundKeys: [] }, "reused-secret");
+    const token = await sealState({ songId: "abc", foundKeys: [], day: DAY }, "reused-secret");
     await openState(token, "reused-secret");
-    await sealState({ songId: "abc", foundKeys: ["le"] }, "reused-secret");
+    await sealState({ songId: "abc", foundKeys: ["le"], day: DAY }, "reused-secret");
 
     expect(importKey).toHaveBeenCalledTimes(1);
     importKey.mockRestore();
   });
 
   it("is never shared between two secrets", async () => {
-    const token = await sealState({ songId: "abc", foundKeys: [] }, "secret-one");
+    const token = await sealState({ songId: "abc", foundKeys: [], day: DAY }, "secret-one");
     expect(await openState(token, "secret-two")).toBeNull();
-    expect(await openState(token, "secret-one")).toEqual({ songId: "abc", foundKeys: [] });
+    expect(await openState(token, "secret-one")).toEqual({ songId: "abc", foundKeys: [], day: DAY });
   });
 
   it("keeps reporting a secret it cannot import, instead of caching the failure", async () => {
-    await expect(sealState({ songId: "abc", foundKeys: [] }, "")).rejects.toThrow();
-    await expect(sealState({ songId: "abc", foundKeys: [] }, "")).rejects.toThrow();
+    await expect(sealState({ songId: "abc", foundKeys: [], day: DAY }, "")).rejects.toThrow();
+    await expect(sealState({ songId: "abc", foundKeys: [], day: DAY }, "")).rejects.toThrow();
   });
 });
