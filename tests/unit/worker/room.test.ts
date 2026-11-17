@@ -1027,6 +1027,25 @@ describe("the day a room plays", () => {
     expect(veiled.winner?.id).toBe(guest.you);
   });
 
+  // A day won before summaries kept their title before the win: veiled, it showed the whole title.
+  it("shows none of a won day's title to a member who doesn't know it, when its summary has no title before the win", async () => {
+    const host = await createRoom("Camille");
+    const guest = await joinRoom(host.room.code, "Léo");
+    await setDay(host, ARCHIVED);
+    await winTogether(host, guest);
+    const state = rooms.state(host.room.code);
+    for (const [key, value] of state.store) {
+      const round = value as { summary?: { titleBeforeWin?: unknown } };
+      if (key.startsWith("round") && round.summary) delete round.summary.titleBeforeWin;
+    }
+
+    const veiled = (await connect(host)).lastRound().days?.find((summary) => summary.day === ARCHIVED);
+    if (!veiled) throw new Error("the day won isn't summarized");
+    expect(veiled.victory).toBe(true);
+    expect(veiled.title.some((token) => token.isWord && token.revealed)).toBe(false);
+    expect(JSON.stringify(veiled)).not.toContain("novembre");
+  });
+
   it("lets a member look on alone on the day the room plays", async () => {
     const host = await createRoom("Camille");
     const guest = await joinRoom(host.room.code, "Léo");

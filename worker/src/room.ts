@@ -207,7 +207,13 @@ function knowsAnswer(round: RoundRecord, memberId: string | null): boolean {
 
 /** A won day's summary as a member who doesn't know its answer sees it: the title before the winning word, no artist. */
 function veiledSummary(summary: RoomDaySummary): RoomDaySummary {
-  const veiled: RoomDaySummary = { ...summary, title: summary.titleBeforeWin ?? summary.title };
+  // A day won before summaries kept their title before the win shows none of its title.
+  const title =
+    summary.titleBeforeWin ??
+    summary.title.map((token) =>
+      token.isWord && token.revealed ? { text: "_".repeat(token.text.length), isWord: true, revealed: false } : token
+    );
+  const veiled: RoomDaySummary = { ...summary, title };
   delete veiled.artist;
   return veiled;
 }

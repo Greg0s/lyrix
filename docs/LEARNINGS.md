@@ -626,3 +626,7 @@ Lyrics are tokenized with the elision apart ("j", "'", "aime") and a guess was k
 ## 2026-11-17 — A merged round could hold more misses than a state may
 
 A state keeps its missed words' marks (`missed`) until the last hint unlocks, and refuses to open with more than `LAST_HINT_THRESHOLD` of them. Two states of one round, each under it, could hold more distinct misses together: `mergedMissed` (a resume, a room's `/alone`) sealed them all, and the merged state never opened again, so the round it carried was refused. Marks are now capped at that bound, the latest kept (`capped`, `worker/src/state.ts`), after a merge and after each new miss; a mark let go only means that word could count once more. Regression test: `tests/unit/worker/missedMerge.test.ts`.
+
+## 2026-11-17 — A day won before `titleBeforeWin` was veiled with its whole title
+
+A member who doesn't know a won day's answer is sent its summary with the title as it stood before the winning word (`veiledSummary`), but a summary written before that field existed fell back to the full title. Without it, the title is now sent with every word hidden. Regression test in `tests/unit/worker/room.test.ts` ("no title before the win").
