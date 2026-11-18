@@ -6,6 +6,7 @@ import type { GuessResult, HintAnswer, HintId } from "../../src/game/types";
 import { recordEvent, roundKind, type EventsEnv } from "./events";
 import { clientErrorRoutes } from "./clientError";
 import { coverRoutes, prepareCovers } from "./covers";
+import { previewRoutes } from "./preview";
 import { freshRoundBody } from "./freshRound";
 import { prepareSongs } from "./prepare";
 import { isVictory } from "../../src/game/mask";
@@ -292,6 +293,9 @@ app.route("/api/client-error", clientErrorRoutes);
 
 // A won round's album cover (RoundView.cover), served by the Worker itself.
 app.route("/api/cover", coverRoutes);
+
+// A won round's 30-second extract, fetched from Deezer and served by the Worker itself.
+app.route("/api/preview", previewRoutes);
 
 // Rooms ("salons", issue #29), and the round each plays together (#30).
 app.route("/api/rooms", roomRoutes);
