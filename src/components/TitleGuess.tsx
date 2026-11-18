@@ -9,6 +9,7 @@ import { NextSongCountdown } from "./NextSongCountdown";
 import { VictoryFoot } from "./VictoryFoot";
 import { TokenRun } from "./TokenRun";
 import { VictoryCover } from "./VictoryCover";
+import { previewVariant, VictoryPreview } from "./VictoryPreview";
 
 interface TitleGuessProps {
   titleTokens: SlotToken[];
@@ -77,6 +78,7 @@ export const TitleGuess = memo(function TitleGuess({
   // One tab stop into the title's bars, like the lyrics' (see useRovingBlanks).
   const roving = useRovingBlanks<HTMLHeadingElement>();
   const title = titleTokens.map((token) => token.text).join("");
+  const variant = previewVariant();
   // How many words pop before the panel comes in.
   const style = celebration
     ? ({ "--words": titleTokens.filter((token) => token.isWord).length } as CSSProperties)
@@ -91,7 +93,9 @@ export const TitleGuess = memo(function TitleGuess({
       {victory ? (
         <div className="lyrix-victory">
           <div className="lyrix-victory-main">
-            <VictoryCover cover={cover} />
+            <VictoryCover cover={cover}>
+              {variant === "A" ? <VictoryPreview cover={cover} variant="A" /> : null}
+            </VictoryCover>
             <div className="lyrix-victory-text">
               <p className="lyrix-victory-eyebrow">
                 {group ? "Bravo, le groupe l'a trouvée\u00a0!" : "Bravo, tu l'as trouvée\u00a0!"}
@@ -113,6 +117,7 @@ export const TitleGuess = memo(function TitleGuess({
                   ) : null}
                 </dl>
               ) : null}
+              {variant === "B" ? <VictoryPreview cover={cover} variant="B" /> : null}
               {archiveDay === null ? (
                 <>
                   <p className="lyrix-victory-note">Reviens demain pour une nouvelle chanson&nbsp;!</p>
@@ -125,6 +130,7 @@ export const TitleGuess = memo(function TitleGuess({
               )}
             </div>
           </div>
+          {variant === "C" ? <VictoryPreview cover={cover} variant="C" /> : null}
           <label className="lyrix-reveal-all">
             <input
               type="checkbox"

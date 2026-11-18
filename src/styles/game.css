@@ -859,6 +859,230 @@
   animation: lyrix-cover-in 0.3s var(--ease-out);
 }
 
+/*
+ * The song's 30-second extract (VictoryPreview), from the Worker. Hidden until
+ * the browser knows it is there, like the sleeve; its progress (--progress,
+ * 0 to 1) is written by the component straight to the DOM.
+ */
+.lyrix-preview {
+  --progress: 0;
+  display: none;
+}
+
+.lyrix-preview.is-ready {
+  display: flex;
+}
+
+.lyrix-preview audio {
+  display: none;
+}
+
+.lyrix-preview-button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  background: var(--accent-solid);
+  color: var(--color-on-bright);
+  cursor: pointer;
+  transition: transform 0.15s var(--ease-out), background-color 0.15s;
+}
+
+.lyrix-preview-button:hover {
+  background: var(--accent-hover);
+}
+
+.lyrix-preview-button:active {
+  transform: scale(0.92);
+}
+
+.lyrix-preview-button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.lyrix-preview-bar {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-solid-raised);
+}
+
+.lyrix-preview-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--color-on-ink-accent);
+  transform-origin: left center;
+  transform: scaleX(var(--progress));
+}
+
+.lyrix-preview-time {
+  flex: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-on-ink-muted);
+}
+
+/* A: on the sleeve itself, a play button in its corner and a thin bar along its foot. */
+.lyrix-preview.is-a {
+  position: absolute;
+  inset: 0;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 6px;
+}
+
+.lyrix-preview.is-a .lyrix-preview-button {
+  width: 34px;
+  height: 34px;
+  box-shadow: 0 4px 12px -4px var(--color-solid);
+}
+
+.lyrix-preview.is-a .lyrix-preview-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  border-radius: 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.lyrix-preview.is-a.is-playing .lyrix-preview-bar {
+  opacity: 1;
+}
+
+/* B: a listening line under the facts, the clock after it. */
+.lyrix-preview.is-b {
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0 8px;
+  max-width: 320px;
+}
+
+.lyrix-preview.is-b .lyrix-preview-button {
+  width: 32px;
+  height: 32px;
+}
+
+.lyrix-preview.is-b .lyrix-preview-bar {
+  flex: 1;
+  height: 4px;
+}
+
+/* C: a strip of its own across the panel, above "Afficher tous les lyrics". */
+.lyrix-preview.is-c {
+  position: relative;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 12px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--color-solid-raised);
+}
+
+.lyrix-preview.is-c .lyrix-preview-button {
+  width: 38px;
+  height: 38px;
+}
+
+.lyrix-preview.is-c .lyrix-preview-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lyrix-preview-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.lyrix-preview-source {
+  font-size: 0.78rem;
+  color: var(--color-on-ink-muted);
+}
+
+.lyrix-preview.is-c .lyrix-preview-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.lyrix-preview.is-c .lyrix-preview-title,
+.lyrix-preview.is-c .lyrix-preview-source {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* On a phone, the strip's own bar tells the time: the dancing bars and the clock make way for the text. */
+@media (max-width: 559px) {
+  .lyrix-preview.is-c .lyrix-preview-eq,
+  .lyrix-preview.is-c .lyrix-preview-time {
+    display: none;
+  }
+}
+
+/* A few bars that dance while it plays; still otherwise, and under reduced motion. */
+.lyrix-preview-eq {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 18px;
+}
+
+.lyrix-preview-eq span {
+  width: 3px;
+  height: 30%;
+  border-radius: 2px;
+  background: var(--color-on-ink-accent);
+  transform-origin: bottom;
+}
+
+.lyrix-preview.is-playing .lyrix-preview-eq span {
+  height: 100%;
+  animation: lyrix-eq 0.9s ease-in-out infinite alternate;
+}
+
+.lyrix-preview.is-playing .lyrix-preview-eq span:nth-child(2) {
+  animation-delay: -0.3s;
+}
+
+.lyrix-preview.is-playing .lyrix-preview-eq span:nth-child(3) {
+  animation-delay: -0.6s;
+}
+
+.lyrix-preview.is-playing .lyrix-preview-eq span:nth-child(4) {
+  animation-delay: -0.15s;
+}
+
+@keyframes lyrix-eq {
+  from {
+    transform: scaleY(0.25);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyrix-preview.is-playing .lyrix-preview-eq span {
+    animation: none;
+    height: 60%;
+  }
+}
+
 /* The song's facts, side by side like a record's label: Artiste, then Année. */
 .lyrix-victory-facts {
   display: flex;
