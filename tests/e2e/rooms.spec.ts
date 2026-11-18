@@ -63,8 +63,13 @@ function feedback(page: Page): Locator {
 }
 
 /** Creates a room from the header, closes the dialog, and returns its code. */
-async function createRoom(page: Page, pseudo: string): Promise<string> {
-  await page.getByRole("button", { name: "Jouer à plusieurs" }).click();
+/** The header's button opens the dialog from 880px; below, the tab bar's room tab (`opener`). */
+async function createRoom(
+  page: Page,
+  pseudo: string,
+  opener = page.getByRole("button", { name: "Jouer à plusieurs" }),
+): Promise<string> {
+  await opener.click();
   await dialog(page).getByRole("tab", { name: "Créer un salon" }).click();
   await dialog(page).getByLabel("Ton pseudo").fill(pseudo);
   await dialog(page).getByRole("button", { name: "Créer le salon" }).click();
@@ -418,14 +423,15 @@ test.describe("when a teammate completes the title", () => {
 test.describe("on a narrow phone", () => {
   test.use({ viewport: { width: 400, height: 800 } });
 
-  test("the header button just counts the players", async ({ page }) => {
+  test("the tab bar's room tab says so, with a dot", async ({ page }) => {
     await page.goto("/");
-    await createRoom(page, "Camille");
+    const tabBar = page.getByRole("navigation", { name: "Navigation" });
+    await createRoom(page, "Camille", tabBar.getByRole("button", { name: "Salon" }));
 
-    const button = page.getByRole("button", { name: "Salon · 1 joueur" });
-    await expect(button.locator(".lyrix-pill-label.is-room-count")).toBeVisible();
-    await expect(button.locator(".lyrix-pill-label.is-room")).toBeHidden();
-    await expect(button.locator(".lyrix-presence-dot")).toBeVisible();
+    const tab = tabBar.getByRole("button", { name: "Salon, 1 joueur" });
+    await expect(tab.locator(".lyrix-presence-dot")).toBeVisible();
+    // The header's own button is the tab bar's from 880px only.
+    await expect(page.getByRole("button", { name: "Salon · 1 joueur" })).toBeHidden();
   });
 });
 

@@ -1,4 +1,4 @@
-import type { CSSProperties, FormEvent, MouseEvent, RefObject } from "react";
+import type { CSSProperties, FormEvent, MouseEvent, ReactNode, RefObject } from "react";
 import { BulbIcon } from "./HintIcon";
 
 export interface GuessFeedback {
@@ -32,10 +32,21 @@ interface GuessFormProps {
   inputRef: RefObject<HTMLInputElement | null>;
   /** "Propose un mot…", or "Propose un mot au groupe…" in a room. */
   placeholder: string;
+  /** Over the input, below 880px only: the words tried and the hints (DockShortcuts). */
+  shortcuts?: ReactNode;
 }
 
 /** The dark dock pinned to the bottom of the game column: the guess input, "Valider", and the latest feedback. */
-export function GuessForm({ value, onChange, onSubmit, submitting, feedback, inputRef, placeholder }: GuessFormProps) {
+export function GuessForm({
+  value,
+  onChange,
+  onSubmit,
+  submitting,
+  feedback,
+  inputRef,
+  placeholder,
+  shortcuts,
+}: GuessFormProps) {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!submitting) onSubmit();
@@ -55,6 +66,7 @@ export function GuessForm({ value, onChange, onSubmit, submitting, feedback, inp
   return (
     <div className="lyrix-dock" data-tour="guess">
       <form className="lyrix-form" onSubmit={handleSubmit}>
+        {shortcuts}
         <div className={`lyrix-form-row${feedback?.shake ? ` is-shake-${parity}` : ""}`}>
           <input
             ref={inputRef}
@@ -69,6 +81,8 @@ export function GuessForm({ value, onChange, onSubmit, submitting, feedback, inp
             // capitalize it: a guess is sent as the player typed it.
             autoCorrect="off"
             autoCapitalize="none"
+            // A phone's keyboard labels its return key "Envoyer": it sends the word, it adds no line.
+            enterKeyHint="send"
           />
           {/* Never `disabled`, on the input or the button: disabling the
               focused input blurs it (closing a phone's keyboard), and a
@@ -101,7 +115,13 @@ export function GuessForm({ value, onChange, onSubmit, submitting, feedback, inp
               {feedback.detail ? <span className="lyrix-feedback-detail"> {feedback.detail}</span> : null}
             </p>
             {feedback.action ? (
-              <button type="button" className="lyrix-feedback-action" onClick={feedback.action.onClick}>
+              <button
+                type="button"
+                className="lyrix-feedback-action"
+                onClick={feedback.action.onClick}
+                // Like "Valider": the keyboard up, a blur would move the dock under the finger.
+                onMouseDown={keepInputFocus}
+              >
                 {feedback.action.label}
               </button>
             ) : null}

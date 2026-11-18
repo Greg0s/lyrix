@@ -1465,67 +1465,10 @@
   animation-delay: 0.18s;
 }
 
-/* The toggle only does anything below 880px; above, the card is always open (see TriedWords.tsx). */
-.lyrix-words-heading {
-  margin: 0;
-}
-
-.lyrix-words-toggle {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  width: 100%;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.lyrix-words-count {
-  margin-left: auto;
-  font-size: 0.85rem;
-  color: var(--color-ink-muted);
-}
-
-.lyrix-chevron {
-  color: var(--color-ink-muted);
-  transition: transform 0.2s ease;
-}
-
-.lyrix-words.is-open .lyrix-chevron {
-  transform: rotate(180deg);
-}
-
 .lyrix-words-body {
-  display: none;
+  display: flex;
   flex-direction: column;
   gap: 14px;
-}
-
-.lyrix-words.is-open .lyrix-words-body {
-  display: flex;
-  animation: lyrix-feed 0.25s ease;
-}
-
-@media (min-width: 880px) {
-  .lyrix-words-toggle {
-    cursor: default;
-    pointer-events: none;
-  }
-
-  .lyrix-words-count,
-  .lyrix-chevron {
-    display: none;
-  }
-
-  .lyrix-words-body,
-  .lyrix-words.is-open .lyrix-words-body {
-    display: flex;
-    animation: none;
-  }
 }
 
 .lyrix-tried-list {
@@ -1786,21 +1729,9 @@
 
 .lyrix-hints-heading {
   margin: 0;
-}
-
-/* The toggle only does anything below 880px; above, the card is always open, like "Tes mots". */
-.lyrix-hints-toggle {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: start;
-  cursor: pointer;
 }
 
 .lyrix-hints-badge,
@@ -1824,36 +1755,10 @@
   font-variant-numeric: tabular-nums;
 }
 
-.lyrix-hints.is-open .lyrix-chevron {
-  transform: rotate(180deg);
-}
-
 .lyrix-hints-body {
-  display: none;
+  display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.lyrix-hints.is-open .lyrix-hints-body {
-  display: flex;
-  animation: lyrix-feed 0.25s ease;
-}
-
-@media (min-width: 880px) {
-  .lyrix-hints-toggle {
-    cursor: default;
-    pointer-events: none;
-  }
-
-  .lyrix-hints .lyrix-chevron {
-    display: none;
-  }
-
-  .lyrix-hints-body,
-  .lyrix-hints.is-open .lyrix-hints-body {
-    display: flex;
-    animation: none;
-  }
 }
 
 .lyrix-hints-intro {
@@ -3805,5 +3710,266 @@ a.lyrix-day-step:hover {
   .lyrix-invite-panel,
   .lyrix-invite-panel > * {
     animation: none;
+  }
+}
+
+/* ---------- A phone's layout, below 880px: tab bar, the header's progress, the dock's shortcuts ---------- */
+
+/*
+ * Laid out like an installed app: the side column's cards leave the page, the
+ * round's progress takes the header (HeaderProgress), the words tried and the
+ * hints open as sheets from the dock (DockShortcuts), and the header's buttons
+ * move to a bar of tabs along the bottom edge (TabBar). From 880px, none of it.
+ */
+.lyrix-header-progress,
+.lyrix-tabbar,
+.lyrix-dock-shortcuts {
+  display: none;
+}
+
+/* 60px: the tab bar's height, above a home indicator; the page and the dock keep clear of it. */
+@media (max-width: 879px) {
+  .lyrix-app {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* The tab bar carries them; the theme toggle stays on the pages, where the progress isn't. */
+  .lyrix-topbar-actions .lyrix-pill,
+  .lyrix-topbar.has-progress .lyrix-topbar-actions,
+  .lyrix-topbar.has-progress .lyrix-slogan {
+    display: none;
+  }
+
+  .lyrix-header-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+    min-width: 0;
+    max-width: 420px;
+  }
+
+  .lyrix-header-progress-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .lyrix-header-progress-value {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .lyrix-header-progress-stats {
+    font-size: 0.75rem;
+    color: var(--color-ink-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .lyrix-header-progress-stats b {
+    color: var(--color-ink);
+    font-weight: 800;
+  }
+
+  .lyrix-header-progress-track {
+    height: 7px;
+    border-radius: 4px;
+    background: var(--color-track);
+    overflow: hidden;
+  }
+
+  .lyrix-header-progress-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent-solid);
+    transition: width 0.4s var(--ease-out);
+  }
+
+  .lyrix-aside {
+    display: none;
+  }
+
+  .lyrix-tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 15;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    min-height: 60px;
+    padding: 4px max(8px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px)
+      max(8px, env(safe-area-inset-left, 0px));
+    background: var(--color-page-bg-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--color-border);
+    animation: lyrix-fade-in 0.4s ease both;
+  }
+
+  .lyrix-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 52px;
+    padding: 0;
+    border: none;
+    background: none;
+    font-family: var(--font-ui);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--color-ink-muted);
+    text-decoration: none;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .lyrix-tab:hover {
+    color: var(--color-ink);
+  }
+
+  .lyrix-tab:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: -2px;
+    border-radius: 12px;
+  }
+
+  .lyrix-tab-icon {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 30px;
+    border-radius: 15px;
+    transition:
+      background 0.15s ease,
+      transform 0.12s ease;
+  }
+
+  .lyrix-tab-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .lyrix-tab:active .lyrix-tab-icon {
+    transform: scale(0.92);
+  }
+
+  .lyrix-tab.is-current {
+    color: var(--accent-deep);
+  }
+
+  .lyrix-tab.is-current .lyrix-tab-icon {
+    background: var(--accent-tint);
+  }
+
+  .lyrix-tab .lyrix-presence-dot {
+    top: 2px;
+    right: 12px;
+    box-shadow: 0 0 0 2px var(--color-page-bg);
+  }
+
+  /* Over the tab bar, never under it. */
+  .lyrix-dock {
+    bottom: calc(60px + 12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .lyrix-dock-shortcuts {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .lyrix-dock-shortcut {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 999px;
+    background: var(--color-solid-raised);
+    color: var(--color-on-ink-soft);
+    font-family: var(--font-ui);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.12s ease;
+  }
+
+  .lyrix-dock-shortcut b {
+    color: var(--color-on-ink);
+    font-weight: 800;
+  }
+
+  .lyrix-dock-shortcut.is-waiting {
+    background: var(--accent-solid);
+    color: var(--color-on-bright);
+  }
+
+  .lyrix-dock-shortcut.is-waiting b {
+    color: var(--color-on-bright);
+  }
+
+  .lyrix-dock-shortcut:active {
+    transform: scale(0.96);
+  }
+
+  .lyrix-dock-shortcut:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  /* A card's body in a sheet: the sheet is its card. */
+  .lyrix-words.is-in-sheet .lyrix-tried-list {
+    max-height: none;
+  }
+}
+
+/*
+ * The keyboard up: on a phone, the tab bar steps aside and the dock goes back
+ * down to the keyboard, as in an app; the page is shorter by a keyboard.
+ */
+@media (max-width: 879px) and (pointer: coarse) {
+  .lyrix-app:has(.lyrix-input:focus) {
+    padding-bottom: 0;
+  }
+
+  .lyrix-app:has(.lyrix-input:focus) .lyrix-tabbar {
+    display: none;
+  }
+
+  .lyrix-app:has(.lyrix-input:focus) .lyrix-dock {
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* The narrowest phones: the logo's mark alone, so the progress keeps its room. */
+@media (max-width: 359px) {
+  .lyrix-topbar.has-progress .lyrix-wordmark {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyrix-tabbar {
+    animation: none;
+  }
+
+  .lyrix-header-progress-fill,
+  .lyrix-tab-icon,
+  .lyrix-dock-shortcut {
+    transition: none;
   }
 }

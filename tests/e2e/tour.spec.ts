@@ -17,7 +17,8 @@ async function expectTipBy(page: Page, target: string): Promise<void> {
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport");
   const tip = await tour(page).boundingBox();
-  const element = await page.locator(`[data-tour="${target}"]`).boundingBox();
+  // Some come twice, one per layout (the header's buttons, the tab bar's): the one on screen.
+  const element = await page.locator(`[data-tour="${target}"]:visible`).boundingBox();
   if (!tip || !element) throw new Error(`no box for the tip or [data-tour="${target}"]`);
   expect(tip.x).toBeGreaterThanOrEqual(0);
   expect(tip.y).toBeGreaterThanOrEqual(0);
@@ -39,7 +40,9 @@ for (const viewport of [
     await expect(tour(page)).toBeVisible();
     // A step whose element isn't there (a song without hints) is left out.
     const steps = [];
-    for (const step of TOUR_STEPS) if ((await page.locator(`[data-tour="${step.target}"]`).count()) > 0) steps.push(step);
+    for (const step of TOUR_STEPS) {
+      if ((await page.locator(`[data-tour="${step.target}"]:visible`).count()) > 0) steps.push(step);
+    }
     await expect(tour(page)).toContainText(`Étape 1 sur ${steps.length}`);
     for (const [index, step] of steps.entries()) {
       await expect(tour(page).getByRole("heading")).toHaveText(step.title);

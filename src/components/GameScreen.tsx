@@ -18,6 +18,7 @@ import { ARCHIVES, HELP, isPageRoute, LEGAL, TODAY } from "../routes";
 import { AppHeader } from "./AppHeader";
 import { ArchivesScreen } from "./ArchivesScreen";
 import { DayBar } from "./DayBar";
+import { DockShortcuts } from "./DockShortcuts";
 import { playerColor } from "./playerColor";
 import { GroupFoundBanner } from "./GroupFoundBanner";
 import { NewSongNotice } from "./NewSongNotice";
@@ -28,11 +29,13 @@ import { HowToPlay } from "./HowToPlay";
 import { LegalNotice } from "./LegalNotice";
 import { LyricsBody } from "./LyricsBody";
 import { MultiplayerModal, type Tab as MultiplayerTab } from "./MultiplayerModal";
+import { Modal } from "./Modal";
 import { MultiplayerPromo } from "./MultiplayerPromo";
 import { ProductTour } from "./ProductTour";
 import { ProgressCard } from "./ProgressCard";
 import { RoomCard } from "./RoomCard";
 import { RouteLink } from "./RouteLink";
+import { TabBar } from "./TabBar";
 import { TitleGuess } from "./TitleGuess";
 import { TourInvite } from "./TourInvite";
 import { TriedWords } from "./TriedWords";
@@ -46,7 +49,12 @@ function feedbackMessage({ word, found, duplicate, nearCount }: Feedback): strin
   return `« ${word} » n’y est pas, mais il est proche ${where}.`;
 }
 
-type Dialog = "multiplayer" | "hints" | null;
+/**
+ * "hints": picking a hint the dock just offered (HintSheet). "words" and
+ * "hint-list": the side column's cards as sheets, from the dock's buttons
+ * below 880px, where the side column is out of the page.
+ */
+type Dialog = "multiplayer" | "hints" | "words" | "hint-list" | null;
 
 /** A phone or tablet: its primary pointer is a finger, and focusing a text input opens its keyboard. */
 function isTouchScreen(): boolean {
@@ -132,6 +140,8 @@ export function GameScreen() {
     openDialog("multiplayer");
   }, [openDialog]);
   const openHints = useCallback(() => openDialog("hints"), [openDialog]);
+  const openWordsSheet = useCallback(() => openDialog("words"), [openDialog]);
+  const openHintList = useCallback(() => openDialog("hint-list"), [openDialog]);
   // Once a dialog is gone, the player is back to guessing: give them the input.
   // Not on a touch screen, where focusing the input pops the on-screen keyboard
   // up over the page the player just came back to: focus goes back to the
@@ -246,6 +256,10 @@ export function GameScreen() {
     [playingRoom, member, roomHints]
   );
 
+  // A round on screen, loaded: the header shows its progress below 880px.
+  const onRound = (route.name === "today" || route.name === "day") && round !== null;
+  const roundHints = round?.hints;
+  const roomGroup = useMemo(() => (playingRoom && member !== null ? { you: member } : null), [playingRoom, member]);
   const header = (
     <AppHeader
       roomPlayers={room.view ? room.view.members.length : null}
@@ -255,12 +269,34 @@ export function GameScreen() {
       helpOpen={onHelpPage}
       onToggleHelp={toggleHelp}
       onNavigate={navigate}
+      percent={onRound ? percent : null}
+      foundCount={foundCount}
+      triedCount={triedWords.length}
     />
   );
   const dialogs = (
     <>
       {dialog === "hints" && round?.hints ? (
         <HintSheet hints={round.hints} group={playingRoom} onReveal={game.revealHint} onClosed={closeDialog} />
+      ) : null}
+      {dialog === "words" ? (
+        <Modal title={roomGroup ? "Mots du groupe" : "Tes mots"} onClosed={closeDialog} variant="sheet">
+          {() => <TriedWords triedWords={triedWords} group={roomGroup} inSheet />}
+        </Modal>
+      ) : null}
+      {dialog === "hint-list" && roundHints ? (
+        <Modal title="Indices" onClosed={closeDialog} variant="sheet">
+          {() => (
+            <HintsCard
+              hints={roundHints}
+              victory={round?.victory === true}
+              group={hintGroup}
+              revealing={game.revealingHint}
+              onReveal={game.revealHint}
+              inSheet
+            />
+          )}
+        </Modal>
       ) : null}
       {dialog === "multiplayer" ? (
         <MultiplayerModal
@@ -289,6 +325,12 @@ export function GameScreen() {
       {header}
       {content}
       {footer}
+      <TabBar
+        route={route}
+        roomPlayers={room.view ? room.view.members.length : null}
+        onOpenMultiplayer={openMultiplayer}
+        onNavigate={navigate}
+      />
       {dialogs}
     </div>
   );
@@ -421,6 +463,16 @@ export function GameScreen() {
             feedback={guessFeedback}
             inputRef={inputRef}
             placeholder={group ? "Propose un mot au groupe…" : "Propose un mot…"}
+            shortcuts={
+              <DockShortcuts
+                triedCount={triedWords.length}
+                hints={round.hints}
+                victory={round.victory}
+                group={group !== null}
+                onOpenWords={openWordsSheet}
+                onOpenHints={openHintList}
+              />
+            }
           />
         )}
       </div>
