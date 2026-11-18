@@ -117,7 +117,6 @@ export const TitleGuess = memo(function TitleGuess({
                   ) : null}
                 </dl>
               ) : null}
-              {variant === "B" ? <VictoryPreview cover={cover} variant="B" /> : null}
               {archiveDay === null ? (
                 <>
                   <p className="lyrix-victory-note">Reviens demain pour une nouvelle chanson&nbsp;!</p>
@@ -130,7 +129,7 @@ export const TitleGuess = memo(function TitleGuess({
               )}
             </div>
           </div>
-          {variant === "C" ? <VictoryPreview cover={cover} variant="C" /> : null}
+          {variant === "A" ? null : <VictoryPreview cover={cover} variant={variant} />}
           <label className="lyrix-reveal-all">
             <input
               type="checkbox"

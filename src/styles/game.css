@@ -961,12 +961,11 @@
   opacity: 1;
 }
 
-/* B: a listening line under the facts, the clock after it. */
+/* B: a listening line across the panel, under the sleeve and its text, the clock after it. */
 .lyrix-preview.is-b {
+  flex-basis: 100%;
   align-items: center;
-  gap: 10px;
-  margin: 2px 0 8px;
-  max-width: 320px;
+  gap: 12px;
 }
 
 .lyrix-preview.is-b .lyrix-preview-button {
