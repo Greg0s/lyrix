@@ -62,6 +62,15 @@ export function saveTheme(theme: Theme, storage: Storage | undefined = globalThi
   }
 }
 
+/** Back to following the system: the player's own choice is forgotten (the theme picker's "Auto"). */
+export function forgetTheme(storage: Storage | undefined = globalThis.localStorage): void {
+  try {
+    storage?.removeItem(THEME_STORAGE_KEY);
+  } catch {
+    // Nothing kept to forget.
+  }
+}
+
 /**
  * Calls `onChange` whenever the system switches between light and dark, for
  * as long as the player hasn't picked a theme of their own. Returns the

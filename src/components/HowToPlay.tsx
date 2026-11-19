@@ -1,6 +1,7 @@
 import { FAQ, RULES_SUMMARY } from "../rules";
 import { EVENTS, track } from "../analytics";
 import { nearStyle } from "./heatStyle";
+import { ThemePicker } from "./ThemePicker";
 
 interface HowToPlayProps {
   /** Leaves the page for today's song. */
@@ -24,6 +25,8 @@ const SAMPLE_GUESSES: readonly { word: string; score: number }[] = [
 export function HowToPlay({ onClose, onReplayTour }: HowToPlayProps) {
   return (
     <main className="lyrix-help-page">
+      {/* Below 880px only: the header has no room for the theme's button there. */}
+      <ThemePicker />
       <article className="lyrix-card lyrix-help">
         <h1 className="lyrix-help-title">{RULES_SUMMARY.heading}</h1>
         <p className="lyrix-help-lead">{RULES_SUMMARY.lead}</p>

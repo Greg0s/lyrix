@@ -634,3 +634,11 @@ A state keeps its missed words' marks (`missed`) until the last hint unlocks, an
 ## 2026-11-17 — A day won before `titleBeforeWin` was veiled with its whole title
 
 A member who doesn't know a won day's answer is sent its summary with the title as it stood before the winning word (`veiledSummary`), but a summary written before that field existed fell back to the full title. Without it, the title is now sent with every word hidden. Regression test in `tests/unit/worker/room.test.ts` ("no title before the win").
+
+## 2026-11-18 — A tap on the dock missed while the keyboard was up
+
+Below 880px the tab bar steps aside while the guess input has focus on a touch screen, and the dock goes down to the keyboard (`.lyrix-app:has(.lyrix-input:focus)`, game.css). Tapping one of the dock's new buttons ("N mots", `DockShortcuts`) right after a guess did nothing: the press blurred the input before it ended, the tab bar came back and the dock moved up 72px, so the press ended over the lyrics and no click fired. Caught by `tests/e2e/mobile.spec.ts` ("opens the words tried and the hints as sheets from the dock"), whose dialog never opened. Every button on the dock now cancels its mousedown like "Valider" does (`keepInputFocus`), so a press never takes focus from the input; the feedback line's "Choisir" too. **Takeaway**: anything that moves when the input loses focus must not sit under a control that can take it.
+
+## 2026-11-18 — A worker test failed on the day the catalog played its fixture
+
+`guess.test.ts` ("keeps the song a day was played on…") pinned a day to `papaoutai` and asserted it was not the day's own song, which it was on 2026-11-18: the test failed on main for that one day. It now picks whichever of two catalog songs isn't today's. **Takeaway**: a test that needs "another song than today's" picks one against `pickDailyEntry()`, never a fixed id.

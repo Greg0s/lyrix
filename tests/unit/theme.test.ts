@@ -3,8 +3,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cssColorToHex } from "../../scripts/lib/favicon";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { createElement } from "react";
+import { ThemePicker } from "../../src/components/ThemePicker";
 import {
   applyTheme,
+  forgetTheme,
   initialTheme,
   saveTheme,
   storedTheme,
@@ -130,6 +134,49 @@ describe("switching theme", () => {
 
     stop();
     expect(system.listenerCount()).toBe(0);
+  });
+
+  it("follows the system again once the player's choice is forgotten", () => {
+    const system = stubSystem(false);
+    const seen: Theme[] = [];
+    const stop = watchSystemTheme((theme) => seen.push(theme));
+    saveTheme("light");
+    forgetTheme();
+    expect(storedTheme()).toBeNull();
+    system.switchTo(true);
+    expect(seen).toEqual(["dark"]);
+    stop();
+  });
+});
+
+// Below 880px, the theme's own card on the rules' page (game.css hides the header's button there).
+describe("the theme picker", () => {
+  afterEach(cleanup);
+
+  it("starts on Auto until the player picks a theme", () => {
+    stubSystem(false);
+    render(createElement(ThemePicker));
+    expect((screen.getByRole("radio", { name: "Auto" }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("applies and keeps a theme picked, and Auto goes back to the system's", () => {
+    const system = stubSystem(true);
+    saveTheme("light");
+    applyTheme("light");
+    render(createElement(ThemePicker));
+    expect((screen.getByRole("radio", { name: "Clair" }) as HTMLInputElement).checked).toBe(true);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Sombre" }));
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(storedTheme()).toBe("dark");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Clair" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Auto" }));
+    expect(storedTheme()).toBeNull();
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    // And keeps following it.
+    act(() => system.switchTo(false));
+    expect(document.documentElement.dataset.theme).toBe("light");
   });
 });
 

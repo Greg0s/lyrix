@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { markTourSeen } from "../../../src/tourStorage";
@@ -1109,20 +1109,12 @@ describe("the countdown to tomorrow's song (won round)", () => {
 });
 
 describe("the tried words card", () => {
-  // Collapsed on mobile only: CSS hides the body, so the toggle's state is what can be checked here.
-  it("toggles open and closed without re-rendering a single lyrics token", async () => {
+  // Below 880px it is a sheet the dock opens (mobileLayout.test.tsx); in the side column, always open.
+  it("has nothing to unfold in the side column", async () => {
     await mountGame();
-    const toggle = screen.getByRole("button", { name: /Tes mots/ });
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(toggle.textContent).toContain("0 mot");
-
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(toggle.closest(".lyrix-words")?.className).toMatch(/is-open/);
-
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(wordTokenRenders.count).toBe(0);
+    const card = within(screen.getByRole("complementary")).getByRole("region", { name: "Tes mots" });
+    expect(within(card).getByRole("heading", { name: "Tes mots" })).toBeTruthy();
+    expect(within(card).queryByRole("button")).toBeNull();
   });
 });
 

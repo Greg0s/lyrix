@@ -1052,8 +1052,8 @@ describe("a song LRCLIB can't give right now", () => {
 
   it("keeps the song a day was played on, whatever LRCLIB says later", async () => {
     const SONGS = new FakeSongsKv();
-    const other = "papaoutai";
-    expect(pickDailyEntry().id).not.toBe(other);
+    // Any catalog song but today's: on the day the catalog plays one of them, the other.
+    const other = ["papaoutai", "la-tribu-de-dana"].find((id) => id !== pickDailyEntry().id) as string;
     SONGS.store.set(`day:${utcDay()}`, other);
 
     const res = await app.request("/api/round", {}, { ...env, SONGS });

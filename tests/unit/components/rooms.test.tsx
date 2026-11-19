@@ -493,7 +493,7 @@ describe("leaving the room", () => {
     await mountGame();
     latestSocket().open();
 
-    fireEvent.click(screen.getByRole("button", { name: /^Salon/ }));
+    fireEvent.click(within(screen.getByRole("banner")).getByRole("button", { name: /^Salon/ }));
     const dialog = screen.getByRole("dialog", { name: "Jouer à plusieurs" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Quitter le salon" }));
 
