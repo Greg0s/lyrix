@@ -3733,7 +3733,7 @@ a.lyrix-day-step:hover {
     padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
   }
 
-  /* The tab bar carries them; the theme toggle stays on the pages, where the progress isn't. */
+  /* The tab bar carries them; the theme has its own card on the rules' page (ThemePicker). */
   .lyrix-topbar-actions .lyrix-pill,
   .lyrix-topbar.has-progress .lyrix-topbar-actions,
   .lyrix-topbar.has-progress .lyrix-slogan {
@@ -3970,6 +3970,88 @@ a.lyrix-day-step:hover {
   .lyrix-header-progress-fill,
   .lyrix-tab-icon,
   .lyrix-dock-shortcut {
+    transition: none;
+  }
+}
+
+/* ---------- The theme's card (ThemePicker.tsx): below 880px, where the header has no room for its button ---------- */
+
+.lyrix-theme-picker {
+  display: none;
+}
+
+@media (max-width: 879px) {
+  .lyrix-topbar .lyrix-theme-toggle {
+    display: none;
+  }
+
+  .lyrix-theme-picker {
+    display: block;
+    margin: 0;
+    min-width: 0;
+  }
+
+  /* A legend ignores its fieldset's padding-top: it sits on the border unless floated. */
+  .lyrix-theme-picker legend {
+    float: left;
+    width: 100%;
+    padding: 0;
+    margin-bottom: 12px;
+  }
+
+  .lyrix-theme-choices {
+    clear: both;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    padding: 4px;
+    border-radius: 14px;
+    background: var(--color-surface-muted);
+  }
+
+  .lyrix-theme-choice {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    border-radius: 10px;
+    font-family: var(--font-ui);
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--color-ink-muted);
+    cursor: pointer;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
+  }
+
+  .lyrix-theme-choice svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .lyrix-theme-choice input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .lyrix-theme-choice.is-active {
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
+    box-shadow: var(--shadow-tab);
+  }
+
+  .lyrix-theme-choice:has(input:focus-visible) {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyrix-theme-choice {
     transition: none;
   }
 }

@@ -74,9 +74,9 @@ test("moves between the screens with the tab bar", async ({ page }) => {
   await tabBar(page).getByRole("link", { name: "Archives" }).click();
   await expect(page).toHaveURL(/\/archives$/);
   await expect(tabBar(page).getByRole("link", { name: "Archives" })).toHaveAttribute("aria-current", "page");
-  // A page has no progress to show: the theme's button is back in the header.
+  // A page has no progress to show, and the theme has its own card on the rules' page.
   await expect(progress(page)).toHaveCount(0);
-  await expect(page.getByRole("banner").locator(".lyrix-theme-toggle")).toBeVisible();
+  await expect(page.getByRole("banner").locator(".lyrix-theme-toggle")).toBeHidden();
 
   await tabBar(page).getByRole("link", { name: "Règles" }).click();
   await expect(page).toHaveURL(/\/comment-jouer$/);
@@ -84,6 +84,24 @@ test("moves between the screens with the tab bar", async ({ page }) => {
   await tabBar(page).getByRole("link", { name: "Jouer" }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(input(page)).toBeVisible();
+});
+
+test("picks the theme on the rules' page: light, dark, or the phone's own", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await openRound(page);
+  await tabBar(page).getByRole("link", { name: "Règles" }).click();
+  const picker = page.getByRole("group", { name: "Apparence" });
+  await expect(picker.getByRole("radio", { name: "Auto" })).toBeChecked();
+
+  await picker.getByText("Sombre").click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+  await page.getByRole("group", { name: "Apparence" }).getByText("Auto").click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 });
 
 test("keeps the dock over the tab bar, and steps the tab bar aside for the keyboard", async ({ page }) => {
