@@ -4,7 +4,7 @@ import { playerCountLabel } from "../game/room";
 import { ARCHIVES, HELP, TODAY, type Route } from "../routes";
 import { CalendarIcon } from "./CalendarIcon";
 import { GroupIcon } from "./GroupIcon";
-import { HelpIcon } from "./HelpIcon";
+import { MoreIcon } from "./MoreIcon";
 import { NoteIcon } from "./NoteIcon";
 import { RouteLink } from "./RouteLink";
 
@@ -20,7 +20,7 @@ interface TabBarProps {
 /**
  * The bar of tabs along the bottom of a phone's screen, below 880px only
  * (game.css), in place of the header's buttons: the round, the archives, the
- * room, the rules. A tab is a link to its screen; the room's opens its dialog.
+ * room, and "Plus": the rules' page, which holds the theme's card there. A tab is a link to its screen; the room's opens its dialog.
  * Hidden while the guess input has the keyboard up. Memoized on stable
  * callbacks, so typing a guess never re-renders it.
  */
@@ -79,9 +79,9 @@ export const TabBar = memo(function TabBar({ route, roomPlayers, onOpenMultiplay
         {...track(EVENTS.openHelp, { from: "tabbar" })}
       >
         <span className="lyrix-tab-icon">
-          <HelpIcon />
+          <MoreIcon />
         </span>
-        <span className="lyrix-tab-label">Règles</span>
+        <span className="lyrix-tab-label">Plus</span>
       </RouteLink>
     </nav>
   );

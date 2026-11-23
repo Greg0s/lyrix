@@ -78,7 +78,7 @@ test("moves between the screens with the tab bar", async ({ page }) => {
   await expect(progress(page)).toHaveCount(0);
   await expect(page.getByRole("banner").locator(".lyrix-theme-toggle")).toBeHidden();
 
-  await tabBar(page).getByRole("link", { name: "Règles" }).click();
+  await tabBar(page).getByRole("link", { name: "Plus" }).click();
   await expect(page).toHaveURL(/\/comment-jouer$/);
 
   await tabBar(page).getByRole("link", { name: "Jouer" }).click();
@@ -89,7 +89,7 @@ test("moves between the screens with the tab bar", async ({ page }) => {
 test("picks the theme on the rules' page: light, dark, or the phone's own", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await openRound(page);
-  await tabBar(page).getByRole("link", { name: "Règles" }).click();
+  await tabBar(page).getByRole("link", { name: "Plus" }).click();
   const picker = page.getByRole("group", { name: "Apparence" });
   await expect(picker.getByRole("radio", { name: "Auto" })).toBeChecked();
 

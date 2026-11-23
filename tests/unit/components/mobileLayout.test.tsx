@@ -124,7 +124,7 @@ describe("the tab bar", () => {
     await mountGame();
     expect(tabBar().getByRole("link", { name: "Jouer" }).getAttribute("aria-current")).toBe("page");
     expect(tabBar().getByRole("link", { name: "Archives" }).getAttribute("href")).toBe("/archives");
-    expect(tabBar().getByRole("link", { name: "Règles" }).getAttribute("href")).toBe("/comment-jouer");
+    expect(tabBar().getByRole("link", { name: "Plus" }).getAttribute("href")).toBe("/comment-jouer");
   });
 
   it("changes screen in place, and marks the page shown", async () => {
