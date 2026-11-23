@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { startErrorReports } from "./errorReport";
+import { captureInstallPrompt } from "./install";
 import { registerServiceWorker } from "./pwa";
 import { prefetchTodayRound } from "./roundPrefetch";
 import { startVisit } from "./stats";
@@ -16,6 +17,8 @@ import "./styles/game.css";
 startErrorReports();
 prefetchTodayRound();
 startVisit();
+// Chromium may offer to install at once: its prompt is kept for InstallOffer.tsx.
+captureInstallPrompt();
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {
