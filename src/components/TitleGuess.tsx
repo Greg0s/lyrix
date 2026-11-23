@@ -9,6 +9,7 @@ import { NextSongCountdown } from "./NextSongCountdown";
 import { VictoryFoot } from "./VictoryFoot";
 import { TokenRun } from "./TokenRun";
 import { VictoryCover } from "./VictoryCover";
+import { coverUrl } from "./coverUrl";
 import { previewVariant, VictoryPreview } from "./VictoryPreview";
 
 interface TitleGuessProps {
@@ -91,11 +92,27 @@ export const TitleGuess = memo(function TitleGuess({
       </h1>
 
       {victory ? (
-        <div className="lyrix-victory">
+        <div className={`lyrix-victory is-look-${variant.toLowerCase()}`}>
+          {variant === "E" && cover !== undefined ? (
+            <div
+              className="lyrix-victory-backdrop"
+              style={{ backgroundImage: `url(${coverUrl(cover)})` }}
+              aria-hidden="true"
+            />
+          ) : null}
           <div className="lyrix-victory-main">
-            <VictoryCover cover={cover}>
-              {variant === "A" || variant === "D" ? <VictoryPreview cover={cover} variant={variant} /> : null}
-            </VictoryCover>
+            {variant === "F" ? (
+              <div className="lyrix-sleeve">
+                <VictoryPreview cover={cover} variant="F" />
+                <VictoryCover cover={cover} />
+              </div>
+            ) : (
+              <VictoryCover cover={cover}>
+                {variant === "A" || variant === "D" || variant === "E" || variant === "G" ? (
+                  <VictoryPreview cover={cover} variant={variant} />
+                ) : null}
+              </VictoryCover>
+            )}
             <div className="lyrix-victory-text">
               <p className="lyrix-victory-eyebrow">
                 {group ? "Bravo, le groupe l'a trouvée\u00a0!" : "Bravo, tu l'as trouvée\u00a0!"}

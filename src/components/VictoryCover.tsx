@@ -1,5 +1,5 @@
 import { memo, type ReactNode, useState } from "react";
-import { apiUrl } from "../api/base";
+import { coverUrl } from "./coverUrl";
 
 interface VictoryCoverProps {
   /** The song's cover token (RoundView.cover); absent for a song that can't have one. */
@@ -28,7 +28,7 @@ export const VictoryCover = memo(function VictoryCover({ cover, children }: Vict
     >
       <img
         key={cover}
-        src={apiUrl(`/api/cover/${encodeURIComponent(cover)}`).href}
+        src={coverUrl(cover)}
         alt=""
         decoding="async"
         onLoad={() => setLoaded(cover)}

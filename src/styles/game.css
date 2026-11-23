@@ -1033,6 +1033,228 @@
   }
 }
 
+/*
+ * E: the sleeve as the panel's light. Blown up and blurred behind
+ * everything, under a veil of the panel's own colour so its text keeps its
+ * contrast; it breathes while the extract plays. The sleeve itself is bigger,
+ * the D button at its foot.
+ */
+.lyrix-victory.is-look-e {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.lyrix-victory-backdrop {
+  position: absolute;
+  inset: -40px;
+  z-index: -1;
+  background-size: cover;
+  background-position: center;
+  filter: blur(36px) saturate(1.4);
+  opacity: 0.9;
+  transition: transform 1.2s var(--ease-out);
+}
+
+.lyrix-victory-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--color-solid) 35%, transparent),
+    color-mix(in oklch, var(--color-solid) 80%, transparent) 55%,
+    var(--color-solid)
+  );
+}
+
+.is-look-e:has(.is-playing) .lyrix-victory-backdrop {
+  animation: lyrix-breathe 4s ease-in-out infinite alternate;
+}
+
+@keyframes lyrix-breathe {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.15);
+  }
+}
+
+.is-look-e .lyrix-victory-cover {
+  width: clamp(112px, 30vw, 132px);
+  box-shadow: 0 18px 36px -14px var(--color-solid);
+}
+
+.is-look-e .lyrix-reveal-all {
+  background: color-mix(in oklch, var(--color-solid-raised) 75%, transparent);
+}
+
+/*
+ * F: a record slides out of the sleeve once its extract is there, its label
+ * the sleeve again and its hole the play button; it spins while it plays.
+ */
+.lyrix-sleeve {
+  position: relative;
+  flex: none;
+  transition: padding-right 0.5s var(--ease-out);
+}
+
+.lyrix-sleeve .lyrix-victory-cover {
+  position: relative;
+  z-index: 1;
+  width: clamp(96px, 26vw, 112px);
+  box-shadow: 6px 0 18px -6px var(--color-solid);
+}
+
+.lyrix-sleeve:has(.lyrix-preview.is-ready) {
+  padding-right: 72px;
+}
+
+.lyrix-sleeve:has(.lyrix-preview.is-playing) {
+  padding-right: 84px;
+}
+
+.lyrix-preview.is-f {
+  position: absolute;
+  top: 4%;
+  bottom: 4%;
+  left: 0;
+  aspect-ratio: 1;
+  transition: transform 0.5s var(--ease-out);
+}
+
+.lyrix-preview.is-f.is-ready {
+  transform: translateX(72%);
+}
+
+.lyrix-preview.is-f.is-playing {
+  transform: translateX(86%);
+}
+
+.lyrix-vinyl {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      from 30deg,
+      transparent,
+      color-mix(in oklch, var(--color-on-ink) 14%, transparent) 8%,
+      transparent 18%,
+      transparent 50%,
+      color-mix(in oklch, var(--color-on-ink) 10%, transparent) 58%,
+      transparent 68%
+    ),
+    repeating-radial-gradient(
+      circle,
+      var(--color-solid) 0 2px,
+      color-mix(in oklch, var(--color-solid-raised) 70%, var(--color-solid)) 2px 3px
+    );
+  box-shadow:
+    0 0 0 1px var(--color-solid-raised),
+    0 10px 24px -10px var(--color-solid);
+}
+
+.lyrix-vinyl-label {
+  position: absolute;
+  inset: 31%;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+}
+
+.lyrix-preview.is-playing .lyrix-vinyl-label {
+  animation: lyrix-spin 1.8s linear infinite;
+}
+
+@keyframes lyrix-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.lyrix-preview.is-f .lyrix-preview-button {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  box-shadow: 0 0 0 3px var(--color-solid);
+}
+
+/*
+ * G: the sleeve takes the stage. On a phone it fills the panel's width, bled
+ * to its edges; on a desktop it grows beside the text. A big play button sits
+ * on it, the time and the bar along its foot.
+ */
+.is-look-g .lyrix-victory-cover {
+  width: 200px;
+  border-radius: 14px;
+}
+
+.is-look-g .lyrix-victory-cover::after {
+  content: "";
+  position: absolute;
+  inset: 45% 0 0;
+  background: linear-gradient(to bottom, transparent, color-mix(in oklch, var(--color-solid) 85%, transparent));
+  pointer-events: none;
+}
+
+@media (max-width: 559px) {
+  .is-look-g .lyrix-victory-main {
+    align-items: stretch;
+  }
+
+  .is-look-g .lyrix-victory-cover {
+    width: auto;
+    margin: -18px -20px 0;
+    border-radius: 16px 16px 0 0;
+  }
+}
+
+.lyrix-preview.is-g {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 1;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 14px;
+}
+
+.lyrix-preview.is-g .lyrix-preview-button {
+  width: 48px;
+  height: 48px;
+  box-shadow: 0 8px 18px -6px var(--color-solid);
+}
+
+.lyrix-preview.is-g .lyrix-preview-bar {
+  flex: 1;
+  height: 4px;
+  background: color-mix(in oklch, var(--color-on-ink) 25%, transparent);
+}
+
+.lyrix-preview.is-g .lyrix-preview-bar::after {
+  background: var(--color-on-ink);
+}
+
+.lyrix-preview.is-g .lyrix-preview-time {
+  color: var(--color-on-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-look-e:has(.is-playing) .lyrix-victory-backdrop,
+  .lyrix-preview.is-playing .lyrix-vinyl-label {
+    animation: none;
+  }
+
+  .lyrix-sleeve,
+  .lyrix-preview.is-f {
+    transition: none;
+  }
+}
+
 /* B: a listening line across the panel, under the sleeve and its text, the clock after it. */
 .lyrix-preview.is-b {
   flex-basis: 100%;

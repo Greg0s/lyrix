@@ -1,14 +1,17 @@
 import { memo, useRef, useState } from "react";
 import { apiUrl } from "../api/base";
+import { coverUrl } from "./coverUrl";
 
 /** Where the player sits on the victory panel (proposals for the developer: A, B or C). */
-export type PreviewVariant = "A" | "B" | "C" | "D";
+export type PreviewVariant = "A" | "B" | "C" | "D" | "E" | "F" | "G";
 
 /** The proposal shown, from the address (`?extrait=A`); B by default. Mockups only: goes once one is picked. */
 export function previewVariant(): PreviewVariant {
   if (typeof location === "undefined") return "B";
   const asked = new URLSearchParams(location.search).get("extrait")?.toUpperCase();
-  return asked === "A" || asked === "C" || asked === "D" ? asked : "B";
+  return asked === "A" || asked === "C" || asked === "D" || asked === "E" || asked === "F" || asked === "G"
+    ? asked
+    : "B";
 }
 
 interface VictoryPreviewProps {
@@ -88,7 +91,7 @@ export const VictoryPreview = memo(function VictoryPreview({ cover, variant }: V
   return (
     <div
       ref={root}
-      className={`lyrix-preview is-${variant.toLowerCase()}${shown ? " is-ready" : ""}${playing ? " is-playing" : ""}`}
+      className={`lyrix-preview is-${variant === "E" ? "d" : variant.toLowerCase()}${shown ? " is-ready" : ""}${playing ? " is-playing" : ""}`}
     >
       <audio
         key={cover}
@@ -102,7 +105,22 @@ export const VictoryPreview = memo(function VictoryPreview({ cover, variant }: V
         onEnded={() => setPlayingCover(null)}
         onTimeUpdate={progress}
       />
-      {variant === "D" ? (
+      {variant === "F" ? (
+        <span className="lyrix-vinyl">
+          <span className="lyrix-vinyl-label" style={{ backgroundImage: `url(${coverUrl(cover)})` }} aria-hidden="true" />
+          <button type="button" className="lyrix-preview-button" aria-label={label} onClick={toggle}>
+            <PlayIcon playing={playing} size={12} />
+          </button>
+        </span>
+      ) : variant === "G" ? (
+        <>
+          <button type="button" className="lyrix-preview-button" aria-label={label} onClick={toggle}>
+            <PlayIcon playing={playing} size={24} />
+          </button>
+          <span className="lyrix-preview-bar" aria-hidden="true" />
+          {time}
+        </>
+      ) : variant === "D" || variant === "E" ? (
         <button type="button" className="lyrix-preview-button" aria-label={label} onClick={toggle}>
           {/* Its progress, as a ring around it: pathLength 1, so the dash offset is what is left to play. */}
           <svg className="lyrix-preview-ring" viewBox="0 0 40 40" aria-hidden="true">
