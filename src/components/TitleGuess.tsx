@@ -2,9 +2,11 @@ import { memo, type CSSProperties } from "react";
 import { EVENTS, track } from "../analytics";
 import { useRovingBlanks } from "../hooks/useRovingBlanks";
 import { triesLabel } from "../game/archive";
+import { utcDay } from "../game/daily";
 import { longDayLabel } from "../game/frenchDates";
 import type { SlotToken } from "../game/slots";
 import { Celebration } from "./Celebration";
+import { InstallOffer } from "./InstallOffer";
 import { NextSongCountdown } from "./NextSongCountdown";
 import { VictoryFoot } from "./VictoryFoot";
 import { TokenRun } from "./TokenRun";
@@ -141,6 +143,8 @@ export const TitleGuess = memo(function TitleGuess({
             onOpenArchives={onOpenArchives}
             onPlayDay={onPlayDay}
           />
+          {/* A room's win is the group's: the offer waits for the player's own. */}
+          {group ? null : <InstallOffer wonDay={archiveDay ?? utcDay()} />}
         </div>
       ) : null}
 

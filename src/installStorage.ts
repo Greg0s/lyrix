@@ -66,16 +66,36 @@ export function dismissInstallOffer(
   }
 }
 
-/** Songs found, from the archives' summary index (loadArchive): today's and the days of the archives alike. */
-export function songsFound(archive: Readonly<Record<string, ArchiveEntry>>): number {
-  return Object.values(archive).filter((entry) => entry.victory).length;
+/** "C'est fait" (Safari on iOS, which never says): never offered again on this browser. */
+export function markInstallDone(
+  now: Date = new Date(),
+  storage: Storage | undefined = globalThis.localStorage
+): void {
+  try {
+    storage?.setItem(INSTALL_STORAGE_KEY, JSON.stringify({ count: MAX_DISMISSALS, lastDay: utcDay(now) }));
+  } catch {
+    // As above.
+  }
 }
 
-/** Whether a player who found these songs, and hasn't turned it down lately, is to be offered it. */
+/**
+ * Songs found, from the archives' summary index (loadArchive): today's and the
+ * days of the archives alike. `wonDay` is the round just won: its save may
+ * still be waiting for an idle moment (roundStorage), so it counts either way.
+ */
+export function songsFound(archive: Readonly<Record<string, ArchiveEntry>>, wonDay?: string): number {
+  const days = Object.entries(archive)
+    .filter(([, entry]) => entry.victory)
+    .map(([day]) => day);
+  if (wonDay !== undefined) days.push(wonDay);
+  return new Set(days).size;
+}
+
+/** Whether a player who found this many songs, and hasn't turned it down lately, is to be offered it. */
 export function isInstallOfferDue(
-  archive: Readonly<Record<string, ArchiveEntry>>,
+  found: number,
   now: Date = new Date(),
   storage: Storage | undefined = globalThis.localStorage
 ): boolean {
-  return songsFound(archive) >= SONGS_FOUND_TO_OFFER && !isInstallOfferSnoozed(now, storage);
+  return found >= SONGS_FOUND_TO_OFFER && !isInstallOfferSnoozed(now, storage);
 }

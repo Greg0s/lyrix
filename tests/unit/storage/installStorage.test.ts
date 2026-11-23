@@ -7,6 +7,7 @@ import {
   dismissInstallOffer,
   isInstallOfferDue,
   isInstallOfferSnoozed,
+  markInstallDone,
   songsFound,
 } from "../../../src/installStorage";
 
@@ -46,17 +47,20 @@ describe("who is offered to install Lyrix", () => {
     expect(songsFound({ "2026-11-20": entry(true), "2026-11-21": entry(false), "2026-11-22": entry(true) })).toBe(2);
   });
 
+  it("counts the round just won, saved yet or not, once", () => {
+    const archive = { "2026-11-22": entry(true), "2026-11-23": entry(false) };
+    expect(songsFound(archive, "2026-11-23")).toBe(2);
+    expect(songsFound(archive, "2026-11-22")).toBe(1);
+  });
+
   it("waits for a second song found", () => {
-    const one = { "2026-11-22": entry(true), "2026-11-21": entry(false) };
-    expect(isInstallOfferDue(one, at("2026-11-23"), storage)).toBe(false);
-    const two = { ...one, "2026-11-23": entry(true) };
-    expect(isInstallOfferDue(two, at("2026-11-23"), storage)).toBe(true);
+    expect(isInstallOfferDue(1, at("2026-11-23"), storage)).toBe(false);
+    expect(isInstallOfferDue(2, at("2026-11-23"), storage)).toBe(true);
   });
 
   it("leaves a player who said no alone for two weeks", () => {
-    const two = { "2026-11-22": entry(true), "2026-11-23": entry(true) };
     dismissInstallOffer(at("2026-11-23"), storage);
-    expect(isInstallOfferDue(two, at("2026-11-23"), storage)).toBe(false);
+    expect(isInstallOfferDue(2, at("2026-11-23"), storage)).toBe(false);
     const lastQuietDay = new Date(at("2026-11-23").getTime() + (SNOOZE_DAYS - 1) * 86_400_000);
     expect(isInstallOfferSnoozed(lastQuietDay, storage)).toBe(true);
     const back = new Date(at("2026-11-23").getTime() + SNOOZE_DAYS * 86_400_000);
@@ -65,6 +69,11 @@ describe("who is offered to install Lyrix", () => {
 
   it("never asks again once turned down three times", () => {
     for (let i = 0; i < MAX_DISMISSALS; i++) dismissInstallOffer(at("2026-01-01"), storage);
+    expect(isInstallOfferSnoozed(at("2027-06-01"), storage)).toBe(true);
+  });
+
+  it("never asks again once the player says it is done", () => {
+    markInstallDone(at("2026-11-23"), storage);
     expect(isInstallOfferSnoozed(at("2027-06-01"), storage)).toBe(true);
   });
 

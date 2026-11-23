@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { SIGNALS, signal } from "./analytics";
 
 /**
  * How Lyrix can be installed in this browser (#79's manifest and service
@@ -44,6 +45,7 @@ export function captureInstallPrompt(win: Window = window): void {
   win.addEventListener("appinstalled", () => {
     deferred = null;
     installedNow = true;
+    signal(SIGNALS.appInstalled, {}, win);
     notify();
   });
 }
