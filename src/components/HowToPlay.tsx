@@ -2,6 +2,7 @@ import { FAQ, RULES_SUMMARY } from "../rules";
 import { EVENTS, track } from "../analytics";
 import { nearStyle } from "./heatStyle";
 import { ThemePicker } from "./ThemePicker";
+import { InstallAppAction } from "./InstallAppAction";
 
 interface HowToPlayProps {
   /** Leaves the page for today's song. */
@@ -57,6 +58,7 @@ export function HowToPlay({ onClose, onReplayTour }: HowToPlayProps) {
           >
             Revoir la visite guidée
           </button>
+          <InstallAppAction />
         </div>
       </article>
 

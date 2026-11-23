@@ -4054,4 +4054,103 @@ a.lyrix-day-step:hover {
   .lyrix-theme-choice {
     transition: none;
   }
+/* ---------- The offer to install Lyrix (InstallOffer.tsx), a row of the victory panel ---------- */
+
+.lyrix-install {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-solid-raised);
+  animation: lyrix-rise 0.45s var(--ease-out) both;
+}
+
+.lyrix-install-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+/* The installed app's icon, as the home screen will show it. */
+.lyrix-install-tile {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--color-page-bg);
+  box-shadow: 0 0 0 1px var(--color-solid-raised);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.lyrix-install-tile .lyrix-logo-mark {
+  transform: scale(0.85);
+}
+
+.lyrix-install-tile .lyrix-logo-mark,
+.lyrix-install-tile .lyrix-logo-mark * {
+  animation: none;
+}
+
+.lyrix-install-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.lyrix-install-text p {
+  margin: 0;
+  color: var(--color-on-ink-soft);
+  text-wrap: pretty;
+}
+
+.lyrix-install-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.lyrix-install-actions {
+  justify-content: flex-end;
+}
+
+.lyrix-install-steps {
+  margin: 0;
+  padding: 10px 14px 10px 32px;
+  border-radius: 12px;
+  background: var(--color-solid-raised);
+  font-size: 0.9rem;
+  line-height: 1.9;
+}
+
+.lyrix-install-key {
+  font-weight: 700;
+  color: var(--color-on-ink-accent);
+  white-space: nowrap;
+}
+
+.lyrix-install-icon {
+  vertical-align: -3px;
+}
+
+/* On the rules' page's light card. */
+.lyrix-install-steps.is-light {
+  flex-basis: 100%;
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+}
+
+.lyrix-install-steps.is-light .lyrix-install-key {
+  color: var(--color-link);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyrix-install {
+    animation: none;
+  }
 }

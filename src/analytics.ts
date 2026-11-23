@@ -24,6 +24,9 @@ export const EVENTS = {
   toggleTheme: "theme-toggle",
   startTour: "tour-start",
   skipTour: "tour-skip",
+  installApp: "install-app",
+  dismissInstall: "install-dismiss",
+  installedAlready: "install-done",
 } as const;
 
 export type TrackedEvent = (typeof EVENTS)[keyof typeof EVENTS];
@@ -36,4 +39,37 @@ export function track(event: TrackedEvent, data: EventData = {}): Record<string,
   const attrs: Record<string, string> = { "data-umami-event": event };
   for (const [key, value] of Object.entries(data)) attrs[`data-umami-event-${key}`] = value;
   return attrs;
+}
+
+/**
+ * What Umami counts that is no click: the install offer shown, and what the
+ * browser's own install dialog answered. Same rules as the clicks: fixed
+ * names and labels only, never renamed once shipped.
+ */
+export const SIGNALS = {
+  installOfferShown: "install-offer-show",
+  installPromptAccepted: "install-prompt-accept",
+  installPromptDismissed: "install-prompt-dismiss",
+  appInstalled: "app-installed",
+} as const;
+
+export type Signal = (typeof SIGNALS)[keyof typeof SIGNALS];
+
+interface UmamiTracker {
+  track(event: string, data?: EventData): unknown;
+}
+
+/**
+ * Has Umami count a signal, if its script is on the page (production only)
+ * and allowed to (it heeds Do Not Track and the legal page's opt-out itself):
+ * otherwise nothing happens.
+ */
+export function signal(name: Signal, data?: EventData, win: Window = window): void {
+  const umami = (win as Window & { umami?: Partial<UmamiTracker> }).umami;
+  if (typeof umami?.track !== "function") return;
+  try {
+    umami.track(name, data);
+  } catch {
+    // Counting is never worth an error.
+  }
 }
