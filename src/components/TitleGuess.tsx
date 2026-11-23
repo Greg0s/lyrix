@@ -94,7 +94,7 @@ export const TitleGuess = memo(function TitleGuess({
         <div className="lyrix-victory">
           <div className="lyrix-victory-main">
             <VictoryCover cover={cover}>
-              {variant === "A" ? <VictoryPreview cover={cover} variant="A" /> : null}
+              {variant === "A" || variant === "D" ? <VictoryPreview cover={cover} variant={variant} /> : null}
             </VictoryCover>
             <div className="lyrix-victory-text">
               <p className="lyrix-victory-eyebrow">
@@ -129,7 +129,7 @@ export const TitleGuess = memo(function TitleGuess({
               )}
             </div>
           </div>
-          {variant === "A" ? null : <VictoryPreview cover={cover} variant={variant} />}
+          {variant === "B" || variant === "C" ? <VictoryPreview cover={cover} variant={variant} /> : null}
           <label className="lyrix-reveal-all">
             <input
               type="checkbox"

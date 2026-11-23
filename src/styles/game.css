@@ -961,6 +961,78 @@
   opacity: 1;
 }
 
+/*
+ * D: a small play button at the foot of the sleeve, centred, its progress a
+ * ring around it. Always there on a touch screen; with a mouse, it comes up
+ * when the sleeve is hovered or focused, and stays while the extract plays.
+ */
+.lyrix-preview.is-d {
+  position: absolute;
+  inset: 0;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 6px;
+}
+
+.lyrix-preview.is-d .lyrix-preview-button {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  box-shadow: 0 4px 10px -3px var(--color-solid);
+  transition: opacity 0.18s var(--ease-out), transform 0.18s var(--ease-out), background-color 0.15s;
+}
+
+.lyrix-preview-ring {
+  position: absolute;
+  inset: -4px;
+  width: calc(100% + 8px);
+  height: calc(100% + 8px);
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+
+.lyrix-preview-ring circle {
+  fill: none;
+  stroke-width: 3;
+}
+
+.lyrix-preview-ring circle:first-child {
+  stroke: var(--color-solid);
+  opacity: 0.55;
+}
+
+.lyrix-preview-ring circle:last-child {
+  stroke: var(--color-on-ink);
+  stroke-dasharray: 1;
+  stroke-dashoffset: calc(1 - var(--progress));
+  stroke-linecap: round;
+}
+
+.lyrix-preview.is-d:not(.is-playing) .lyrix-preview-ring {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lyrix-preview.is-d:not(.is-playing) .lyrix-preview-button {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  .lyrix-victory-cover:hover .lyrix-preview.is-d .lyrix-preview-button,
+  .lyrix-preview.is-d .lyrix-preview-button:focus-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  .lyrix-victory-cover:has(.lyrix-preview.is-d.is-ready) img {
+    transition: filter 0.18s var(--ease-out);
+  }
+
+  .lyrix-victory-cover:hover:has(.lyrix-preview.is-d.is-ready) img {
+    filter: brightness(0.75);
+  }
+}
+
 /* B: a listening line across the panel, under the sleeve and its text, the clock after it. */
 .lyrix-preview.is-b {
   flex-basis: 100%;

@@ -2,13 +2,13 @@ import { memo, useRef, useState } from "react";
 import { apiUrl } from "../api/base";
 
 /** Where the player sits on the victory panel (proposals for the developer: A, B or C). */
-export type PreviewVariant = "A" | "B" | "C";
+export type PreviewVariant = "A" | "B" | "C" | "D";
 
 /** The proposal shown, from the address (`?extrait=A`); B by default. Mockups only: goes once one is picked. */
 export function previewVariant(): PreviewVariant {
   if (typeof location === "undefined") return "B";
   const asked = new URLSearchParams(location.search).get("extrait")?.toUpperCase();
-  return asked === "A" || asked === "C" ? asked : "B";
+  return asked === "A" || asked === "C" || asked === "D" ? asked : "B";
 }
 
 interface VictoryPreviewProps {
@@ -102,7 +102,16 @@ export const VictoryPreview = memo(function VictoryPreview({ cover, variant }: V
         onEnded={() => setPlayingCover(null)}
         onTimeUpdate={progress}
       />
-      {variant === "A" ? (
+      {variant === "D" ? (
+        <button type="button" className="lyrix-preview-button" aria-label={label} onClick={toggle}>
+          {/* Its progress, as a ring around it: pathLength 1, so the dash offset is what is left to play. */}
+          <svg className="lyrix-preview-ring" viewBox="0 0 40 40" aria-hidden="true">
+            <circle cx="20" cy="20" r="18" pathLength="1" />
+            <circle cx="20" cy="20" r="18" pathLength="1" />
+          </svg>
+          <PlayIcon playing={playing} size={14} />
+        </button>
+      ) : variant === "A" ? (
         <>
           <button type="button" className="lyrix-preview-button" aria-label={label} onClick={toggle}>
             <PlayIcon playing={playing} size={20} />
