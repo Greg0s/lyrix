@@ -866,10 +866,9 @@
 /*
  * The sleeve and its record (VictoryPreview, decided with the developer: the
  * "F3" proposal). The record slides out once its extract is there, far
- * enough for its hole, the play sign, to be clear of the sleeve; its label is
- * the sleeve again. It is one button, and its hit area (::before) reaches
+ * enough for its hole, the play sign, to be clear of the sleeve. It is one button, and its hit area (::before) reaches
  * back under the sleeve, which lets every click through: a tap anywhere on
- * either plays or pauses. While it plays, the label spins and a ring round
+ * either plays or pauses. While it plays, its sheen turns and a ring round
  * the hole fills with the time played (--progress, written by the
  * component). With a mouse, hovering lifts and tilts the sleeve and rolls the
  * record further out. --slide is how far out it is, a share of its width.
@@ -944,15 +943,6 @@
   border-radius: 50%;
   cursor: pointer;
   background:
-    conic-gradient(
-      from 30deg,
-      transparent,
-      color-mix(in oklch, var(--color-on-ink) 14%, transparent) 8%,
-      transparent 18%,
-      transparent 50%,
-      color-mix(in oklch, var(--color-on-ink) 10%, transparent) 58%,
-      transparent 68%
-    ),
     repeating-radial-gradient(
       circle,
       var(--color-solid) 0 2px,
@@ -979,17 +969,24 @@
   outline-offset: 3px;
 }
 
-.lyrix-vinyl-label {
+/* The light on the grooves: it turns while the record plays, so the record is seen to. */
+.lyrix-vinyl-sheen {
   position: absolute;
-  inset: 16%;
+  inset: 0;
   border-radius: 50%;
-  background-color: var(--accent-solid);
-  background-size: cover;
-  background-position: center;
+  background: conic-gradient(
+    from 30deg,
+    transparent,
+    color-mix(in oklch, var(--color-on-ink) 16%, transparent) 8%,
+    transparent 18%,
+    transparent 50%,
+    color-mix(in oklch, var(--color-on-ink) 12%, transparent) 58%,
+    transparent 68%
+  );
   transition: transform 0.5s var(--ease-out);
 }
 
-.lyrix-preview.is-playing .lyrix-vinyl-label {
+.lyrix-preview.is-playing .lyrix-vinyl-sheen {
   animation: lyrix-spin 1.8s linear infinite;
 }
 
@@ -1058,7 +1055,7 @@
     --slide: 100%;
   }
 
-  .lyrix-sleeve:hover .lyrix-preview:not(.is-playing) .lyrix-vinyl-label {
+  .lyrix-sleeve:hover .lyrix-preview:not(.is-playing) .lyrix-vinyl-sheen {
     transform: rotate(90deg);
   }
 
@@ -1069,13 +1066,13 @@
 
 @media (prefers-reduced-motion: reduce) {
   .lyrix-preview.is-ready,
-  .lyrix-preview.is-playing .lyrix-vinyl-label {
+  .lyrix-preview.is-playing .lyrix-vinyl-sheen {
     animation: none;
   }
 
   .lyrix-preview,
   .lyrix-sleeve .lyrix-victory-cover,
-  .lyrix-vinyl-label {
+  .lyrix-vinyl-sheen {
     transition: none;
   }
 }

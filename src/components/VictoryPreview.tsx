@@ -31,7 +31,7 @@ function PlayIcon({ playing }: { playing: boolean }) {
  *
  * The record is one button, and its hit area reaches back under the sleeve
  * (game.css): a tap anywhere on either plays or pauses it. While it plays,
- * its label spins and a ring round its hole fills with the time played.
+ * its sheen turns and a ring round its hole fills with the time played.
  * That progress is written straight to the DOM (a CSS variable): playing
  * re-renders nothing, the panel included.
  */
@@ -88,11 +88,7 @@ export const VictoryPreview = memo(function VictoryPreview({ cover }: VictoryPre
         onClick={toggle}
         {...track(EVENTS.playPreview)}
       >
-        <span
-          className="lyrix-vinyl-label"
-          style={{ backgroundImage: `url(${apiUrl(`/api/cover/${encodeURIComponent(cover)}`).href})` }}
-          aria-hidden="true"
-        />
+        <span className="lyrix-vinyl-sheen" aria-hidden="true" />
         <span className="lyrix-vinyl-hole" aria-hidden="true">
           {/* The time played, as a ring: pathLength 1, so the dash offset is what is left to play. */}
           <svg className="lyrix-vinyl-ring" viewBox="0 0 48 48">
