@@ -5,6 +5,13 @@ import { coverUrl } from "./coverUrl";
 /** Where the player sits on the victory panel (proposals for the developer: A, B or C). */
 export type PreviewVariant = "A" | "B" | "C" | "D" | "E" | "F" | "G";
 
+/** How the record behaves under a mouse (F): `?disque=1`, `2` or `3`. Mockups only. */
+export function sleeveStyle(): 1 | 2 | 3 {
+  if (typeof location === "undefined") return 1;
+  const asked = new URLSearchParams(location.search).get("disque");
+  return asked === "2" ? 2 : asked === "3" ? 3 : 1;
+}
+
 /** The proposal shown, from the address (`?extrait=A`); B by default. Mockups only: goes once one is picked. */
 export function previewVariant(): PreviewVariant {
   if (typeof location === "undefined") return "B";
@@ -28,7 +35,7 @@ function clock(seconds: number): string {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
-function PlayIcon({ playing, size = 18 }: { playing: boolean; size?: number }) {
+export function PlayIcon({ playing, size = 18 }: { playing: boolean; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       {playing ? (
@@ -106,12 +113,13 @@ export const VictoryPreview = memo(function VictoryPreview({ cover, variant }: V
         onTimeUpdate={progress}
       />
       {variant === "F" ? (
-        <span className="lyrix-vinyl">
+        // The whole record is the button, and its hit area reaches under the sleeve (game.css): a finger can't miss it.
+        <button type="button" className="lyrix-vinyl" aria-label={label} onClick={toggle}>
           <span className="lyrix-vinyl-label" style={{ backgroundImage: `url(${coverUrl(cover)})` }} aria-hidden="true" />
-          <button type="button" className="lyrix-preview-button" aria-label={label} onClick={toggle}>
-            <PlayIcon playing={playing} size={12} />
-          </button>
-        </span>
+          <span className="lyrix-vinyl-hole" aria-hidden="true">
+            <PlayIcon playing={playing} size={16} />
+          </span>
+        </button>
       ) : variant === "G" ? (
         <>
           <button type="button" className="lyrix-preview-button" aria-label={label} onClick={toggle}>

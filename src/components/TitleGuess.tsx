@@ -10,7 +10,7 @@ import { VictoryFoot } from "./VictoryFoot";
 import { TokenRun } from "./TokenRun";
 import { VictoryCover } from "./VictoryCover";
 import { coverUrl } from "./coverUrl";
-import { previewVariant, VictoryPreview } from "./VictoryPreview";
+import { PlayIcon, previewVariant, sleeveStyle, VictoryPreview } from "./VictoryPreview";
 
 interface TitleGuessProps {
   titleTokens: SlotToken[];
@@ -102,9 +102,13 @@ export const TitleGuess = memo(function TitleGuess({
           ) : null}
           <div className="lyrix-victory-main">
             {variant === "F" ? (
-              <div className="lyrix-sleeve">
+              <div className={`lyrix-sleeve is-desk-${sleeveStyle()}`}>
                 <VictoryPreview cover={cover} variant="F" />
                 <VictoryCover cover={cover} />
+                <span className="lyrix-sleeve-hint" aria-hidden="true">
+                  <PlayIcon playing={false} size={30} />
+                  <PlayIcon playing size={30} />
+                </span>
               </div>
             ) : (
               <VictoryCover cover={cover}>

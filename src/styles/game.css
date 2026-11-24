@@ -1093,11 +1093,14 @@
 /*
  * F: a record slides out of the sleeve once its extract is there, its label
  * the sleeve again and its hole the play button; it spins while it plays.
+ * The record is the button, and its hit area (::before) reaches back under
+ * the sleeve, which lets every click through: sleeve and record alike play
+ * the extract, a target a finger can't miss. How far it is out is --slide,
+ * a share of its own width.
  */
 .lyrix-sleeve {
   position: relative;
   flex: none;
-  transition: padding-right 0.5s var(--ease-out);
 }
 
 .lyrix-sleeve .lyrix-victory-cover {
@@ -1105,31 +1108,31 @@
   z-index: 1;
   width: clamp(96px, 26vw, 112px);
   box-shadow: 6px 0 18px -6px var(--color-solid);
+  pointer-events: none;
+  transition: transform 0.35s var(--ease-out);
 }
 
 .lyrix-sleeve:has(.lyrix-preview.is-ready) {
-  padding-right: 72px;
-}
-
-.lyrix-sleeve:has(.lyrix-preview.is-playing) {
   padding-right: 84px;
 }
 
 .lyrix-preview.is-f {
+  --slide: 0%;
   position: absolute;
   top: 4%;
   bottom: 4%;
   left: 0;
   aspect-ratio: 1;
+  transform: translateX(var(--slide));
   transition: transform 0.5s var(--ease-out);
 }
 
 .lyrix-preview.is-f.is-ready {
-  transform: translateX(72%);
+  --slide: 72%;
 }
 
 .lyrix-preview.is-f.is-playing {
-  transform: translateX(86%);
+  --slide: 86%;
 }
 
 .lyrix-vinyl {
@@ -1138,7 +1141,10 @@
   place-items: center;
   width: 100%;
   height: 100%;
+  padding: 0;
+  border: none;
   border-radius: 50%;
+  cursor: pointer;
   background:
     conic-gradient(
       from 30deg,
@@ -1159,12 +1165,30 @@
     0 10px 24px -10px var(--color-solid);
 }
 
+/* The hit area: the record, and the sleeve it came out of (its left edge is the sleeve's). */
+.lyrix-vinyl::before {
+  content: "";
+  position: absolute;
+  top: -5%;
+  bottom: -5%;
+  right: 0;
+  left: calc(-1 * var(--slide));
+  border-radius: 12px 50% 50% 12px;
+}
+
+.lyrix-vinyl:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
 .lyrix-vinyl-label {
   position: absolute;
-  inset: 31%;
+  inset: 27%;
   border-radius: 50%;
+  background-color: var(--accent-solid);
   background-size: cover;
   background-position: center;
+  transition: transform 0.5s var(--ease-out);
 }
 
 .lyrix-preview.is-playing .lyrix-vinyl-label {
@@ -1177,11 +1201,115 @@
   }
 }
 
-.lyrix-preview.is-f .lyrix-preview-button {
+/* The hole: the play button's face, 36px on a 44px+ target. */
+.lyrix-vinyl-hole {
   position: relative;
-  width: 26px;
-  height: 26px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent-solid);
+  color: var(--color-on-bright);
   box-shadow: 0 0 0 3px var(--color-solid);
+  transition: transform 0.2s var(--ease-out), opacity 0.2s var(--ease-out);
+}
+
+.lyrix-vinyl:active .lyrix-vinyl-hole {
+  transform: scale(0.9);
+}
+
+/* What the sleeve says under a mouse (F2): a big play or pause sign over it. */
+.lyrix-sleeve-hint {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* F1: the record peeks out of the sleeve, and comes out on hovering either, its play sign growing in. */
+  .is-desk-1 .lyrix-preview.is-f.is-ready:not(.is-playing),
+  .is-desk-2 .lyrix-preview.is-f.is-ready:not(.is-playing) {
+    --slide: 30%;
+  }
+
+  .is-desk-1 .lyrix-preview.is-f:not(.is-playing) .lyrix-vinyl-hole,
+  .is-desk-2 .lyrix-preview.is-f:not(.is-playing) .lyrix-vinyl-hole {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+
+  .is-desk-1:hover .lyrix-preview.is-f.is-ready:not(.is-playing),
+  .is-desk-1 .lyrix-preview.is-f.is-ready:has(:focus-visible),
+  .is-desk-2:hover .lyrix-preview.is-f.is-ready:not(.is-playing),
+  .is-desk-2 .lyrix-preview.is-f.is-ready:has(:focus-visible) {
+    --slide: 76%;
+  }
+
+  .is-desk-1:hover .lyrix-vinyl-hole,
+  .is-desk-1 .lyrix-vinyl:focus-visible .lyrix-vinyl-hole {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .is-desk-1:hover .lyrix-preview.is-f:not(.is-playing) .lyrix-vinyl-label {
+    transform: rotate(40deg);
+  }
+
+  /* F2: the same record, and the sleeve itself darkens under a big sign: it is the button. */
+  .is-desk-2 .lyrix-sleeve-hint {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: clamp(96px, 26vw, 112px);
+    aspect-ratio: 1;
+    border-radius: 12px;
+    background: color-mix(in oklch, var(--color-solid) 55%, transparent);
+    color: var(--color-on-ink);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s var(--ease-out);
+  }
+
+  .is-desk-2 .lyrix-sleeve-hint svg {
+    grid-area: 1 / 1;
+    transition: transform 0.2s var(--ease-out);
+  }
+
+  .is-desk-2 .lyrix-sleeve-hint svg:last-child,
+  .is-desk-2:has(.is-playing) .lyrix-sleeve-hint svg:first-child {
+    display: none;
+  }
+
+  .is-desk-2:has(.is-playing) .lyrix-sleeve-hint svg:last-child {
+    display: block;
+  }
+
+  .is-desk-2:hover:has(.is-ready) .lyrix-sleeve-hint {
+    opacity: 1;
+  }
+
+  .is-desk-2:hover .lyrix-sleeve-hint svg {
+    transform: scale(1.1);
+  }
+
+  /* F3: the record stays out; hovering lifts and tilts the sleeve, and the record rolls further, a quarter turn. */
+  .is-desk-3:hover:has(.is-ready) .lyrix-victory-cover {
+    transform: translateY(-3px) rotate(-4deg);
+  }
+
+  .is-desk-3:hover .lyrix-preview.is-f.is-ready:not(.is-playing) {
+    --slide: 84%;
+  }
+
+  .is-desk-3:hover .lyrix-preview.is-f:not(.is-playing) .lyrix-vinyl-label {
+    transform: rotate(90deg);
+  }
+
+  .is-desk-3:hover .lyrix-vinyl-hole {
+    transform: scale(1.12);
+  }
 }
 
 /*
@@ -1249,8 +1377,9 @@
     animation: none;
   }
 
-  .lyrix-sleeve,
-  .lyrix-preview.is-f {
+  .lyrix-sleeve .lyrix-victory-cover,
+  .lyrix-preview.is-f,
+  .lyrix-vinyl-label {
     transition: none;
   }
 }
