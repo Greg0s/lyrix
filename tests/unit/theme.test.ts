@@ -154,9 +154,10 @@ describe("the palette", () => {
     // (and the colours game.css mixes from it),
     // a title word's rank and the title's word count on a win, a confetti piece's flight,
     // the size an archived song's title fits its cover at, the side column's height,
-    // where the guided tour's arrow points, how far the victory panel's extract has played.
+    // where the guided tour's arrow points, how far the victory panel's extract has played and its record is out.
     const inline = new Set([
       "--progress",
+      "--slide",
       "--cover-title-size",
       "--player",
       "--heat",
