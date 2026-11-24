@@ -634,3 +634,10 @@ A state keeps its missed words' marks (`missed`) until the last hint unlocks, an
 ## 2026-11-17 — A day won before `titleBeforeWin` was veiled with its whole title
 
 A member who doesn't know a won day's answer is sent its summary with the title as it stood before the winning word (`veiledSummary`), but a summary written before that field existed fell back to the full title. Without it, the title is now sent with every word hidden. Regression test in `tests/unit/worker/room.test.ts` ("no title before the win").
+
+## 2026-11-24 — Serving the 30-second Deezer extract
+
+- **Deezer signs a preview's address for a limited time** (`hdnea=exp=…` in the query): only the track id is worth keeping. `GET https://api.deezer.com/track/<id>` gives a fresh `preview` each time; `preview.ts` asks for it only when the extract isn't in the datacenter's cache. An empty `preview` (and error code 800, "no data") is an answer about the song; anything else that fails is `DeezerUnavailableError`, a 503, never "no extract".
+- **Safari plays no audio from a server that ignores `Range`.** The Worker holds the whole MP3 (under 500 kB) and answers ranges itself with 206 (`parseRange`, pinned in `preview.test.ts`).
+- **An element that lets clicks through (`pointer-events: none`) can't be clicked by Playwright's locator**: it refuses, naming the element underneath. `victoryPreview.spec.ts` clicks the sleeve's coordinates with `page.mouse` to prove the tap reaches the record under it.
+

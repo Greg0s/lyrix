@@ -27,6 +27,7 @@ export const EVENTS = {
   installApp: "install-app",
   dismissInstall: "install-dismiss",
   installedAlready: "install-done",
+  playPreview: "preview-play",
 } as const;
 
 export type TrackedEvent = (typeof EVENTS)[keyof typeof EVENTS];
