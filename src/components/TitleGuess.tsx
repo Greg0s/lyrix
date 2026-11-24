@@ -9,8 +9,7 @@ import { NextSongCountdown } from "./NextSongCountdown";
 import { VictoryFoot } from "./VictoryFoot";
 import { TokenRun } from "./TokenRun";
 import { VictoryCover } from "./VictoryCover";
-import { coverUrl } from "./coverUrl";
-import { PlayIcon, previewVariant, sleeveStyle, VictoryPreview } from "./VictoryPreview";
+import { VictoryPreview } from "./VictoryPreview";
 
 interface TitleGuessProps {
   titleTokens: SlotToken[];
@@ -79,7 +78,6 @@ export const TitleGuess = memo(function TitleGuess({
   // One tab stop into the title's bars, like the lyrics' (see useRovingBlanks).
   const roving = useRovingBlanks<HTMLHeadingElement>();
   const title = titleTokens.map((token) => token.text).join("");
-  const variant = previewVariant();
   // How many words pop before the panel comes in.
   const style = celebration
     ? ({ "--words": titleTokens.filter((token) => token.isWord).length } as CSSProperties)
@@ -92,31 +90,13 @@ export const TitleGuess = memo(function TitleGuess({
       </h1>
 
       {victory ? (
-        <div className={`lyrix-victory is-look-${variant.toLowerCase()}`}>
-          {variant === "E" && cover !== undefined ? (
-            <div
-              className="lyrix-victory-backdrop"
-              style={{ backgroundImage: `url(${coverUrl(cover)})` }}
-              aria-hidden="true"
-            />
-          ) : null}
+        <div className="lyrix-victory">
           <div className="lyrix-victory-main">
-            {variant === "F" ? (
-              <div className={`lyrix-sleeve is-desk-${sleeveStyle()}`}>
-                <VictoryPreview cover={cover} variant="F" />
-                <VictoryCover cover={cover} />
-                <span className="lyrix-sleeve-hint" aria-hidden="true">
-                  <PlayIcon playing={false} size={30} />
-                  <PlayIcon playing size={30} />
-                </span>
-              </div>
-            ) : (
-              <VictoryCover cover={cover}>
-                {variant === "A" || variant === "D" || variant === "E" || variant === "G" ? (
-                  <VictoryPreview cover={cover} variant={variant} />
-                ) : null}
-              </VictoryCover>
-            )}
+            {/* The sleeve, and the extract's record sliding out of it (VictoryPreview). */}
+            <div className="lyrix-sleeve">
+              {cover !== undefined ? <VictoryPreview cover={cover} /> : null}
+              <VictoryCover cover={cover} />
+            </div>
             <div className="lyrix-victory-text">
               <p className="lyrix-victory-eyebrow">
                 {group ? "Bravo, le groupe l'a trouvée\u00a0!" : "Bravo, tu l'as trouvée\u00a0!"}
@@ -150,7 +130,6 @@ export const TitleGuess = memo(function TitleGuess({
               )}
             </div>
           </div>
-          {variant === "B" || variant === "C" ? <VictoryPreview cover={cover} variant={variant} /> : null}
           <label className="lyrix-reveal-all">
             <input
               type="checkbox"

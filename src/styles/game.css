@@ -864,275 +864,73 @@
 }
 
 /*
- * The song's 30-second extract (VictoryPreview), from the Worker. Hidden until
- * the browser knows it is there, like the sleeve; its progress (--progress,
- * 0 to 1) is written by the component straight to the DOM.
+ * The sleeve and its record (VictoryPreview, decided with the developer: the
+ * "F3" proposal). The record slides out once its extract is there, far
+ * enough for its hole, the play sign, to be clear of the sleeve; its label is
+ * the sleeve again. It is one button, and its hit area (::before) reaches
+ * back under the sleeve, which lets every click through: a tap anywhere on
+ * either plays or pauses. While it plays, the label spins and a ring round
+ * the hole fills with the time played (--progress, written by the
+ * component). With a mouse, hovering lifts and tilts the sleeve and rolls the
+ * record further out. --slide is how far out it is, a share of its width.
  */
-.lyrix-preview {
-  --progress: 0;
+.lyrix-sleeve {
+  --sleeve: clamp(96px, 26vw, 112px);
+  position: relative;
+  flex: none;
+}
+
+/* Neither a cover nor an extract: nothing, not even the gap beside it. */
+.lyrix-sleeve:not(:has(.has-image, .lyrix-preview.is-ready)) {
   display: none;
 }
 
-.lyrix-preview.is-ready {
-  display: flex;
+.lyrix-sleeve .lyrix-victory-cover {
+  z-index: 1;
+  width: var(--sleeve);
+  box-shadow: 6px 0 18px -6px var(--color-solid);
+  pointer-events: none;
+  transition: transform 0.35s var(--ease-out);
+}
+
+/* Room for the record out, and for it rolling further under a mouse: the text never moves. */
+.lyrix-sleeve:has(.has-image):has(.lyrix-preview.is-ready) {
+  padding-right: calc(var(--sleeve) * 0.86);
+}
+
+.lyrix-preview {
+  --progress: 0;
+  --slide: 0%;
+  position: absolute;
+  top: calc(var(--sleeve) * 0.04);
+  left: 0;
+  display: none;
+  width: calc(var(--sleeve) * 0.92);
+  aspect-ratio: 1;
+  transform: translateX(var(--slide));
+  transition: transform 0.45s var(--ease-out);
 }
 
 .lyrix-preview audio {
   display: none;
 }
 
-.lyrix-preview-button {
-  flex: none;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 50%;
-  padding: 0;
-  background: var(--accent-solid);
-  color: var(--color-on-bright);
-  cursor: pointer;
-  transition: transform 0.15s var(--ease-out), background-color 0.15s;
+.lyrix-preview.is-ready {
+  --slide: 92%;
+  display: block;
+  animation: lyrix-vinyl-out 0.6s var(--ease-out);
 }
 
-.lyrix-preview-button:hover {
-  background: var(--accent-hover);
-}
-
-.lyrix-preview-button:active {
-  transform: scale(0.92);
-}
-
-.lyrix-preview-button:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-.lyrix-preview-bar {
-  position: relative;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--color-solid-raised);
-}
-
-.lyrix-preview-bar::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--color-on-ink-accent);
-  transform-origin: left center;
-  transform: scaleX(var(--progress));
-}
-
-.lyrix-preview-time {
-  flex: none;
-  font-size: 0.8rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-on-ink-muted);
-}
-
-/* A: on the sleeve itself, a play button in its corner and a thin bar along its foot. */
-.lyrix-preview.is-a {
-  position: absolute;
-  inset: 0;
-  align-items: flex-end;
-  justify-content: flex-end;
-  padding: 6px;
-}
-
-.lyrix-preview.is-a .lyrix-preview-button {
-  width: 34px;
-  height: 34px;
-  box-shadow: 0 4px 12px -4px var(--color-solid);
-}
-
-.lyrix-preview.is-a .lyrix-preview-bar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 4px;
-  border-radius: 0;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.lyrix-preview.is-a.is-playing .lyrix-preview-bar {
-  opacity: 1;
-}
-
-/*
- * D: a small play button at the foot of the sleeve, centred, its progress a
- * ring around it. Always there on a touch screen; with a mouse, it comes up
- * when the sleeve is hovered or focused, and stays while the extract plays.
- */
-.lyrix-preview.is-d {
-  position: absolute;
-  inset: 0;
-  align-items: flex-end;
-  justify-content: center;
-  padding-bottom: 6px;
-}
-
-.lyrix-preview.is-d .lyrix-preview-button {
-  position: relative;
-  width: 30px;
-  height: 30px;
-  box-shadow: 0 4px 10px -3px var(--color-solid);
-  transition: opacity 0.18s var(--ease-out), transform 0.18s var(--ease-out), background-color 0.15s;
-}
-
-.lyrix-preview-ring {
-  position: absolute;
-  inset: -4px;
-  width: calc(100% + 8px);
-  height: calc(100% + 8px);
-  transform: rotate(-90deg);
-  pointer-events: none;
-}
-
-.lyrix-preview-ring circle {
-  fill: none;
-  stroke-width: 3;
-}
-
-.lyrix-preview-ring circle:first-child {
-  stroke: var(--color-solid);
-  opacity: 0.55;
-}
-
-.lyrix-preview-ring circle:last-child {
-  stroke: var(--color-on-ink);
-  stroke-dasharray: 1;
-  stroke-dashoffset: calc(1 - var(--progress));
-  stroke-linecap: round;
-}
-
-.lyrix-preview.is-d:not(.is-playing) .lyrix-preview-ring {
-  display: none;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .lyrix-preview.is-d:not(.is-playing) .lyrix-preview-button {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-
-  .lyrix-victory-cover:hover .lyrix-preview.is-d .lyrix-preview-button,
-  .lyrix-preview.is-d .lyrix-preview-button:focus-visible {
-    opacity: 1;
-    transform: none;
-  }
-
-  .lyrix-victory-cover:has(.lyrix-preview.is-d.is-ready) img {
-    transition: filter 0.18s var(--ease-out);
-  }
-
-  .lyrix-victory-cover:hover:has(.lyrix-preview.is-d.is-ready) img {
-    filter: brightness(0.75);
-  }
-}
-
-/*
- * E: the sleeve as the panel's light. Blown up and blurred behind
- * everything, under a veil of the panel's own colour so its text keeps its
- * contrast; it breathes while the extract plays. The sleeve itself is bigger,
- * the D button at its foot.
- */
-.lyrix-victory.is-look-e {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-}
-
-.lyrix-victory-backdrop {
-  position: absolute;
-  inset: -40px;
-  z-index: -1;
-  background-size: cover;
-  background-position: center;
-  filter: blur(36px) saturate(1.4);
-  opacity: 0.9;
-  transition: transform 1.2s var(--ease-out);
-}
-
-.lyrix-victory-backdrop::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in oklch, var(--color-solid) 35%, transparent),
-    color-mix(in oklch, var(--color-solid) 80%, transparent) 55%,
-    var(--color-solid)
-  );
-}
-
-.is-look-e:has(.is-playing) .lyrix-victory-backdrop {
-  animation: lyrix-breathe 4s ease-in-out infinite alternate;
-}
-
-@keyframes lyrix-breathe {
+@keyframes lyrix-vinyl-out {
   from {
-    transform: scale(1);
-  }
-  to {
-    transform: scale(1.15);
+    transform: translateX(0);
   }
 }
 
-.is-look-e .lyrix-victory-cover {
-  width: clamp(112px, 30vw, 132px);
-  box-shadow: 0 18px 36px -14px var(--color-solid);
-}
-
-.is-look-e .lyrix-reveal-all {
-  background: color-mix(in oklch, var(--color-solid-raised) 75%, transparent);
-}
-
-/*
- * F: a record slides out of the sleeve once its extract is there, its label
- * the sleeve again and its hole the play button; it spins while it plays.
- * The record is the button, and its hit area (::before) reaches back under
- * the sleeve, which lets every click through: sleeve and record alike play
- * the extract, a target a finger can't miss. How far it is out is --slide,
- * a share of its own width.
- */
-.lyrix-sleeve {
-  position: relative;
-  flex: none;
-}
-
-.lyrix-sleeve .lyrix-victory-cover {
-  position: relative;
-  z-index: 1;
-  width: clamp(96px, 26vw, 112px);
-  box-shadow: 6px 0 18px -6px var(--color-solid);
-  pointer-events: none;
-  transition: transform 0.35s var(--ease-out);
-}
-
-.lyrix-sleeve:has(.lyrix-preview.is-ready) {
-  padding-right: 84px;
-}
-
-.lyrix-preview.is-f {
+/* No cover: the record alone, in the sleeve's place. */
+.lyrix-sleeve:not(:has(.has-image)) .lyrix-preview {
   --slide: 0%;
-  position: absolute;
-  top: 4%;
-  bottom: 4%;
-  left: 0;
-  aspect-ratio: 1;
-  transform: translateX(var(--slide));
-  transition: transform 0.5s var(--ease-out);
-}
-
-.lyrix-preview.is-f.is-ready {
-  --slide: 72%;
-}
-
-.lyrix-preview.is-f.is-playing {
-  --slide: 86%;
+  position: static;
 }
 
 .lyrix-vinyl {
@@ -1183,7 +981,7 @@
 
 .lyrix-vinyl-label {
   position: absolute;
-  inset: 27%;
+  inset: 16%;
   border-radius: 50%;
   background-color: var(--accent-solid);
   background-size: cover;
@@ -1201,311 +999,84 @@
   }
 }
 
-/* The hole: the play button's face, 36px on a 44px+ target. */
+/* The hole: the play sign's face, on a target the size of the whole record. */
 .lyrix-vinyl-hole {
   position: relative;
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: var(--accent-solid);
   color: var(--color-on-bright);
   box-shadow: 0 0 0 3px var(--color-solid);
-  transition: transform 0.2s var(--ease-out), opacity 0.2s var(--ease-out);
+  transition: transform 0.2s var(--ease-out);
 }
 
 .lyrix-vinyl:active .lyrix-vinyl-hole {
   transform: scale(0.9);
 }
 
-/* What the sleeve says under a mouse (F2): a big play or pause sign over it. */
-.lyrix-sleeve-hint {
-  display: none;
+.lyrix-vinyl-ring {
+  position: absolute;
+  inset: -6px;
+  width: calc(100% + 12px);
+  height: calc(100% + 12px);
+  transform: rotate(-90deg);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.lyrix-preview.is-playing .lyrix-vinyl-ring {
+  opacity: 1;
+}
+
+.lyrix-vinyl-ring circle {
+  fill: none;
+  stroke-width: 3;
+}
+
+.lyrix-vinyl-ring circle:first-child {
+  stroke: var(--color-solid);
+}
+
+.lyrix-vinyl-ring circle:last-child {
+  stroke: var(--color-on-ink-accent);
+  stroke-dasharray: 1;
+  stroke-dashoffset: calc(1 - var(--progress));
+  stroke-linecap: round;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  /* F1: the record peeks out of the sleeve, and comes out on hovering either, its play sign growing in. */
-  .is-desk-1 .lyrix-preview.is-f.is-ready:not(.is-playing),
-  .is-desk-2 .lyrix-preview.is-f.is-ready:not(.is-playing) {
-    --slide: 30%;
-  }
-
-  .is-desk-1 .lyrix-preview.is-f:not(.is-playing) .lyrix-vinyl-hole,
-  .is-desk-2 .lyrix-preview.is-f:not(.is-playing) .lyrix-vinyl-hole {
-    opacity: 0;
-    transform: scale(0.5);
-  }
-
-  .is-desk-1:hover .lyrix-preview.is-f.is-ready:not(.is-playing),
-  .is-desk-1 .lyrix-preview.is-f.is-ready:has(:focus-visible),
-  .is-desk-2:hover .lyrix-preview.is-f.is-ready:not(.is-playing),
-  .is-desk-2 .lyrix-preview.is-f.is-ready:has(:focus-visible) {
-    --slide: 76%;
-  }
-
-  .is-desk-1:hover .lyrix-vinyl-hole,
-  .is-desk-1 .lyrix-vinyl:focus-visible .lyrix-vinyl-hole {
-    opacity: 1 !important;
-    transform: none !important;
-  }
-
-  .is-desk-1:hover .lyrix-preview.is-f:not(.is-playing) .lyrix-vinyl-label {
-    transform: rotate(40deg);
-  }
-
-  /* F2: the same record, and the sleeve itself darkens under a big sign: it is the button. */
-  .is-desk-2 .lyrix-sleeve-hint {
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 2;
-    display: grid;
-    place-items: center;
-    width: clamp(96px, 26vw, 112px);
-    aspect-ratio: 1;
-    border-radius: 12px;
-    background: color-mix(in oklch, var(--color-solid) 55%, transparent);
-    color: var(--color-on-ink);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s var(--ease-out);
-  }
-
-  .is-desk-2 .lyrix-sleeve-hint svg {
-    grid-area: 1 / 1;
-    transition: transform 0.2s var(--ease-out);
-  }
-
-  .is-desk-2 .lyrix-sleeve-hint svg:last-child,
-  .is-desk-2:has(.is-playing) .lyrix-sleeve-hint svg:first-child {
-    display: none;
-  }
-
-  .is-desk-2:has(.is-playing) .lyrix-sleeve-hint svg:last-child {
-    display: block;
-  }
-
-  .is-desk-2:hover:has(.is-ready) .lyrix-sleeve-hint {
-    opacity: 1;
-  }
-
-  .is-desk-2:hover .lyrix-sleeve-hint svg {
-    transform: scale(1.1);
-  }
-
-  /* F3: the record stays out; hovering lifts and tilts the sleeve, and the record rolls further, a quarter turn. */
-  .is-desk-3:hover:has(.is-ready) .lyrix-victory-cover {
+  .lyrix-sleeve:hover:has(.lyrix-preview.is-ready) .lyrix-victory-cover,
+  .lyrix-sleeve:has(.lyrix-vinyl:focus-visible) .lyrix-victory-cover {
     transform: translateY(-3px) rotate(-4deg);
   }
 
-  .is-desk-3:hover .lyrix-preview.is-f.is-ready:not(.is-playing) {
-    --slide: 84%;
+  .lyrix-sleeve:has(.has-image):hover .lyrix-preview.is-ready,
+  .lyrix-sleeve:has(.has-image) .lyrix-preview.is-ready:has(:focus-visible) {
+    --slide: 100%;
   }
 
-  .is-desk-3:hover .lyrix-preview.is-f:not(.is-playing) .lyrix-vinyl-label {
+  .lyrix-sleeve:hover .lyrix-preview:not(.is-playing) .lyrix-vinyl-label {
     transform: rotate(90deg);
   }
 
-  .is-desk-3:hover .lyrix-vinyl-hole {
-    transform: scale(1.12);
+  .lyrix-sleeve:hover .lyrix-vinyl-hole {
+    transform: scale(1.08);
   }
-}
-
-/*
- * G: the sleeve takes the stage. On a phone it fills the panel's width, bled
- * to its edges; on a desktop it grows beside the text. A big play button sits
- * on it, the time and the bar along its foot.
- */
-.is-look-g .lyrix-victory-cover {
-  width: 200px;
-  border-radius: 14px;
-}
-
-.is-look-g .lyrix-victory-cover::after {
-  content: "";
-  position: absolute;
-  inset: 45% 0 0;
-  background: linear-gradient(to bottom, transparent, color-mix(in oklch, var(--color-solid) 85%, transparent));
-  pointer-events: none;
-}
-
-@media (max-width: 559px) {
-  .is-look-g .lyrix-victory-main {
-    align-items: stretch;
-  }
-
-  .is-look-g .lyrix-victory-cover {
-    width: auto;
-    margin: -18px -20px 0;
-    border-radius: 16px 16px 0 0;
-  }
-}
-
-.lyrix-preview.is-g {
-  position: absolute;
-  inset: auto 0 0;
-  z-index: 1;
-  align-items: center;
-  gap: 10px;
-  padding: 0 12px 14px;
-}
-
-.lyrix-preview.is-g .lyrix-preview-button {
-  width: 48px;
-  height: 48px;
-  box-shadow: 0 8px 18px -6px var(--color-solid);
-}
-
-.lyrix-preview.is-g .lyrix-preview-bar {
-  flex: 1;
-  height: 4px;
-  background: color-mix(in oklch, var(--color-on-ink) 25%, transparent);
-}
-
-.lyrix-preview.is-g .lyrix-preview-bar::after {
-  background: var(--color-on-ink);
-}
-
-.lyrix-preview.is-g .lyrix-preview-time {
-  color: var(--color-on-ink);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .is-look-e:has(.is-playing) .lyrix-victory-backdrop,
+  .lyrix-preview.is-ready,
   .lyrix-preview.is-playing .lyrix-vinyl-label {
     animation: none;
   }
 
+  .lyrix-preview,
   .lyrix-sleeve .lyrix-victory-cover,
-  .lyrix-preview.is-f,
   .lyrix-vinyl-label {
     transition: none;
-  }
-}
-
-/* B: a listening line across the panel, under the sleeve and its text, the clock after it. */
-.lyrix-preview.is-b {
-  flex-basis: 100%;
-  align-items: center;
-  gap: 12px;
-}
-
-.lyrix-preview.is-b .lyrix-preview-button {
-  width: 32px;
-  height: 32px;
-}
-
-.lyrix-preview.is-b .lyrix-preview-bar {
-  flex: 1;
-  height: 4px;
-}
-
-/* C: a strip of its own across the panel, above "Afficher tous les lyrics". */
-.lyrix-preview.is-c {
-  position: relative;
-  flex-basis: 100%;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px 12px;
-  border-radius: 12px;
-  overflow: hidden;
-  background: var(--color-solid-raised);
-}
-
-.lyrix-preview.is-c .lyrix-preview-button {
-  width: 38px;
-  height: 38px;
-}
-
-.lyrix-preview.is-c .lyrix-preview-text {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.lyrix-preview-title {
-  font-weight: 700;
-  font-size: 0.95rem;
-}
-
-.lyrix-preview-source {
-  font-size: 0.78rem;
-  color: var(--color-on-ink-muted);
-}
-
-.lyrix-preview.is-c .lyrix-preview-bar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 3px;
-  border-radius: 0;
-  background: transparent;
-}
-
-.lyrix-preview.is-c .lyrix-preview-title,
-.lyrix-preview.is-c .lyrix-preview-source {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* On a phone, the strip's own bar tells the time: the dancing bars and the clock make way for the text. */
-@media (max-width: 559px) {
-  .lyrix-preview.is-c .lyrix-preview-eq,
-  .lyrix-preview.is-c .lyrix-preview-time {
-    display: none;
-  }
-}
-
-/* A few bars that dance while it plays; still otherwise, and under reduced motion. */
-.lyrix-preview-eq {
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 18px;
-}
-
-.lyrix-preview-eq span {
-  width: 3px;
-  height: 30%;
-  border-radius: 2px;
-  background: var(--color-on-ink-accent);
-  transform-origin: bottom;
-}
-
-.lyrix-preview.is-playing .lyrix-preview-eq span {
-  height: 100%;
-  animation: lyrix-eq 0.9s ease-in-out infinite alternate;
-}
-
-.lyrix-preview.is-playing .lyrix-preview-eq span:nth-child(2) {
-  animation-delay: -0.3s;
-}
-
-.lyrix-preview.is-playing .lyrix-preview-eq span:nth-child(3) {
-  animation-delay: -0.6s;
-}
-
-.lyrix-preview.is-playing .lyrix-preview-eq span:nth-child(4) {
-  animation-delay: -0.15s;
-}
-
-@keyframes lyrix-eq {
-  from {
-    transform: scaleY(0.25);
-  }
-  to {
-    transform: scaleY(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lyrix-preview.is-playing .lyrix-preview-eq span {
-    animation: none;
-    height: 60%;
   }
 }
 

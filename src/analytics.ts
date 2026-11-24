@@ -24,6 +24,7 @@ export const EVENTS = {
   toggleTheme: "theme-toggle",
   startTour: "tour-start",
   skipTour: "tour-skip",
+  playPreview: "preview-play",
 } as const;
 
 export type TrackedEvent = (typeof EVENTS)[keyof typeof EVENTS];

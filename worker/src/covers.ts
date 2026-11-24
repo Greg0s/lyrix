@@ -6,7 +6,7 @@ import type { SongsEnv } from "./songs";
 
 /**
  * A song's album cover, shown on the victory panel (TitleGuess), and its
- * Deezer track, kept for the extract a later version will play. Found on
+ * Deezer track, whose 30-second extract preview.ts serves. Found on
  * Deezer once, ever, by the Worker (deezer.ts), then kept in the SONGS
  * namespace next to the song's lyrics (`media:<id>`), and served by the
  * Worker itself: a player's browser never asks anyone but the site and its

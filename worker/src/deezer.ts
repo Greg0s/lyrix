@@ -7,7 +7,7 @@ import type { CatalogEntry } from "./catalog";
  * Worker alone - never by a player's browser, which only ever talks to the
  * site and its Worker (CLAUDE.md, "No consent banner"). One search finds a
  * catalog song's track: its album cover, shown once the round is won, and its
- * track id, kept for the 30-second extract a later version will play (Deezer
+ * track id, whose 30-second extract preview.ts serves once won (Deezer
  * signs a preview's address for a limited time, so the id is what lasts).
  * No key is needed.
  */
