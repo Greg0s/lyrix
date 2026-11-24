@@ -989,15 +989,7 @@
   transition: transform 0.5s var(--ease-out);
 }
 
-.lyrix-preview.is-playing .lyrix-vinyl-label {
-  animation: lyrix-spin 1.8s linear infinite;
-}
-
-@keyframes lyrix-spin {
-  to {
-    transform: rotate(1turn);
-  }
-}
+/* While it plays, the label turns on `rotate` (vinylSpin.ts), which adds to the hover's `transform`. */
 
 /* The hole: the play sign's face, on a target the size of the whole record. */
 .lyrix-vinyl-hole {
@@ -1058,7 +1050,7 @@
     --slide: 100%;
   }
 
-  .lyrix-sleeve:hover .lyrix-preview:not(.is-playing) .lyrix-vinyl-label {
+  .lyrix-sleeve:hover .lyrix-vinyl-label {
     transform: rotate(90deg);
   }
 
@@ -1068,8 +1060,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lyrix-preview.is-ready,
-  .lyrix-preview.is-playing .lyrix-vinyl-label {
+  .lyrix-preview.is-ready {
     animation: none;
   }
 
