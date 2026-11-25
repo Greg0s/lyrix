@@ -23,6 +23,14 @@ async function openRound(page: Page): Promise<RoundView> {
   return round;
 }
 
+/** The header's progress keeps clear of the logo: a pill at its right end (proposition "H4"). */
+async function expectProgressClearOfLogo(page: Page): Promise<void> {
+  const logo = (await page.locator(".lyrix-logo-link").boundingBox())!;
+  const pill = (await progress(page).boundingBox())!;
+  expect(pill.x).toBeGreaterThanOrEqual(logo.x + logo.width + 12);
+  expect(pill.x + pill.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+}
+
 /** Once the cards have risen in: their entrance moves them. */
 async function settle(page: Page): Promise<void> {
   await page.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished)));
@@ -35,6 +43,7 @@ test("puts the song on the first screen, the side column out of the page", async
   expect(title).not.toBeNull();
   expect(title!.y + title!.height).toBeLessThan(844);
   await expect(page.locator(".lyrix-aside")).toBeHidden();
+  await expectProgressClearOfLogo(page);
   await expect(progress(page)).toContainText("0 %");
   await expect(tabBar(page)).toBeVisible();
   // The tab bar carries the header's buttons (a role query leaves hidden ones out).
@@ -127,6 +136,8 @@ test("keeps the logo's mark alone on the narrowest phones, nothing wider than th
   await expect(page.locator(".lyrix-wordmark")).toBeHidden();
   await expect(page.locator(".lyrix-logo-mark")).toBeVisible();
   await expect(progress(page)).toBeVisible();
+  await settle(page);
+  await expectProgressClearOfLogo(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(340);
 });
 
