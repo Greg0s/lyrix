@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { RoundView } from "../../src/game/types";
-import { lyricsOnlyWord } from "./titleWords";
+import { lyricsOnlyWord, titleWords } from "./titleWords";
 
 /**
  * A phone's layout, below 880px (game.css): laid out like an installed app.
@@ -112,6 +112,20 @@ test("offers an invite link's room on the « Salon » tab, not in a dialog", asy
   await tabBar(page).getByRole("link", { name: "Jouer" }).click();
   await tabBar(page).getByRole("link", { name: "Salon" }).click();
   await expect(page.getByRole("main").getByLabel("Code du salon")).toHaveValue("");
+});
+
+test("puts the keyboard down on a win, so the victory panel and the tab bar show", async ({ page }) => {
+  const round = await openRound(page);
+  await input(page).tap();
+  await expect(tabBar(page)).toBeHidden();
+  for (const word of titleWords(round)) {
+    await input(page).fill(word);
+    await input(page).press("Enter");
+    await expect(input(page)).toHaveValue("");
+  }
+  await expect(page.getByText(/Bravo, tu l'as trouvée/)).toBeVisible();
+  await expect(input(page)).not.toBeFocused();
+  await expect(tabBar(page)).toBeVisible();
 });
 
 test("moves between the screens with the tab bar", async ({ page }) => {

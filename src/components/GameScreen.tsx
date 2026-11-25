@@ -213,6 +213,12 @@ export function GameScreen() {
   }, [tourOn]);
   const { submit } = game;
   const onSubmit = useCallback(() => void submit(), [submit]);
+  // A word of the player's own just won the round: on a phone, the keyboard
+  // goes down, so the victory panel isn't left under it (nor the tab bar off screen).
+  const { celebration } = game;
+  useEffect(() => {
+    if (celebration > 0 && isTouchScreen()) inputRef.current?.blur();
+  }, [celebration]);
 
   // A round that couldn't load for want of a network loads by itself once
   // the network is back: the player was told to reconnect, not to retry.
