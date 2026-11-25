@@ -12,7 +12,7 @@ A free web game inspired by Pedantix, built around song lyrics instead of Wikipe
 
 ## Product State: final form (no 3D)
 
-The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header, one song card whose hidden words are accent bars, a sticky guess dock, and a side column (progress, tried words, hints). The archives follow the "Lyrix Archives" mockup's "Collection" variant (1c, as integrated in "Lyrix v4"): a cover per song found, an empty slot per day still to play. Short CSS animations only, all disabled under `prefers-reduced-motion`. The site is in its final form, not a stepping stone: 3D was once planned and has been dropped for good (decided with the developer), so there is no 3D phase to prepare for and no 3D dependency (`three`, `@react-three/fiber`, `@react-three/drei`) to add. Future work is ordinary updates to this game. Core loop: masked lyrics (blanks matching word length, punctuation/line breaks preserved), a text input that reveals every occurrence of a correctly guessed word, and a win state once the title is fully uncovered.
+The UI follows the "Lyrix v3" mockup, in a light and a dark theme: sticky header, one song card whose hidden words are accent bars, a sticky guess dock, and a side column (progress, tried words, hints). Below 880px it is laid out like an installed app (decided with the developer, proposition "B5"): the song first, the side column out of the page, the round's progress in the header (`HeaderProgress`: percent, words found and tries in a pill whose background fills as the round goes, proposition "H4"; the logo's mark alone under 360px), the words tried and the hints as sheets from two buttons on the dock (`DockShortcuts`), and the header's buttons as a bar of tabs along the bottom edge (`TabBar`: Jouer, Archives, Salon, Plus, the last one the rules' page with a ⋯ icon, since it holds the theme's card too), which steps aside while the guess input has a phone's keyboard up. The theme's button leaves the header there for a card of its own on the rules' page (`ThemePicker`: Clair, Sombre, or Auto, which forgets the choice and follows the phone again). A press on the dock never takes focus from the input (`keepInputFocus`): with the keyboard up, a blur brings the tab bar back and moves the dock under the finger. The archives follow the "Lyrix Archives" mockup's "Collection" variant (1c, as integrated in "Lyrix v4"): a cover per song found, an empty slot per day still to play. Short CSS animations only, all disabled under `prefers-reduced-motion`. The site is in its final form, not a stepping stone: 3D was once planned and has been dropped for good (decided with the developer), so there is no 3D phase to prepare for and no 3D dependency (`three`, `@react-three/fiber`, `@react-three/drei`) to add. Future work is ordinary updates to this game. Core loop: masked lyrics (blanks matching word length, punctuation/line breaks preserved), a text input that reveals every occurrence of a correctly guessed word, and a win state once the title is fully uncovered.
 
 ## Tech Stack
 
@@ -187,6 +187,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                            # the "show all lyrics" checkbox's local, unsigned reveal-all toggle
     AppHeader.tsx, Logo.tsx, GroupIcon.tsx, CalendarIcon.tsx, ChevronIcon.tsx  # sticky top bar
                            # (logo: a link to today's song, leaving then coming back in on a click; multiplayer, archives, help, theme), CSS logo mark + wordmark, icons
+    HeaderProgress.tsx     # below 880px, the round's progress in the header, in place of its buttons
+    TabBar.tsx, NoteIcon.tsx, MoreIcon.tsx  # below 880px, the bar of tabs along the bottom edge: round, archives, room, "Plus" (the rules)
     ArchivesScreen.tsx, ArchiveCover.tsx  # the last 30 days as covers, from loadArchive() only (no network)
     DayBar.tsx, RouteLink.tsx  # a day of the archives: its date, the days either side; an <a> that
                                # changes screen in place
@@ -194,6 +196,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     InstallOffer.tsx, InstallAppAction.tsx, InstallIcons.tsx  # the victory panel's offer to install Lyrix; the
                            # rules' page's "Installer l'appli"; Safari's share and add icons, its two taps
     ThemeToggle.tsx         # header's sun/moon button; the theme is its own local state
+    ThemePicker.tsx         # below 880px, the rules' page's "Apparence" card: light, dark, or Auto (the system's)
     GroupFoundBanner.tsx   # "X a trouvé la chanson pour le groupe" + "Afficher la réponse" (#30)
     NewSongNotice.tsx      # today's round still on screen past UTC midnight (and a 2-minute grace): says the
                            # song changed, "Jouer la nouvelle" reloads; never on a won round, a day, or in a room
@@ -214,12 +217,13 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                             # screen readers read "mot caché, N lettres", never the underscores
     heatStyle.ts             # inline --heat a chip, or a close guess's bar, is shaded with
     GuessForm.tsx             # sticky guess dock: input, feedback line, shake on a miss
-    ProgressCard.tsx, TriedWords.tsx  # side column: % revealed + counts; past guesses,
+    ProgressCard.tsx, TriedWords.tsx, plural.ts  # side column: % revealed + counts; past guesses,
                                       # sorted by score;
                                       # "Mots du groupe" in a room, a colour dot per chip
-                                      # (collapsed by default below 880px)
-    HintsCard.tsx, HintSheet.tsx, HintIcon.tsx  # "Indices" card under "Tes mots" (collapsed below 880px,
+                                      # (below 880px, a sheet: `inSheet`)
+    HintsCard.tsx, HintSheet.tsx, HintIcon.tsx  # "Indices" card under "Tes mots" (below 880px, a sheet,
                               # like it); the sheet the dock's "Choisir" opens on a phone; pictograms
+    DockShortcuts.tsx         # below 880px, atop the dock: "N mots" and "Indices", each opening its card as a sheet
     LegalNotice.tsx           # legal notice + privacy policy (/mentions-legales), linked from every screen's footer;
                               # the credits (lyrics source, fonts, the frWac2Vec model, CC BY 3.0)
     Modal.tsx, HowToPlay.tsx   # dialog shell (Escape/backdrop, exit animation; a bottom sheet below 880px
@@ -232,7 +236,7 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
                               # a phone), a player's stable colour
     ProductTour.tsx            # a first visit's guided tour over the round (portalled; "Passer" on every step)
     TourInvite.tsx             # the invitation to it, in the guess dock's place until answered
-    MultiplayerPromo.tsx       # "Chercher à plusieurs" card, hidden while in a room, or once closed from
+    MultiplayerPromo.tsx       # "Chercher à plusieurs" card (side column: none below 880px), hidden while in a room, or once closed from
                                # its cross: for the UTC day, for the month after 5 times (promoStorage.ts)
   /hooks
     useGame.ts              # round/guess state machine; hydrates from roundStorage before network;

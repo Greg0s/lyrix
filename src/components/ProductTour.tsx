@@ -8,8 +8,15 @@ interface ProductTourProps {
   onDone: () => void;
 }
 
+/**
+ * The element a step points at: the first one on screen, since some come
+ * twice, one per layout (the archives' button in the header from 880px, in
+ * the tab bar below), the other hidden by game.css. With no layout at all
+ * (jsdom), the first.
+ */
 function targetOf(step: TourStep): HTMLElement | null {
-  return document.querySelector<HTMLElement>(`[data-tour="${step.target}"]`);
+  const all = [...document.querySelectorAll<HTMLElement>(`[data-tour="${step.target}"]`)];
+  return all.find((element) => element.getClientRects().length > 0) ?? all[0] ?? null;
 }
 
 /**

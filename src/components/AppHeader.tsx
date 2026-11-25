@@ -5,6 +5,7 @@ import { prefersReducedMotion } from "../reducedMotion";
 import { TODAY, type Route } from "../routes";
 import { CalendarIcon } from "./CalendarIcon";
 import { GroupIcon } from "./GroupIcon";
+import { HeaderProgress } from "./HeaderProgress";
 import { HelpIcon } from "./HelpIcon";
 import { LOGO_EXIT_MS, Logo } from "./Logo";
 import { RouteLink } from "./RouteLink";
@@ -22,6 +23,13 @@ interface AppHeaderProps {
   onToggleHelp: () => void;
   /** Changes screen in place: the logo goes to today's song. */
   onNavigate: (to: Route) => void;
+  /**
+   * The round's progress, shown in the header below 880px (HeaderProgress), in
+   * place of the buttons the tab bar carries there. Null on a page (the archives, the rules).
+   */
+  percent?: number | null;
+  foundCount?: number;
+  triedCount?: number;
 }
 
 /** Sticky top bar. Memoized with stable callbacks, so typing a guess never re-renders it. */
@@ -33,6 +41,9 @@ export const AppHeader = memo(function AppHeader({
   helpOpen,
   onToggleHelp,
   onNavigate,
+  percent = null,
+  foundCount = 0,
+  triedCount = 0,
 }: AppHeaderProps) {
   // Each click on the logo goes to today's song at once, while the logo leaves,
   // then plays its entrance again: a new key remounts it. A click while it
@@ -57,7 +68,7 @@ export const AppHeader = memo(function AppHeader({
   const inRoom = roomPlayers !== null;
   const roomLabel = inRoom ? `Salon · ${playerCountLabel(roomPlayers)}` : "";
   return (
-    <header className="lyrix-topbar">
+    <header className={percent === null ? "lyrix-topbar" : "lyrix-topbar has-progress"}>
       <div className="lyrix-topbar-inner">
         <div className="lyrix-brand">
           <RouteLink to={TODAY} onNavigate={onLogoClick} className="lyrix-logo-link" aria-label="Lyrix, chanson du jour">
@@ -65,6 +76,9 @@ export const AppHeader = memo(function AppHeader({
           </RouteLink>
           <span className="lyrix-slogan">Découvre la chanson&nbsp;!</span>
         </div>
+        {percent === null ? null : (
+          <HeaderProgress percent={percent} foundCount={foundCount} triedCount={triedCount} />
+        )}
         <div className="lyrix-topbar-actions">
           <button
             type="button"

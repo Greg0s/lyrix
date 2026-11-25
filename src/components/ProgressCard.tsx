@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { plural } from "./plural";
 
 interface ProgressCardProps {
   /** Share of the round's words (title and lyrics, every occurrence) revealed so far, 0-100. */
@@ -7,10 +8,6 @@ interface ProgressCardProps {
   triedCount: number;
 }
 
-/** French: 0 and 1 take the singular ("0 essai", "1 essai", "2 essais"). */
-function plural(count: number, singular: string, pluralForm: string): string {
-  return count < 2 ? singular : pluralForm;
-}
 
 export const ProgressCard = memo(function ProgressCard({ percent, foundCount, triedCount }: ProgressCardProps) {
   return (

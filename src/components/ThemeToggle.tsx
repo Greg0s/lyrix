@@ -41,7 +41,7 @@ export const ThemeToggle = memo(function ThemeToggle() {
   );
 });
 
-function SunIcon() {
+export function SunIcon() {
   return (
     <svg className="lyrix-theme-icon" {...ICON_PROPS}>
       <circle cx="12" cy="12" r="4" />
@@ -50,7 +50,7 @@ function SunIcon() {
   );
 }
 
-function MoonIcon() {
+export function MoonIcon() {
   return (
     <svg className="lyrix-theme-icon" {...ICON_PROPS}>
       <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />
