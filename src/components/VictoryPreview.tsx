@@ -1,6 +1,7 @@
-import { memo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { EVENTS, track } from "../analytics";
 import { apiUrl } from "../api/base";
+import { createVinylSpin, type VinylSpin } from "./vinylSpin";
 
 interface VictoryPreviewProps {
   /** The song's token (RoundView.cover), which its cover and its extract are both asked for by. */
@@ -31,18 +32,32 @@ function PlayIcon({ playing }: { playing: boolean }) {
  *
  * The record is one button, and its hit area reaches back under the sleeve
  * (game.css): a tap anywhere on either plays or pauses it. While it plays,
- * its label spins and a ring round its hole fills with the time played.
- * That progress is written straight to the DOM (a CSS variable): playing
- * re-renders nothing, the panel included.
+ * its label turns (vinylSpin.ts: up to speed, then slowing to a stop where it
+ * is on pause) and a ring round its hole fills with the time played. Both are
+ * written straight to the DOM: playing re-renders nothing, the panel included.
  */
 export const VictoryPreview = memo(function VictoryPreview({ cover }: VictoryPreviewProps) {
   const audio = useRef<HTMLAudioElement>(null);
   const root = useRef<HTMLDivElement>(null);
+  const label = useRef<HTMLSpanElement>(null);
+  const spin = useRef<VinylSpin | null>(null);
   const [ready, setReady] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   // Which song's extract plays: another song's (a day of the archives) starts paused.
   const [playingCover, setPlayingCover] = useState<string | null>(null);
   const playing = playingCover === cover;
+
+  // A record per song: another song's starts still, at its first angle.
+  useEffect(() => {
+    const element = label.current;
+    if (!element) return;
+    const current = createVinylSpin(element);
+    spin.current = current;
+    return () => {
+      current.dispose();
+      spin.current = null;
+    };
+  }, [cover]);
 
   if (failed === cover) return null;
 
@@ -58,7 +73,10 @@ export const VictoryPreview = memo(function VictoryPreview({ cover }: VictoryPre
     if (!element) return;
     if (element.paused) {
       if (element.ended) element.currentTime = 0;
-      void element.play().catch(() => setPlayingCover(null));
+      void element.play().catch(() => {
+        setPlayingCover(null);
+        spin.current?.to(0);
+      });
     } else {
       element.pause();
     }
@@ -76,9 +94,18 @@ export const VictoryPreview = memo(function VictoryPreview({ cover }: VictoryPre
         preload="metadata"
         onLoadedMetadata={() => setReady(cover)}
         onError={() => setFailed(cover)}
-        onPlay={() => setPlayingCover(cover)}
-        onPause={() => setPlayingCover(null)}
-        onEnded={() => setPlayingCover(null)}
+        onPlay={() => {
+          setPlayingCover(cover);
+          spin.current?.to(1);
+        }}
+        onPause={() => {
+          setPlayingCover(null);
+          spin.current?.to(0);
+        }}
+        onEnded={() => {
+          setPlayingCover(null);
+          spin.current?.to(0);
+        }}
         onTimeUpdate={progress}
       />
       <button
@@ -89,6 +116,7 @@ export const VictoryPreview = memo(function VictoryPreview({ cover }: VictoryPre
         {...track(EVENTS.playPreview)}
       >
         <span
+          ref={label}
           className="lyrix-vinyl-label"
           style={{ backgroundImage: `url(${apiUrl(`/api/cover/${encodeURIComponent(cover)}`).href})` }}
           aria-hidden="true"

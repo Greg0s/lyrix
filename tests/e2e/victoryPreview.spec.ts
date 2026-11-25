@@ -90,6 +90,40 @@ test("plays the extract from a tap on the sleeve itself, and pauses it from the 
   await expect(page.locator(".lyrix-preview")).not.toHaveClass(/is-playing/);
 });
 
+/** The label's angle, as the browser computes it. */
+function labelAngle(page: Page): Promise<string> {
+  return page.locator(".lyrix-vinyl-label").evaluate((label) => getComputedStyle(label).rotate);
+}
+
+test("turns the record's label while it plays, and stops it where it is on pause", async ({ page }) => {
+  await winWithCover(page, true);
+  await page.getByRole("button", { name: "Écouter un extrait de 30 secondes" }).click();
+  await expect(page.locator(".lyrix-preview")).toHaveClass(/is-playing/);
+  const playing = await labelAngle(page);
+  await expect.poll(() => labelAngle(page)).not.toBe(playing);
+
+  await page.getByRole("button", { name: "Mettre l'extrait en pause" }).click();
+  // Slowed to a stop: the angle settles, and isn't the first one again.
+  let settled = "";
+  await expect
+    .poll(async () => {
+      const before = await labelAngle(page);
+      await page.waitForTimeout(200);
+      settled = await labelAngle(page);
+      return settled === before;
+    })
+    .toBe(true);
+  expect(["none", "0deg", "0turn"]).not.toContain(settled);
+});
+
+test("doesn't turn the record under reduced motion", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await winWithCover(page, true);
+  await page.getByRole("button", { name: "Écouter un extrait de 30 secondes" }).click();
+  await expect(page.locator(".lyrix-preview")).toHaveClass(/is-playing/);
+  expect(await page.locator(".lyrix-vinyl-label").evaluate((label) => label.getAnimations().length)).toBe(0);
+});
+
 test("shows no record for a song without an extract", async ({ page }) => {
   await winWithCover(page, false);
   await expect(page.locator(".lyrix-victory-cover")).toHaveClass(/has-image/);

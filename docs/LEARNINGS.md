@@ -641,3 +641,6 @@ A member who doesn't know a won day's answer is sent its summary with the title 
 - **Safari plays no audio from a server that ignores `Range`.** The Worker holds the whole MP3 (under 500 kB) and answers ranges itself with 206 (`parseRange`, pinned in `preview.test.ts`).
 - **An element that lets clicks through (`pointer-events: none`) can't be clicked by Playwright's locator**: it refuses, naming the element underneath. `victoryPreview.spec.ts` clicks the sleeve's coordinates with `page.mouse` to prove the tap reaches the record under it.
 
+## 2026-11-24 — The record's label snapped back to its first angle on pause
+
+The label spun with a CSS animation applied only under `.is-playing`: pausing took the animation off, and the label jumped back to its first angle at once. `animation-play-state: paused` would have frozen it but still stopped it dead, and an animation always applied overrides the hover's `transform`. The spin now runs through the Web Animations API (`vinylSpin.ts`): its `playbackRate` eased up from 0 and back down frame by frame (a rate change keeps the angle reached), paused once at 0, never cancelled but for another song; on `rotate`, which composes with the hover's `transform`. Regression tests: `tests/unit/components/vinylSpin.test.ts`, and `tests/e2e/victoryPreview.spec.ts` (the angle settles, not on its first one).
