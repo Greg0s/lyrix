@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 import { countClick } from "../analytics";
+import { PHONE_LAYOUT_MEDIA } from "../layout";
 import { prefersReducedMotion } from "../reducedMotion";
 import type { Route } from "../routes";
 import { swipedTab, tabEvent, tabRoute, type TabName } from "../tabs";
 
-/** Below this width, the phone's layout and its tab bar (game.css's breakpoint). */
-export const SWIPE_MEDIA = "(max-width: 879px)";
+/** The phone's layout and its tab bar (game.css): below 880px, or any touch screen. */
+export const SWIPE_MEDIA = PHONE_LAYOUT_MEDIA;
 /** A quick flick this far sideways moves to the next tab, in CSS pixels. */
 export const SWIPE_MIN_DISTANCE = 64;
 /** Quicker than this, a release is a flick: SWIPE_MIN_DISTANCE is enough. */

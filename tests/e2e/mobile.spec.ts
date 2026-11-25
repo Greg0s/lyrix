@@ -407,6 +407,19 @@ test("keeps the logo's mark alone on the narrowest phones, nothing wider than th
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(340);
 });
 
+test.describe("a phone turned sideways", () => {
+  // Wider than 880px, but a touch screen: the app's layout still, not the computer's.
+  test.use({ viewport: { width: 915, height: 412 }, hasTouch: true, isMobile: true });
+
+  test("keeps the tab bar and the header's progress", async ({ page }) => {
+    await openRound(page);
+    await expect(tabBar(page)).toBeVisible();
+    await expect(progress(page)).toBeVisible();
+    await expect(page.locator(".lyrix-aside")).toBeHidden();
+    await expect(page.getByRole("banner").getByRole("button")).toHaveCount(0);
+  });
+});
+
 test.describe("from 880px", () => {
   test.use({ viewport: { width: 1280, height: 800 }, hasTouch: false, isMobile: false });
 
