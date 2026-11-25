@@ -398,7 +398,7 @@
   }
 }
 
-@media (max-width: 879px) {
+@media (max-width: 879px), (hover: none) and (pointer: coarse) {
   .lyrix-pill-label.is-help,
   .lyrix-pill-label.is-archives {
     display: none;
@@ -503,7 +503,7 @@
   order: -1;
 }
 
-@media (min-width: 880px) {
+@media (min-width: 880px) and (hover: hover), (min-width: 880px) and (pointer: fine), (min-width: 880px) and (pointer: none) {
   .lyrix-main {
     max-width: 1160px;
     padding: 40px 32px 48px;
@@ -1492,7 +1492,7 @@
   cursor: pointer;
 }
 
-@media (min-width: 880px) {
+@media (min-width: 880px) and (hover: hover), (min-width: 880px) and (pointer: fine), (min-width: 880px) and (pointer: none) {
   .lyrix-feedback-detail {
     display: inline;
   }
@@ -2301,7 +2301,7 @@
 }
 
 /* A sheet (Modal's variant), below 880px: from the bottom edge, its content kept above the home indicator. */
-@media (max-width: 879px) {
+@media (max-width: 879px), (hover: none) and (pointer: coarse) {
   .lyrix-modal-backdrop.is-sheet {
     align-items: flex-end;
     padding: max(20px, env(safe-area-inset-top, 0px)) 0 0;
@@ -2338,7 +2338,7 @@
   gap: 20px;
 }
 
-@media (min-width: 880px) {
+@media (min-width: 880px) and (hover: hover), (min-width: 880px) and (pointer: fine), (min-width: 880px) and (pointer: none) {
   .lyrix-help-page {
     max-width: 1160px;
     padding: 40px 32px 48px;
@@ -2488,7 +2488,7 @@
   padding: 20px 16px 32px;
 }
 
-@media (min-width: 880px) {
+@media (min-width: 880px) and (hover: hover), (min-width: 880px) and (pointer: fine), (min-width: 880px) and (pointer: none) {
   .lyrix-legal-page {
     padding: 40px 32px 48px;
   }
@@ -2584,7 +2584,7 @@
 }
 
 /* On a phone, the legal notice is linked from the "Plus" tab's page alone (the rules'). */
-@media (max-width: 879px) {
+@media (max-width: 879px), (hover: none) and (pointer: coarse) {
   .lyrix-footer:not(.is-more) {
     display: none;
   }
@@ -2607,7 +2607,7 @@
   padding: 20px 16px 32px;
 }
 
-@media (min-width: 880px) {
+@media (min-width: 880px) and (hover: hover), (min-width: 880px) and (pointer: fine), (min-width: 880px) and (pointer: none) {
   .lyrix-room-page {
     padding: 40px 32px 48px;
   }
@@ -3297,7 +3297,7 @@
   }
 }
 
-@media (min-width: 880px) {
+@media (min-width: 880px) and (hover: hover), (min-width: 880px) and (pointer: fine), (min-width: 880px) and (pointer: none) {
   .lyrix-archives {
     padding: 32px 32px 56px;
     gap: 28px;
@@ -3873,7 +3873,7 @@ a.lyrix-day-step:hover {
  * Below 880px the round comes after the side column, and a dock taller than
  * usual would be held back at its top: fixed, the invitation shows in full.
  */
-@media (max-width: 879px) {
+@media (max-width: 879px), (hover: none) and (pointer: coarse) {
   .lyrix-invite {
     position: fixed;
     left: max(16px, env(safe-area-inset-left, 0px));
@@ -3976,7 +3976,7 @@ a.lyrix-day-step:hover {
 }
 
 /* 60px: the tab bar's height, above a home indicator; the page and the dock keep clear of it. */
-@media (max-width: 879px) {
+@media (max-width: 879px), (hover: none) and (pointer: coarse) {
   /*
    * A sideways swipe moves between the tabs (useSwipeTabs): the browser's own
    * swipe through its history would go Back on top of it, or leave the game
@@ -4060,7 +4060,9 @@ a.lyrix-day-step:hover {
     bottom: 0;
     z-index: 15;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    /* On a tablet's width, the tabs stay together in the middle rather than a hand apart. */
+    grid-template-columns: repeat(4, minmax(0, 140px));
+    justify-content: center;
     min-height: 60px;
     padding: 4px max(8px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px)
       max(8px, env(safe-area-inset-left, 0px));
@@ -4200,7 +4202,7 @@ a.lyrix-day-step:hover {
  * The keyboard up: on a phone, the tab bar steps aside and the dock goes back
  * down to the keyboard, as in an app; the page is shorter by a keyboard.
  */
-@media (max-width: 879px) and (pointer: coarse) {
+@media (max-width: 879px) and (pointer: coarse), (hover: none) and (pointer: coarse) {
   .lyrix-app:has(.lyrix-input:focus),
   .lyrix-app:has(.lyrix-field-input:focus) {
     padding-bottom: 0;
@@ -4242,7 +4244,7 @@ a.lyrix-day-step:hover {
   display: none;
 }
 
-@media (max-width: 879px) {
+@media (max-width: 879px), (hover: none) and (pointer: coarse) {
   .lyrix-topbar .lyrix-theme-toggle {
     display: none;
   }

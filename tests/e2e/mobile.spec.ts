@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { RoundView } from "../../src/game/types";
-import { lyricsOnlyWord } from "./titleWords";
+import { lyricsOnlyWord, titleWords } from "./titleWords";
 
 /**
  * A phone's layout, below 880px (game.css): laid out like an installed app.
@@ -79,6 +79,99 @@ test("opens the words tried and the hints as sheets from the dock", async ({ pag
   }
 });
 
+test("closes a sheet on Back, as an app does, and leaves the screen under it", async ({ page }) => {
+  // A screen before the round, to go Back to: the rules, left with « C'est parti ».
+  await page.goto("/comment-jouer");
+  await page.getByRole("button", { name: "C'est parti" }).click();
+  await expect(input(page)).toBeVisible();
+
+  // Android's Back button: it used to go to the rules behind the sheet, the sheet still open.
+  await page.getByRole("button", { name: /^Tes mots/ }).click();
+  await expect(page.getByRole("dialog", { name: "Tes mots" })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/$/);
+  await expect(input(page)).toBeVisible();
+
+  // Closed with its ✕, the sheet leaves nothing behind: Back goes where it would have.
+  await page.getByRole("button", { name: /^Indices :/ }).click();
+  await page.getByRole("dialog", { name: "Indices" }).getByRole("button", { name: "Fermer" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/comment-jouer$/);
+});
+
+test("offers an invite link's room on the « Salon » tab, not in a dialog", async ({ page }) => {
+  await page.goto("/salon/ABCDEF");
+  await expect(page).toHaveURL(/\/jouer-a-plusieurs$/);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(tabBar(page).getByRole("link", { name: "Salon" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("main").getByLabel("Code du salon")).toHaveValue("ABCDEF");
+
+  // Offered once: the tab opened again later is the plain forms.
+  await tabBar(page).getByRole("link", { name: "Jouer" }).click();
+  await tabBar(page).getByRole("link", { name: "Salon" }).click();
+  await expect(page.getByRole("main").getByLabel("Code du salon")).toHaveValue("");
+});
+
+test("puts the keyboard down on a win, so the victory panel and the tab bar show", async ({ page }) => {
+  const round = await openRound(page);
+  await input(page).tap();
+  await expect(tabBar(page)).toBeHidden();
+  for (const word of titleWords(round)) {
+    await input(page).fill(word);
+    await input(page).press("Enter");
+    await expect(input(page)).toHaveValue("");
+  }
+  await expect(page.getByText(/Bravo, tu l'as trouvée/)).toBeVisible();
+  await expect(input(page)).not.toBeFocused();
+  await expect(tabBar(page)).toBeVisible();
+});
+
+test("goes Back from any tab to « Jouer », then out of the app, as Android apps do", async ({ page }) => {
+  await openRound(page);
+  const start = await page.evaluate(() => window.history.length);
+  await tabBar(page).getByRole("link", { name: "Archives" }).click();
+  await tabBar(page).getByRole("link", { name: "Salon" }).click();
+  await tabBar(page).getByRole("link", { name: "Plus" }).click();
+  await expect(page).toHaveURL(/\/comment-jouer$/);
+  // One entry over « Jouer », whatever the tabs on the way.
+  expect(await page.evaluate(() => window.history.length)).toBe(start + 1);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(input(page)).toBeVisible();
+
+  // Back to « Jouer » with its tab, then Back: the round's entry is the one below, not a copy of it.
+  await tabBar(page).getByRole("link", { name: "Archives" }).click();
+  await tabBar(page).getByRole("link", { name: "Jouer" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  expect(await page.evaluate(() => window.history.length)).toBe(start + 1);
+  expect(await page.evaluate(() => (window.history.state as { lyrixIndex: number }).lyrixIndex)).toBe(0);
+});
+
+test("finds each tab where it was left, and scrolls the one shown to its top when tapped again", async ({ page }) => {
+  await openRound(page);
+  await settle(page);
+  await page.evaluate(() => window.scrollTo(0, 600));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(600);
+  await tabBar(page).getByRole("link", { name: "Plus" }).click();
+  await expect(page).toHaveURL(/\/comment-jouer$/);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await page.evaluate(() => window.scrollTo(0, 300));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(300);
+
+  await tabBar(page).getByRole("link", { name: "Jouer" }).click();
+  await expect(input(page)).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(600);
+  await tabBar(page).getByRole("link", { name: "Plus" }).click();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(300);
+
+  await tabBar(page).getByRole("link", { name: "Plus" }).click();
+  await expect(page).toHaveURL(/\/comment-jouer$/);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+});
+
 test("moves between the screens with the tab bar", async ({ page }) => {
   await openRound(page);
   await expect(tabBar(page).getByRole("link", { name: "Jouer" })).toHaveAttribute("aria-current", "page");
@@ -144,9 +237,12 @@ test("moves between the tabs with a sideways swipe, in place", async ({ page }) 
   await expect(input(page)).toBeVisible();
   expect(await page.evaluate(() => (window as Window & { stayed?: boolean }).stayed)).toBe(true);
 
-  // Back returns to the tab swiped from.
-  await page.goBack();
+  // As after taps: back to « Jouer », its own entry, never one more on top of it.
+  await swipeLeft(page);
   await expect(page).toHaveURL(/\/archives$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(input(page)).toBeVisible();
 });
 
 test("moves the screen with the finger, and slides the next one in", async ({ page }) => {
@@ -309,6 +405,19 @@ test("keeps the logo's mark alone on the narrowest phones, nothing wider than th
   await settle(page);
   await expectProgressClearOfLogo(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(340);
+});
+
+test.describe("a phone turned sideways", () => {
+  // Wider than 880px, but a touch screen: the app's layout still, not the computer's.
+  test.use({ viewport: { width: 915, height: 412 }, hasTouch: true, isMobile: true });
+
+  test("keeps the tab bar and the header's progress", async ({ page }) => {
+    await openRound(page);
+    await expect(tabBar(page)).toBeVisible();
+    await expect(progress(page)).toBeVisible();
+    await expect(page.locator(".lyrix-aside")).toBeHidden();
+    await expect(page.getByRole("banner").getByRole("button")).toHaveCount(0);
+  });
 });
 
 test.describe("from 880px", () => {

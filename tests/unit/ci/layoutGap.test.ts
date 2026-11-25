@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { COMPUTER_LAYOUT_MEDIA } from "../../../src/layout";
 
 /**
  * The page's cards sit the same distance apart whichever way they are laid
@@ -11,7 +12,7 @@ import { describe, expect, it } from "vitest";
 
 const game = readFileSync(new URL("../../../src/styles/game.css", import.meta.url), "utf8");
 
-const DESKTOP = "@media (min-width: 880px) {";
+const DESKTOP = `@media ${COMPUTER_LAYOUT_MEDIA} {`;
 const desktopStart = game.indexOf(DESKTOP);
 /** The desktop media block: from its opening to the first line closing it at column 0. */
 const desktop = game.slice(desktopStart, game.indexOf("\n}\n", desktopStart));
