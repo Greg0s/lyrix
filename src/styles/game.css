@@ -2300,6 +2300,15 @@
   transform: rotate(90deg);
 }
 
+/* A sheet's content, in the computer's layout: laid out as any dialog's. */
+.lyrix-modal-body {
+  display: contents;
+}
+
+.lyrix-sheet-grip {
+  display: none;
+}
+
 /* A sheet (Modal's variant), below 880px: from the bottom edge, its content kept above the home indicator. */
 @media (max-width: 879px), (hover: none) and (pointer: coarse) {
   .lyrix-modal-backdrop.is-sheet {
@@ -2311,13 +2320,56 @@
     max-width: none;
     max-height: calc(100dvh - 48px);
     border-radius: 24px 24px 0 0;
-    padding: 20px max(16px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px))
+    /* Its content scrolls in .lyrix-modal-body, under the grip and the title's row. */
+    overflow: hidden;
+    gap: 0;
+    padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px))
       max(16px, env(safe-area-inset-left, 0px));
     animation: lyrix-sheet-in 0.32s var(--ease-out);
   }
 
   .is-closing .lyrix-modal.is-sheet {
     animation: lyrix-sheet-out 0.18s ease forwards;
+  }
+
+  /*
+   * Its title's row stays, under the grip, while its content scrolls below it
+   * (.lyrix-modal-body): a finger can always pull the sheet down by them
+   * (useSheetDrag), never the browser scroll or refresh the page under it.
+   */
+  .lyrix-modal.is-sheet .lyrix-modal-header {
+    padding-bottom: 16px;
+    touch-action: none;
+  }
+
+  .lyrix-modal.is-sheet .lyrix-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-solid) transparent;
+  }
+
+  /* The grip: a short bar centred atop the sheet, in a strip tall enough to take a thumb. */
+  .lyrix-sheet-grip {
+    display: flex;
+    flex-shrink: 0;
+    justify-content: center;
+    align-items: center;
+    height: 24px;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .lyrix-sheet-grip::before {
+    content: "";
+    width: 40px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--color-border-strong);
   }
 }
 

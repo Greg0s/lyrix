@@ -101,6 +101,51 @@ test("closes a sheet on Back, as an app does, and leaves the screen under it", a
   await expect(page).toHaveURL(/\/comment-jouer$/);
 });
 
+/** A finger dragging from `from` to `to` in 8 steps, as Chrome gets it from a touchscreen, then what moved settling. */
+async function drag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [from] });
+  for (let step = 1; step <= 8; step++) {
+    const point = { x: from.x + ((to.x - from.x) * step) / 8, y: from.y + ((to.y - from.y) * step) / 8 };
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [point] });
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+  await settle(page);
+}
+
+test("closes a sheet pulled down by its grip, and springs it back from a pull too short", async ({ page }) => {
+  await page.goto("/comment-jouer");
+  await page.getByRole("button", { name: "C'est parti" }).click();
+  await expect(input(page)).toBeVisible();
+
+  for (const [button, name] of [
+    [/^Tes mots/, "Tes mots"],
+    [/^Indices :/, "Indices"],
+  ] as const) {
+    await page.getByRole("button", { name: button }).click();
+    const sheet = page.getByRole("dialog", { name });
+    await expect(sheet).toBeVisible();
+    await settle(page);
+    const grip = (await sheet.locator(".lyrix-sheet-grip").boundingBox())!;
+    expect(grip.height).toBeGreaterThanOrEqual(20);
+    const start = { x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 };
+
+    // A pull too short: the sheet comes back where it was.
+    await drag(page, start, { x: start.x, y: start.y + 20 });
+    await expect(sheet).toBeVisible();
+    expect((await sheet.boundingBox())!.y).toBeCloseTo(grip.y, 0);
+
+    await drag(page, start, { x: start.x, y: 830 });
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page).toHaveURL(/\/$/);
+  }
+
+  // Pulled away, the sheets left nothing behind: Back goes where it would have.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/comment-jouer$/);
+});
+
 test("offers an invite link's room on the « Salon » tab, not in a dialog", async ({ page }) => {
   await page.goto("/salon/ABCDEF");
   await expect(page).toHaveURL(/\/jouer-a-plusieurs$/);
