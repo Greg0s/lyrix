@@ -660,3 +660,11 @@ On a phone, Archives and Plus reloaded the whole page (seen in the installed app
 ## 2026-11-25 — A sideways swipe also went Back in Chrome
 
 Adding tab swipes (`useSwipeTabs`), the e2e spec's first swipe right on today's round left the game for `about:blank`: Chrome's touch emulation, like Chrome on Android, turns a horizontal overscroll into a history navigation, on top of anything the page does with the same touch. The listeners are passive on purpose (never `preventDefault`, so vertical scrolling stays the browser's), so the fix is CSS: `overscroll-behavior-x: none` on `html` below 880px (`game.css`). The system's own edge back gesture is not the browser's and still works; the hook leaves the edges alone for it. Pinned by `tests/e2e/mobile.spec.ts` ("moves between the tabs with a sideways swipe").
+
+## 2026-11-25 — The tab bar stayed hidden after typing a word on Android
+
+Reported on a Pixel 9: tapping the guess input brought the keyboard up and hid the tab bar, as meant, but closing the keyboard with Android's Back button left the bar hidden until the player tapped somewhere else. The bar hides on `.lyrix-app:has(.lyrix-input:focus)` (game.css), the room's fields too (`.lyrix-field-input`), and Back closes the keyboard without blurring the field: focus says nothing about the keyboard on Android.
+
+Fixed with `watchKeyboardDismiss` (`src/hooks/keyboardDismiss.ts`, started by `GameScreen` on touch screens): under `interactive-widget=resizes-content` the keyboard shrinks `innerHeight`, so a page `KEYBOARD_MIN_HEIGHT` shorter than its tallest at that width has a keyboard up, and once it grows back the focused text field is blurred. Only the layout viewport is read, never `visualViewport` (see 2026-10-19). Regression test: `tests/unit/components/keyboardDismiss.test.ts`, failing without the blur.
+
+**Takeaway**: on Android, a focused field doesn't mean an open keyboard. Anything shown or hidden "while the keyboard is up" must also follow the page's height.

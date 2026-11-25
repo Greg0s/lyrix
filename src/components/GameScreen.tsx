@@ -3,6 +3,7 @@ import { daysToFind, groupEntry, nextDayToFind, type ArchiveEntry } from "../gam
 import { revealedPercent } from "../game/progress";
 import { parseInvitePath } from "../game/room";
 import { closestGuessBySlot, createNearPlacer } from "../game/slots";
+import { watchKeyboardDismiss } from "../hooks/keyboardDismiss";
 import { trackStickyHeight } from "../hooks/stickyFit";
 import { SONG_UNAVAILABLE_MESSAGE, useGame, type Feedback } from "../hooks/useGame";
 import { useOnline } from "../hooks/useOnline";
@@ -73,6 +74,10 @@ export function GameScreen() {
   // dock's feedback line; the room's round replaces the solo one (#30).
   const room = useRoom(game.announce, game.receiveRoomRound, game.setRoomSession);
 
+  // On a phone, the tab bar hides while a field has focus (game.css): once the
+  // keyboard goes down with the field still focused (Android's Back), the
+  // field lets go, and the bar comes back.
+  useEffect(() => (isTouchScreen() ? watchKeyboardDismiss() : undefined), []);
   // A room plays one day's song at a time, and everyone in it follows (#B).
   // When the room's day changes, the screen goes there; a player on a page
   // (the archives, the rules) when the room first says where it is stays there.
