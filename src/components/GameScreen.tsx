@@ -8,6 +8,7 @@ import { SONG_UNAVAILABLE_MESSAGE, useGame, type Feedback } from "../hooks/useGa
 import { useOnline } from "../hooks/useOnline";
 import { useRoom } from "../hooks/useRoom";
 import { useRoute } from "../hooks/useRoute";
+import { useSwipeTabs } from "../hooks/useSwipeTabs";
 import { OFFLINE_MESSAGE } from "../pwa";
 import { isAnswerRevealed } from "../roomStorage";
 import { loadArchive } from "../roundStorage";
@@ -65,6 +66,8 @@ function isTouchScreen(): boolean {
 export function GameScreen() {
   // `day`: the round played, null for today's song (see useRoute's gameDay).
   const { route, gameDay: day, navigate } = useRoute();
+  // On a phone, a sideways swipe moves to the tab beside the one shown.
+  useSwipeTabs(route, navigate);
   const game = useGame(day);
   // Room events ("X a rejoint le salon.", a teammate's guess) go to the guess
   // dock's feedback line; the room's round replaces the solo one (#30).
