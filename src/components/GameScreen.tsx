@@ -3,6 +3,7 @@ import { daysToFind, groupEntry, nextDayToFind, type ArchiveEntry } from "../gam
 import { revealedPercent } from "../game/progress";
 import { parseInvitePath } from "../game/room";
 import { closestGuessBySlot, createNearPlacer } from "../game/slots";
+import { watchKeyboardDismiss } from "../hooks/keyboardDismiss";
 import { trackStickyHeight } from "../hooks/stickyFit";
 import { SONG_UNAVAILABLE_MESSAGE, useGame, type Feedback } from "../hooks/useGame";
 import { useOnline } from "../hooks/useOnline";
@@ -78,6 +79,10 @@ export function GameScreen() {
   // dock's feedback line; the room's round replaces the solo one (#30).
   const room = useRoom(game.announce, game.receiveRoomRound, game.setRoomSession);
 
+  // On a phone, the tab bar hides while a field has focus (game.css): once the
+  // keyboard goes down with the field still focused (Android's Back), the
+  // field lets go, and the bar comes back.
+  useEffect(() => (isTouchScreen() ? watchKeyboardDismiss() : undefined), []);
   // An invite link (/salon/<code>) offers to join that room, unless the player
   // is in it already: in the dialog from 880px, on the room's page (its tab)
   // below, where the room is a tab and not a dialog. It is only offered once:
