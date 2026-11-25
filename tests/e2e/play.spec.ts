@@ -233,12 +233,19 @@ test("closes the rules to today's song when they were opened from a link", async
   await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
 });
 
-test("links the legal notice from the round's foot, out from under the guess dock on a phone", async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 812 });
+test("links the legal notice from the round's foot", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByPlaceholder("Propose un mot…")).toBeVisible();
+  await page.getByRole("link", { name: "Mentions légales et confidentialité" }).click();
+  await expect(page).toHaveURL(/\/mentions-legales$/);
+});
 
-  // A click fails on a link another element covers: the sticky dock, here.
+test("links the legal notice from the « Plus » page's foot on a phone, out from under the tab bar", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/comment-jouer");
+  await expect(page.getByRole("heading", { name: /^Comment on joue/ })).toBeVisible();
+
+  // A click fails on a link another element covers: the fixed tab bar, here.
   await page.getByRole("link", { name: "Mentions légales et confidentialité" }).click();
   await expect(page).toHaveURL(/\/mentions-legales$/);
   await expect(page.getByRole("heading", { level: 1, name: "Mentions légales et confidentialité" })).toBeVisible();

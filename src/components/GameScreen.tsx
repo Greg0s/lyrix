@@ -316,10 +316,11 @@ export function GameScreen() {
       ) : null}
     </>
   );
-  // Every screen links the legal notice but the notice itself.
+  // Every screen links the legal notice but the notice itself. Below 880px,
+  // only the "Plus" tab's page does (game.css; asked for by the developer).
   const footer =
     route.name === "legal" ? null : (
-      <footer className="lyrix-footer">
+      <footer className={route.name === "help" ? "lyrix-footer is-more" : "lyrix-footer"}>
         <RouteLink to={LEGAL} onNavigate={navigate}>
           Mentions légales et confidentialité
         </RouteLink>

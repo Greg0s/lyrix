@@ -2583,6 +2583,13 @@
   font-size: 0.85rem;
 }
 
+/* On a phone, the legal notice is linked from the "Plus" tab's page alone (the rules'). */
+@media (max-width: 879px) {
+  .lyrix-footer:not(.is-more) {
+    display: none;
+  }
+}
+
 /* Under the pseudo field (MultiplayerModal.tsx): who sees it, and for how long. */
 .lyrix-field-hint {
   font-size: 0.8rem;

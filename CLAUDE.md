@@ -225,7 +225,8 @@ Full pipeline, commands, scoring rules and model licensing: **`docs/SIMILARITY.m
     HintsCard.tsx, HintSheet.tsx, HintIcon.tsx  # "Indices" card under "Tes mots" (below 880px, a sheet,
                               # like it); the sheet the dock's "Choisir" opens on a phone; pictograms
     DockShortcuts.tsx         # below 880px, atop the dock: "N mots" and "Indices", each opening its card as a sheet
-    LegalNotice.tsx           # legal notice + privacy policy (/mentions-legales), linked from every screen's footer;
+    LegalNotice.tsx           # legal notice + privacy policy (/mentions-legales), linked from every screen's footer
+                              # (below 880px, from the "Plus" tab's page alone, as asked for by the developer);
                               # the credits (lyrics source, fonts, the frWac2Vec model, CC BY 3.0)
     Modal.tsx, HowToPlay.tsx   # dialog shell (Escape/backdrop, exit animation; a bottom sheet below 880px
                               # as the "sheet" variant); the rules' page (/comment-jouer):
