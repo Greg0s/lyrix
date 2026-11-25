@@ -138,10 +138,17 @@ describe("the tab bar", () => {
     await waitFor(() => expect(window.location.pathname).toBe("/"));
   });
 
-  it("opens the multiplayer dialog from its room tab", async () => {
+  it("opens the room's page from its room tab, a screen like the others, not a dialog", async () => {
     await mountGame();
-    fireEvent.click(tabBar().getByRole("button", { name: "Salon" }));
-    expect(screen.getByRole("dialog", { name: "Jouer à plusieurs" })).toBeTruthy();
+    const salon = tabBar().getByRole("link", { name: "Salon" });
+    expect(salon.getAttribute("href")).toBe("/jouer-a-plusieurs");
+    fireEvent.click(salon);
+    await waitFor(() => expect(window.location.pathname).toBe("/jouer-a-plusieurs"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Jouer à plusieurs" })).toBeTruthy();
+    expect(tabBar().getByRole("link", { name: "Salon" }).getAttribute("aria-current")).toBe("page");
+    expect(tabBar().getByRole("link", { name: "Jouer" }).getAttribute("aria-current")).toBeNull();
+    expect(document.title).toBe("Jouer à plusieurs - Lyrix");
   });
 });
 

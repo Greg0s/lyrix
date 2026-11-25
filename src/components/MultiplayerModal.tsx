@@ -103,7 +103,7 @@ export function MultiplayerModal({ room, invite, tab = "join", onCreate, onJoin,
   );
 }
 
-interface RoomFormsProps {
+export interface RoomFormsProps {
   invite: string | null;
   initialTab: Tab;
   /** The room the player is in while an invite offers another one. */
@@ -113,7 +113,8 @@ interface RoomFormsProps {
   onJoined: () => void;
 }
 
-function RoomForms({ invite, initialTab, currentRoom, onCreate, onJoin, onJoined }: RoomFormsProps) {
+/** "Rejoindre" / "Créer un salon": the dialog's, and the room's page's out of a room (RoomScreen). */
+export function RoomForms({ invite, initialTab, currentRoom, onCreate, onJoin, onJoined }: RoomFormsProps) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [pseudo, setPseudo] = useState("");
   const [code, setCode] = useState(invite ?? "");
@@ -269,13 +270,14 @@ function RoomForms({ invite, initialTab, currentRoom, onCreate, onJoin, onJoined
   );
 }
 
-interface InRoomProps {
+export interface InRoomProps {
   room: RoomView;
   onDone: () => void;
   onLeave: () => void;
 }
 
-function InRoom({ room, onDone, onLeave }: InRoomProps) {
+/** The room the player is in: its code and invite link, who is there. The dialog's, and the room's page's. */
+export function InRoom({ room, onDone, onLeave }: InRoomProps) {
   return (
     <div className="lyrix-mp">
       <div className="lyrix-room-code-block">

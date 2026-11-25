@@ -25,7 +25,7 @@ export const EVENT_FIELDS = {
   /** A page's report (src/game/visit.ts): `landed` is 1 for a visit's first, the rest count views per screen. */
   visit: {
     blobs: ["entry", "referrer", "source", "medium", "campaign", "device", "country", "display"],
-    doubles: ["landed", "today", "day", "archives", "help", "legal"],
+    doubles: ["landed", "today", "day", "archives", "help", "legal", "room"],
   },
   /** A solo round's first guess: someone actually playing a day, on one device. */
   start: { blobs: ["mode", "kind", "day"], doubles: [] },

@@ -2592,6 +2592,35 @@
 
 /* ---------- Rooms (MultiplayerModal.tsx, RoomCard.tsx) ---------- */
 
+/* The room's page (RoomScreen.tsx, /jouer-a-plusieurs): the dialog's content, as a card of its own. */
+.lyrix-room-page {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+}
+
+@media (min-width: 880px) {
+  .lyrix-room-page {
+    padding: 40px 32px 48px;
+  }
+}
+
+.lyrix-room-panel {
+  gap: 20px;
+  padding: 28px;
+}
+
+.lyrix-room-page-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 4vw, 1.8rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+
 .lyrix-mp {
   display: flex;
   flex-direction: column;
@@ -4151,11 +4180,14 @@ a.lyrix-day-step:hover {
  * down to the keyboard, as in an app; the page is shorter by a keyboard.
  */
 @media (max-width: 879px) and (pointer: coarse) {
-  .lyrix-app:has(.lyrix-input:focus) {
+  .lyrix-app:has(.lyrix-input:focus),
+  .lyrix-app:has(.lyrix-field-input:focus) {
     padding-bottom: 0;
   }
 
-  .lyrix-app:has(.lyrix-input:focus) .lyrix-tabbar {
+  /* The room's fields too (RoomScreen): the pseudo and the code keep the room the keyboard leaves. */
+  .lyrix-app:has(.lyrix-input:focus) .lyrix-tabbar,
+  .lyrix-app:has(.lyrix-field-input:focus) .lyrix-tabbar {
     display: none;
   }
 

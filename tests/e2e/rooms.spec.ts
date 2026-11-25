@@ -62,14 +62,9 @@ function feedback(page: Page): Locator {
   return page.locator(".lyrix-feedback");
 }
 
-/** Creates a room from the header, closes the dialog, and returns its code. */
-/** The header's button opens the dialog from 880px; below, the tab bar's room tab (`opener`). */
-async function createRoom(
-  page: Page,
-  pseudo: string,
-  opener = page.getByRole("button", { name: "Jouer à plusieurs" }),
-): Promise<string> {
-  await opener.click();
+/** Creates a room from the header's button (from 880px), closes the dialog, and returns its code. */
+async function createRoom(page: Page, pseudo: string): Promise<string> {
+  await page.getByRole("button", { name: "Jouer à plusieurs" }).click();
   await dialog(page).getByRole("tab", { name: "Créer un salon" }).click();
   await dialog(page).getByLabel("Ton pseudo").fill(pseudo);
   await dialog(page).getByRole("button", { name: "Créer le salon" }).click();
@@ -426,9 +421,14 @@ test.describe("on a narrow phone", () => {
   test("the tab bar's room tab says so, with a dot", async ({ page }) => {
     await page.goto("/");
     const tabBar = page.getByRole("navigation", { name: "Navigation" });
-    await createRoom(page, "Camille", tabBar.getByRole("button", { name: "Salon" }));
+    // A tab of its own there, not the dialog (tests/e2e/mobile.spec.ts).
+    await tabBar.getByRole("link", { name: "Salon" }).click();
+    const main = page.getByRole("main");
+    await main.getByRole("tab", { name: "Créer un salon" }).click();
+    await main.getByLabel("Ton pseudo").fill("Camille");
+    await main.getByRole("button", { name: "Créer le salon" }).click();
 
-    const tab = tabBar.getByRole("button", { name: "Salon, 1 joueur" });
+    const tab = tabBar.getByRole("link", { name: "Salon, 1 joueur" });
     await expect(tab.locator(".lyrix-presence-dot")).toBeVisible();
     // The header's own button is the tab bar's from 880px only.
     await expect(page.getByRole("button", { name: "Salon · 1 joueur" })).toBeHidden();

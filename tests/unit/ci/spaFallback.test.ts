@@ -25,7 +25,7 @@ describe("the game's page addresses on Pages", () => {
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => line !== "" && !line.startsWith("#"));
-    const pages = ["/archives", "/comment-jouer", "/mentions-legales", "/*"];
+    const pages = ["/archives", "/comment-jouer", "/jouer-a-plusieurs", "/mentions-legales", "/*"];
     expect(rules.some((rule) => pages.some((page) => rule.startsWith(page)))).toBe(false);
   });
 });

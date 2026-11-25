@@ -5,8 +5,9 @@ import { RULES_TITLE } from "./rules";
 /**
  * The game's screens, one address each, so the browser's Back button and a
  * shared link work: today's song (`/`), the archives (`/archives`), a day of
- * the archives (`/archives/2026-09-26`), the rules (`/comment-jouer`), and the
- * legal notice and privacy policy (`/mentions-legales`).
+ * the archives (`/archives/2026-09-26`), the rules (`/comment-jouer`), the
+ * room's page (`/jouer-a-plusieurs`, the tab bar's "Salon"), and the legal
+ * notice and privacy policy (`/mentions-legales`).
  * Any other path is today's song (an invite link, /salon/<code>, is read by
  * GameScreen on top of that).
  */
@@ -15,15 +16,19 @@ export type Route =
   | { name: "archives" }
   | { name: "day"; day: string }
   | { name: "help" }
+  | { name: "room" }
   | { name: "legal" };
 
 export const TODAY: Route = { name: "today" };
 export const ARCHIVES: Route = { name: "archives" };
 export const HELP: Route = { name: "help" };
+export const ROOM: Route = { name: "room" };
 export const LEGAL: Route = { name: "legal" };
 
 const ARCHIVES_PATH = "/archives";
 export const HELP_PATH = "/comment-jouer";
+/** Not under /salon/, the invite links' (served by Pages' invite page, never by the service worker). */
+const ROOM_PATH = "/jouer-a-plusieurs";
 const LEGAL_PATH = "/mentions-legales";
 
 /**
@@ -35,6 +40,7 @@ export function parseRoute(pathname: string, now: Date = new Date()): Route {
   const path = pathname.replace(/\/+$/, "");
   if (path === ARCHIVES_PATH) return ARCHIVES;
   if (path === HELP_PATH) return HELP;
+  if (path === ROOM_PATH) return ROOM;
   if (path === LEGAL_PATH) return LEGAL;
   if (!path.startsWith(`${ARCHIVES_PATH}/`)) return TODAY;
   const day = path.slice(ARCHIVES_PATH.length + 1);
@@ -46,6 +52,7 @@ export function routePath(route: Route): string {
   if (route.name === "archives") return ARCHIVES_PATH;
   if (route.name === "day") return `${ARCHIVES_PATH}/${route.day}`;
   if (route.name === "help") return HELP_PATH;
+  if (route.name === "room") return ROOM_PATH;
   if (route.name === "legal") return LEGAL_PATH;
   return "/";
 }
@@ -60,11 +67,18 @@ export function sameRoute(a: Route, b: Route): boolean {
 
 /**
  * A page shown over the round rather than a round itself (the archives, the
- * rules, the legal notice): the round left stays loaded under it, and showing
- * one moves no room's day.
+ * rules, the room's page, the legal notice): the round left stays loaded
+ * under it, and showing one moves no room's day.
  */
-export function isPageRoute(route: Route): route is { name: "archives" } | { name: "help" } | { name: "legal" } {
-  return route.name === "archives" || route.name === "help" || route.name === "legal";
+export function isPageRoute(
+  route: Route
+): route is { name: "archives" } | { name: "help" } | { name: "room" } | { name: "legal" } {
+  return route.name === "archives" || route.name === "help" || route.name === "room" || route.name === "legal";
+}
+
+/** A day's round: today's song for today (or no day), else that day of the archives. */
+export function roundRoute(day: string | null, today: string): Route {
+  return day === null || day === today ? TODAY : { name: "day", day };
 }
 
 /** The home page's title, as index.html writes it (tests/unit/routes.test.ts). */
@@ -80,6 +94,7 @@ export function routeTitle(route: Route): string {
   if (route.name === "archives") return "Archives : les 30 derniers jours - Lyrix";
   if (route.name === "day") return `Chanson du ${longDayLabel(route.day)} - Lyrix`;
   if (route.name === "help") return RULES_TITLE;
+  if (route.name === "room") return "Jouer à plusieurs - Lyrix";
   if (route.name === "legal") return "Mentions légales et confidentialité - Lyrix";
   return HOME_TITLE;
 }

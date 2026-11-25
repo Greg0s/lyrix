@@ -14,7 +14,7 @@ import { loadArchive } from "../roundStorage";
 import { isTourSeen, markTourSeen } from "../tourStorage";
 import { utcDay } from "../game/daily";
 import { baseKey } from "../game/normalize";
-import { ARCHIVES, HELP, isPageRoute, LEGAL, TODAY } from "../routes";
+import { ARCHIVES, HELP, isPageRoute, LEGAL, roundRoute, TODAY } from "../routes";
 import { AppHeader } from "./AppHeader";
 import { ArchivesScreen } from "./ArchivesScreen";
 import { DayBar } from "./DayBar";
@@ -34,6 +34,7 @@ import { MultiplayerPromo } from "./MultiplayerPromo";
 import { ProductTour } from "./ProductTour";
 import { ProgressCard } from "./ProgressCard";
 import { RoomCard } from "./RoomCard";
+import { RoomScreen } from "./RoomScreen";
 import { RouteLink } from "./RouteLink";
 import { TabBar } from "./TabBar";
 import { TitleGuess } from "./TitleGuess";
@@ -79,8 +80,12 @@ export function GameScreen() {
     lastRoomDay.current = roomDay;
     if (roomDay === null || previous === roomDay) return;
     if (isPageRoute(route) ? previous === null : (day ?? utcDay()) === roomDay) return;
-    navigate(roomDay === utcDay() ? TODAY : { name: "day", day: roomDay });
+    navigate(roundRoute(roomDay, utcDay()));
   }, [roomDay, route, day, navigate]);
+  // From the room's page, after a join or "Chercher ensemble": the round the
+  // room plays, so going there never takes the room elsewhere (today's song
+  // until the room says where it is: the effect above follows it then).
+  const playRoom = useCallback(() => navigate(roundRoute(roomDay, utcDay())), [roomDay, navigate]);
   // And when the player goes to another day themselves (a cover, the day
   // bar, "Jouer", Back), the whole room goes with them. Browsing a page moves nothing.
   const { moveTo } = room;
@@ -325,12 +330,7 @@ export function GameScreen() {
       {header}
       {content}
       {footer}
-      <TabBar
-        route={route}
-        roomPlayers={room.view ? room.view.members.length : null}
-        onOpenMultiplayer={openMultiplayer}
-        onNavigate={navigate}
-      />
+      <TabBar route={route} roomPlayers={room.view ? room.view.members.length : null} onNavigate={navigate} />
       {dialogs}
     </div>
   );
@@ -338,6 +338,11 @@ export function GameScreen() {
   if (route.name === "archives") return shell(<ArchivesScreen onNavigate={navigate} group={groupDays} />);
   if (route.name === "help") return shell(<HowToPlay onClose={goToday} onReplayTour={replayTour} />);
   if (route.name === "legal") return shell(<LegalNotice onClose={goToday} />);
+  if (route.name === "room") {
+    return shell(
+      <RoomScreen room={room.view} onCreate={room.create} onJoin={room.join} onLeave={room.leave} onPlay={playRoom} />
+    );
+  }
 
   if (game.error && !round) {
     return shell(

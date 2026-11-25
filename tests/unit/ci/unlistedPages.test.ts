@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { NOINDEX, UNLISTED_PAGES, unlistedPageFile, unlistedPageHeading, unlistedPageHtml, unlistedPageUrl } from "../../../scripts/lib/unlistedPages";
-import { ARCHIVES, LEGAL, routePath, routeTitle } from "../../../src/routes";
+import { ARCHIVES, LEGAL, ROOM, routePath, routeTitle } from "../../../src/routes";
 
 /**
  * The legal notice's and the archives' pages: index.html under their own
@@ -21,9 +21,9 @@ function meta(page: string, key: string): string | undefined {
 }
 
 describe("the pages kept out of search results", () => {
-  it("are the legal notice and the archives", () => {
-    expect(UNLISTED_PAGES.map((page) => page.route)).toEqual([LEGAL, ARCHIVES]);
-    expect(UNLISTED_PAGES.map(unlistedPageFile)).toEqual(["mentions-legales.html", "archives.html"]);
+  it("are the legal notice, the archives and the room's page", () => {
+    expect(UNLISTED_PAGES.map((page) => page.route)).toEqual([LEGAL, ARCHIVES, ROOM]);
+    expect(UNLISTED_PAGES.map(unlistedPageFile)).toEqual(["mentions-legales.html", "archives.html", "jouer-a-plusieurs.html"]);
   });
 
   for (const page of UNLISTED_PAGES) {
