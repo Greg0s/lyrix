@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { EVENTS, track } from "../analytics";
+import { EVENTS } from "../analytics";
 import { playerCountLabel } from "../game/room";
 import { ARCHIVES, HELP, ROOM, TODAY, type Route } from "../routes";
 import { CalendarIcon } from "./CalendarIcon";
@@ -49,7 +49,7 @@ export const TabBar = memo(function TabBar({ route, roomPlayers, onNavigate }: T
         className={tab(route.name === "archives")}
         aria-current={route.name === "archives" ? "page" : undefined}
         data-tour="archives"
-        {...track(EVENTS.openArchives, { from: "tabbar" })}
+        tracked={{ event: EVENTS.openArchives, data: { from: "tabbar" } }}
       >
         <span className="lyrix-tab-icon">
           <CalendarIcon />
@@ -62,7 +62,7 @@ export const TabBar = memo(function TabBar({ route, roomPlayers, onNavigate }: T
         className={tab(route.name === "room")}
         aria-current={route.name === "room" ? "page" : undefined}
         aria-label={inRoom ? `Salon, ${playerCountLabel(roomPlayers)}` : "Salon"}
-        {...track(EVENTS.openMultiplayer, { from: "tabbar" })}
+        tracked={{ event: EVENTS.openMultiplayer, data: { from: "tabbar" } }}
       >
         <span className="lyrix-tab-icon">
           <GroupIcon />
@@ -78,7 +78,7 @@ export const TabBar = memo(function TabBar({ route, roomPlayers, onNavigate }: T
         className={tab(route.name === "help")}
         aria-current={route.name === "help" ? "page" : undefined}
         data-tour="help"
-        {...track(EVENTS.openHelp, { from: "tabbar" })}
+        tracked={{ event: EVENTS.openHelp, data: { from: "tabbar" } }}
       >
         <span className="lyrix-tab-icon">
           <MoreIcon />
