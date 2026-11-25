@@ -202,7 +202,7 @@ beforeEach(() => {
   vi.stubGlobal("navigator", { ...window.navigator, clipboard: { writeText: vi.fn(async () => {}) } });
 });
 
-afterEach(() => {
+afterEach(async () => {
   cleanup();
   // roundStorage's deferred writes outlive the test that made them: written
   // now, they go with the next test's localStorage.clear(). Left pending, a
@@ -211,6 +211,9 @@ afterEach(() => {
   flushSavedRound();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  // A dialog unmounted takes its history entry back off (useBackCloses): Back
+  // a task later, which must land in this test, not move the next one's screen.
+  await new Promise((resolve) => setTimeout(resolve, 0));
 });
 
 describe("a room saved by an earlier visit", () => {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isArchivesPath, parseRoute, routePath, routeTitle, sameRoute, type Route } from "../routes";
 import { countView } from "../stats";
+import { isLayerEntry } from "./useBackCloses";
 
 interface Shown {
   route: Route;
@@ -24,7 +25,16 @@ function show(route: Route, previous: string | null): Shown {
  * and Back itself (popstate) is followed. No router library: four screens
  * don't need one.
  */
-export function useRoute(): { route: Route; gameDay: string | null; navigate: (to: Route) => void } {
+export interface NavigateOptions {
+  /** Replaces the screen shown in history instead of adding one: Back skips it. */
+  replace?: boolean;
+}
+
+export function useRoute(): {
+  route: Route;
+  gameDay: string | null;
+  navigate: (to: Route, options?: NavigateOptions) => void;
+} {
   const [shown, setShown] = useState(() => show(parseRoute(window.location.pathname), null));
   // What is on screen, for navigate to compare against without a state updater
   // (React may run one twice, which would push the address twice).
@@ -41,8 +51,10 @@ export function useRoute(): { route: Route; gameDay: string | null; navigate: (t
 
   useEffect(() => {
     const follow = () => {
-      current.current = parseRoute(window.location.pathname);
-      const route = current.current;
+      const route = parseRoute(window.location.pathname);
+      // Back closing a dialog or a sheet (useBackCloses): the screen under it stays.
+      if (sameRoute(current.current, route)) return;
+      current.current = route;
       countView(route);
       setShown((previous) => show(route, previous.gameDay));
     };
@@ -50,11 +62,17 @@ export function useRoute(): { route: Route; gameDay: string | null; navigate: (t
     return () => window.removeEventListener("popstate", follow);
   }, []);
 
-  const navigate = useCallback((to: Route) => {
+  const navigate = useCallback((to: Route, options?: NavigateOptions) => {
     if (sameRoute(current.current, to)) return;
     current.current = to;
-    countView(to);
-    window.history.pushState(null, "", routePath(to));
+    // An open dialog's own entry (useBackCloses) is replaced: Back from the new
+    // screen goes to the one under the dialog, not to a dialog no longer there.
+    if (options?.replace || isLayerEntry(window.history.state)) {
+      window.history.replaceState(null, "", routePath(to));
+    } else {
+      window.history.pushState(null, "", routePath(to));
+    }
+    if (!options?.replace) countView(to);
     // A new screen starts at its top, as a page would.
     document.documentElement.scrollTop = 0;
     setShown((previous) => show(to, previous.gameDay));

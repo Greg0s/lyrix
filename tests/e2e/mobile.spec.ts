@@ -79,6 +79,28 @@ test("opens the words tried and the hints as sheets from the dock", async ({ pag
   }
 });
 
+test("closes a sheet on Back, as an app does, and leaves the screen under it", async ({ page }) => {
+  await openRound(page);
+  await tabBar(page).getByRole("link", { name: "Archives" }).click();
+  await tabBar(page).getByRole("link", { name: "Jouer" }).click();
+  await expect(input(page)).toBeVisible();
+
+  // Android's Back button: it used to go to the archives behind the sheet, the sheet still open.
+  await page.getByRole("button", { name: /^Tes mots/ }).click();
+  await expect(page.getByRole("dialog", { name: "Tes mots" })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/$/);
+  await expect(input(page)).toBeVisible();
+
+  // Closed with its ✕, the sheet leaves nothing behind: Back goes where it would have.
+  await page.getByRole("button", { name: /^Indices :/ }).click();
+  await page.getByRole("dialog", { name: "Indices" }).getByRole("button", { name: "Fermer" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/archives$/);
+});
+
 test("moves between the screens with the tab bar", async ({ page }) => {
   await openRound(page);
   await expect(tabBar(page).getByRole("link", { name: "Jouer" })).toHaveAttribute("aria-current", "page");

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useBackCloses } from "../hooks/useBackCloses";
 
 /** How long the closing animation (lyrix-panel-out, lyrix-fade-out) runs before the modal is unmounted. */
 export const MODAL_CLOSE_MS = 180;
@@ -16,7 +17,8 @@ interface ModalProps {
 
 /**
  * A centered dialog over a dimmed backdrop. Closes on Escape, a click on the
- * backdrop or the ✕ button, each time with a short exit animation first.
+ * backdrop, the ✕ button or Back (useBackCloses: Android's Back button closes
+ * a sheet, as in an app), each time with a short exit animation first.
  * Mount it only while it is open; it takes focus when it mounts.
  */
 export function Modal({ title, onClosed, size = "narrow", variant, children }: ModalProps) {
@@ -24,6 +26,7 @@ export function Modal({ title, onClosed, size = "narrow", variant, children }: M
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const requestClose = useCallback(() => setClosing(true), []);
+  useBackCloses(requestClose);
 
   useEffect(() => {
     panelRef.current?.focus();

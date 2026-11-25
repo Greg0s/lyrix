@@ -1,10 +1,11 @@
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
+import { useBackCloses } from "../hooks/useBackCloses";
 import { prefersReducedMotion } from "../reducedMotion";
 import { placeTip, spotlightBox, TOUR_STEPS, type TourStep } from "../tour";
 
 interface ProductTourProps {
-  /** The player went through every step, or skipped the rest ("Passer", Escape). */
+  /** The player went through every step, or skipped the rest ("Passer", Escape, Back). */
   onDone: () => void;
 }
 
@@ -44,6 +45,8 @@ export const ProductTour = memo(function ProductTour({ onDone }: ProductTourProp
   const primaryRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const bodyId = useId();
+  // Back skips the tour, like "Passer": it never leaves the screen under it, or the app.
+  useBackCloses(onDone);
 
   useEffect(() => {
     if (steps?.length === 0) onDone();
