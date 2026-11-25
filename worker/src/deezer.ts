@@ -7,7 +7,7 @@ import type { CatalogEntry } from "./catalog";
  * Worker alone - never by a player's browser, which only ever talks to the
  * site and its Worker (CLAUDE.md, "No consent banner"). One search finds a
  * catalog song's track: its album cover, shown once the round is won, and its
- * track id, kept for the 30-second extract a later version will play (Deezer
+ * track id, whose 30-second extract preview.ts serves once won (Deezer
  * signs a preview's address for a limited time, so the id is what lasts).
  * No key is needed.
  */
@@ -30,8 +30,8 @@ function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }
 
-/** Only https addresses on Deezer's own image hosts: the Worker fetches what this returns. */
-function isDeezerImage(value: unknown): value is string {
+/** Only https addresses on Deezer's own hosts (images and extracts alike): the Worker fetches what this returns. */
+function isDeezerAddress(value: unknown): value is string {
   if (typeof value !== "string") return false;
   try {
     const url = new URL(value);
@@ -54,7 +54,7 @@ export function parseDeezerTrack(value: unknown): DeezerTrack | null {
     artist: artist.name,
     albumId: album.id,
     version: typeof candidate.title_version === "string" ? candidate.title_version.trim() : "",
-    cover: isDeezerImage(album.cover_medium) ? album.cover_medium : null,
+    cover: isDeezerAddress(album.cover_medium) ? album.cover_medium : null,
   };
 }
 
@@ -133,4 +133,46 @@ export async function fetchDeezerImage(entryId: string, url: string): Promise<{ 
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.startsWith("image/")) throw new DeezerUnavailableError(entryId, `cover: ${contentType || "no type"}`);
   return { contentType, bytes: await response.arrayBuffer() };
+}
+
+const TRACK_URL = "https://api.deezer.com/track/";
+
+/**
+ * Where a track's 30-second extract is, right now: Deezer signs the address
+ * for a limited time, so it is asked for each time the Worker needs the
+ * extract, never kept. Null when the track has none (Deezer answers an empty
+ * `preview`); only https addresses on Deezer's own hosts are ever returned,
+ * since the Worker fetches them. Throws DeezerUnavailableError when Deezer
+ * couldn't answer.
+ */
+export async function fetchDeezerPreviewUrl(entryId: string, trackId: number): Promise<string | null> {
+  const response = await fetchWithTimeout(`${TRACK_URL}${trackId}`);
+  if (typeof response === "string") throw new DeezerUnavailableError(entryId, `track: ${response}`);
+  if (!response.ok) throw new DeezerUnavailableError(entryId, `track: HTTP ${response.status}`);
+  const body = record(await response.json().catch(() => null));
+  if (!body) throw new DeezerUnavailableError(entryId, "track: malformed body");
+  const error = record(body.error);
+  if (error) {
+    // 800, "no data": the track is gone from Deezer, an answer about the song.
+    if (error.code === 800) return null;
+    throw new DeezerUnavailableError(entryId, `track: error ${String(error.code)}: ${String(error.message)}`);
+  }
+  return isDeezerAddress(body.preview) ? body.preview : null;
+}
+
+/** The most an extract may weigh: 30 s of 128 kb/s MP3 is under 500 kB. */
+export const MAX_PREVIEW_BYTES = 2 * 1024 * 1024;
+
+/** An extract's bytes, or why they couldn't be had (the address came from Deezer a moment ago). */
+export async function fetchDeezerAudio(entryId: string, url: string): Promise<ArrayBuffer> {
+  const response = await fetchWithTimeout(url);
+  if (typeof response === "string") throw new DeezerUnavailableError(entryId, `preview: ${response}`);
+  if (!response.ok) throw new DeezerUnavailableError(entryId, `preview: HTTP ${response.status}`);
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.startsWith("audio/")) throw new DeezerUnavailableError(entryId, `preview: ${contentType || "no type"}`);
+  const bytes = await response.arrayBuffer();
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_PREVIEW_BYTES) {
+    throw new DeezerUnavailableError(entryId, `preview: ${bytes.byteLength} bytes`);
+  }
+  return bytes;
 }

@@ -11,6 +11,7 @@ import { NextSongCountdown } from "./NextSongCountdown";
 import { VictoryFoot } from "./VictoryFoot";
 import { TokenRun } from "./TokenRun";
 import { VictoryCover } from "./VictoryCover";
+import { VictoryPreview } from "./VictoryPreview";
 
 interface TitleGuessProps {
   titleTokens: SlotToken[];
@@ -93,7 +94,11 @@ export const TitleGuess = memo(function TitleGuess({
       {victory ? (
         <div className="lyrix-victory">
           <div className="lyrix-victory-main">
-            <VictoryCover cover={cover} />
+            {/* The sleeve, and the extract's record sliding out of it (VictoryPreview). */}
+            <div className="lyrix-sleeve">
+              {cover !== undefined ? <VictoryPreview cover={cover} /> : null}
+              <VictoryCover cover={cover} />
+            </div>
             <div className="lyrix-victory-text">
               <p className="lyrix-victory-eyebrow">
                 {group ? "Bravo, le groupe l'a trouvée\u00a0!" : "Bravo, tu l'as trouvée\u00a0!"}
