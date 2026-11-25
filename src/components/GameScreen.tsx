@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { daysToFind, groupEntry, nextDayToFind, type ArchiveEntry } from "../game/archive";
 import { revealedPercent } from "../game/progress";
 import { parseInvitePath } from "../game/room";
@@ -8,14 +8,14 @@ import { SONG_UNAVAILABLE_MESSAGE, useGame, type Feedback } from "../hooks/useGa
 import { useOnline } from "../hooks/useOnline";
 import { useRoom } from "../hooks/useRoom";
 import { useRoute } from "../hooks/useRoute";
-import { useSwipeTabs } from "../hooks/useSwipeTabs";
+import { SWIPE_MEDIA, useSwipeTabs } from "../hooks/useSwipeTabs";
 import { OFFLINE_MESSAGE } from "../pwa";
 import { isAnswerRevealed } from "../roomStorage";
 import { loadArchive } from "../roundStorage";
 import { isTourSeen, markTourSeen } from "../tourStorage";
 import { utcDay } from "../game/daily";
 import { baseKey } from "../game/normalize";
-import { ARCHIVES, HELP, isPageRoute, LEGAL, roundRoute, TODAY } from "../routes";
+import { ARCHIVES, HELP, isPageRoute, LEGAL, ROOM, roundRoute, TODAY } from "../routes";
 import { AppHeader } from "./AppHeader";
 import { ArchivesScreen } from "./ArchivesScreen";
 import { DayBar } from "./DayBar";
@@ -63,6 +63,11 @@ function isTouchScreen(): boolean {
   return typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
 }
 
+/** Below 880px: the phone's layout, where the room is a tab of its own rather than a dialog (game.css). */
+function isPhoneLayout(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia(SWIPE_MEDIA).matches;
+}
+
 export function GameScreen() {
   // `day`: the round played, null for today's song (see useRoute's gameDay).
   const { route, gameDay: day, navigate } = useRoute();
@@ -73,6 +78,29 @@ export function GameScreen() {
   // dock's feedback line; the room's round replaces the solo one (#30).
   const room = useRoom(game.announce, game.receiveRoomRound, game.setRoomSession);
 
+  // An invite link (/salon/<code>) offers to join that room, unless the player
+  // is in it already: in the dialog from 880px, on the room's page (its tab)
+  // below, where the room is a tab and not a dialog. It is only offered once:
+  // closing the dialog, or leaving the room's page, drops it.
+  const [invite, setInvite] = useState(() => parseInvitePath(window.location.pathname));
+  const [inviteOnPage] = useState(() => invite !== null && invite !== room.view?.code && isPhoneLayout());
+  const [dialog, setDialog] = useState<Dialog>(() =>
+    invite !== null && invite !== room.view?.code && !inviteOnPage ? "multiplayer" : null
+  );
+  // The address goes back to the home page, or to the room's page, so a reload
+  // doesn't offer the room again, and what the player copies from the address
+  // bar is the game's URL. Before any dialog takes a history entry of its own.
+  useLayoutEffect(() => {
+    if (parseInvitePath(window.location.pathname) === null) return;
+    if (inviteOnPage) navigate(ROOM, { replace: true });
+    else window.history.replaceState(window.history.state, "", `/${window.location.search}${window.location.hash}`);
+  }, [inviteOnPage, navigate]);
+  const sawRoomPage = useRef(false);
+  useEffect(() => {
+    if (!inviteOnPage) return;
+    if (route.name === "room") sawRoomPage.current = true;
+    else if (sawRoomPage.current) setInvite(null);
+  }, [inviteOnPage, route.name]);
   // A room plays one day's song at a time, and everyone in it follows (#B).
   // When the room's day changes, the screen goes there; a player on a page
   // (the archives, the rules) when the room first says where it is stays there.
@@ -88,7 +116,10 @@ export function GameScreen() {
   // From the room's page, after a join or "Chercher ensemble": the round the
   // room plays, so going there never takes the room elsewhere (today's song
   // until the room says where it is: the effect above follows it then).
-  const playRoom = useCallback(() => navigate(roundRoute(roomDay, utcDay())), [roomDay, navigate]);
+  const playRoom = useCallback(() => {
+    setInvite(null);
+    navigate(roundRoute(roomDay, utcDay()));
+  }, [roomDay, navigate]);
   // And when the player goes to another day themselves (a cover, the day
   // bar, "Jouer", Back), the whole room goes with them. Browsing a page moves nothing.
   const { moveTo } = room;
@@ -102,18 +133,6 @@ export function GameScreen() {
     if (target !== roomDay) moveTo(target);
   }, [day, inRoom, roomDay, route, moveTo]);
   const inputRef = useRef<HTMLInputElement>(null);
-  // An invite link (/salon/<code>) opens the dialog on that room, unless the
-  // player is in it already. It is only offered once: closing the dialog drops it.
-  const [invite, setInvite] = useState(() => parseInvitePath(window.location.pathname));
-  const [dialog, setDialog] = useState<Dialog>(() =>
-    invite !== null && invite !== room.view?.code ? "multiplayer" : null
-  );
-  // The address goes back to the home page, so a reload doesn't offer the room
-  // again, and what the player copies from the address bar is the game's URL.
-  useEffect(() => {
-    if (parseInvitePath(window.location.pathname) === null) return;
-    window.history.replaceState(window.history.state, "", `/${window.location.search}${window.location.hash}`);
-  }, []);
   // Checked for one round: another day, another song, whose lyrics start hidden again.
   const [revealedDay, setRevealedDay] = useState<string | null | undefined>(undefined);
   const revealAllLyrics = revealedDay !== undefined && revealedDay === day;
@@ -344,7 +363,14 @@ export function GameScreen() {
   if (route.name === "legal") return shell(<LegalNotice onClose={goToday} />);
   if (route.name === "room") {
     return shell(
-      <RoomScreen room={room.view} onCreate={room.create} onJoin={room.join} onLeave={room.leave} onPlay={playRoom} />
+      <RoomScreen
+        room={room.view}
+        invite={inviteOnPage ? invite : null}
+        onCreate={room.create}
+        onJoin={room.join}
+        onLeave={room.leave}
+        onPlay={playRoom}
+      />
     );
   }
 

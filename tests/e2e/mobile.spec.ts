@@ -101,6 +101,19 @@ test("closes a sheet on Back, as an app does, and leaves the screen under it", a
   await expect(page).toHaveURL(/\/archives$/);
 });
 
+test("offers an invite link's room on the « Salon » tab, not in a dialog", async ({ page }) => {
+  await page.goto("/salon/ABCDEF");
+  await expect(page).toHaveURL(/\/jouer-a-plusieurs$/);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(tabBar(page).getByRole("link", { name: "Salon" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("main").getByLabel("Code du salon")).toHaveValue("ABCDEF");
+
+  // Offered once: the tab opened again later is the plain forms.
+  await tabBar(page).getByRole("link", { name: "Jouer" }).click();
+  await tabBar(page).getByRole("link", { name: "Salon" }).click();
+  await expect(page.getByRole("main").getByLabel("Code du salon")).toHaveValue("");
+});
+
 test("moves between the screens with the tab bar", async ({ page }) => {
   await openRound(page);
   await expect(tabBar(page).getByRole("link", { name: "Jouer" })).toHaveAttribute("aria-current", "page");
