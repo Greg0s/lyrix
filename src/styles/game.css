@@ -3977,6 +3977,15 @@ a.lyrix-day-step:hover {
 
 /* 60px: the tab bar's height, above a home indicator; the page and the dock keep clear of it. */
 @media (max-width: 879px) {
+  /*
+   * A sideways swipe moves between the tabs (useSwipeTabs): the browser's own
+   * swipe through its history would go Back on top of it, or leave the game
+   * for the page before it. The system's back gesture, from the edge, stays.
+   */
+  html {
+    overscroll-behavior-x: none;
+  }
+
   .lyrix-app {
     padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
   }

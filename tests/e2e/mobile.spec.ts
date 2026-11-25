@@ -95,6 +95,67 @@ test("moves between the screens with the tab bar", async ({ page }) => {
   await expect(input(page)).toBeVisible();
 });
 
+/** A finger moving across the screen, as Chrome gets it from a touchscreen. */
+async function swipe(page: Page, from: { x: number; y: number }, to: { x: number; y: number }): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  const steps = 8;
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [from] });
+  for (let step = 1; step <= steps; step++) {
+    const point = { x: from.x + ((to.x - from.x) * step) / steps, y: from.y + ((to.y - from.y) * step) / steps };
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [point] });
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+}
+
+const swipeLeft = (page: Page) => swipe(page, { x: 320, y: 420 }, { x: 80, y: 430 });
+const swipeRight = (page: Page) => swipe(page, { x: 80, y: 420 }, { x: 320, y: 430 });
+
+test("moves between the tabs with a sideways swipe, in place", async ({ page }) => {
+  await openRound(page);
+  // Set on the page itself: a page load would lose it.
+  await page.evaluate(() => ((window as Window & { stayed?: boolean }).stayed = true));
+  const current = tabBar(page).locator('[aria-current="page"]');
+
+  // The first tab: nothing before it, and the browser doesn't go Back for it either.
+  await swipeRight(page);
+  await expect(current).toHaveText("Jouer");
+
+  await swipeLeft(page);
+  await expect(page).toHaveURL(/\/archives$/);
+  await expect(current).toHaveText("Archives");
+  await swipeLeft(page);
+  await expect(page).toHaveURL(/\/jouer-a-plusieurs$/);
+  await swipeLeft(page);
+  await expect(page).toHaveURL(/\/comment-jouer$/);
+  // The last tab: nothing beyond it.
+  await swipeLeft(page);
+  await expect(page).toHaveURL(/\/comment-jouer$/);
+
+  await swipeRight(page);
+  await swipeRight(page);
+  await swipeRight(page);
+  await expect(page).toHaveURL(/\/$/);
+  await expect(input(page)).toBeVisible();
+  expect(await page.evaluate(() => (window as Window & { stayed?: boolean }).stayed)).toBe(true);
+
+  // Back returns to the tab swiped from.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/archives$/);
+});
+
+test("leaves a scroll, a swipe from the screen's edge and the keyboard alone", async ({ page }) => {
+  await openRound(page);
+  await swipe(page, { x: 200, y: 700 }, { x: 180, y: 250 });
+  // Android's back gesture starts at the edge.
+  await swipe(page, { x: 4, y: 420 }, { x: 300, y: 420 });
+  await swipe(page, { x: 386, y: 420 }, { x: 90, y: 420 });
+  await input(page).tap();
+  await swipeLeft(page);
+  await expect(input(page)).toBeFocused();
+  await expect(page).toHaveURL(/\/$/);
+});
+
 test("opens the room as a tab of its own, not a dialog, and plays its round from there", async ({ page }) => {
   await openRound(page);
   await tabBar(page).getByRole("link", { name: "Salon" }).click();
