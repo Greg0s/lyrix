@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from "react";
+import { entryOf } from "../historyEntries";
 
 /** The key of the `history.state` an open layer (a dialog, a sheet, the guided tour) pushes. */
 const LAYER_KEY = "lyrixLayer";
@@ -36,7 +37,12 @@ export function useBackCloses(onBack: () => void): void {
 
   useEffect(() => {
     mounted.current = true;
-    if (!isOwnEntry(window.history.state, id)) window.history.pushState({ [LAYER_KEY]: id }, "");
+    // The same place as the screen under it, one step up (historyEntries.ts).
+    const below: unknown = window.history.state;
+    if (!isOwnEntry(below, id)) {
+      const { lyrixIndex, lyrixPlay } = entryOf(below);
+      window.history.pushState({ lyrixIndex: lyrixIndex + 1, lyrixPlay, [LAYER_KEY]: id }, "");
+    }
     const onPopState = () => {
       if (!isOwnEntry(window.history.state, id)) callback.current();
     };

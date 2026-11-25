@@ -70,9 +70,9 @@ function isPhoneLayout(): boolean {
 
 export function GameScreen() {
   // `day`: the round played, null for today's song (see useRoute's gameDay).
-  const { route, gameDay: day, navigate } = useRoute();
-  // On a phone, a sideways swipe moves to the tab beside the one shown.
-  useSwipeTabs(route, navigate);
+  const { route, gameDay: day, navigate, navigateTab } = useRoute();
+  // On a phone, a sideways swipe moves to the tab beside the one shown, as a tap on it does.
+  useSwipeTabs(route, navigateTab);
   const game = useGame(day);
   // Room events ("X a rejoint le salon.", a teammate's guess) go to the guess
   // dock's feedback line; the room's round replaces the solo one (#30).
@@ -92,7 +92,7 @@ export function GameScreen() {
   // bar is the game's URL. Before any dialog takes a history entry of its own.
   useLayoutEffect(() => {
     if (parseInvitePath(window.location.pathname) === null) return;
-    if (inviteOnPage) navigate(ROOM, { replace: true });
+    if (inviteOnPage) navigate(ROOM, { replace: true, count: false });
     else window.history.replaceState(window.history.state, "", `/${window.location.search}${window.location.hash}`);
   }, [inviteOnPage, navigate]);
   const sawRoomPage = useRef(false);
@@ -359,7 +359,7 @@ export function GameScreen() {
       {header}
       {content}
       {footer}
-      <TabBar route={route} roomPlayers={room.view ? room.view.members.length : null} onNavigate={navigate} />
+      <TabBar route={route} roomPlayers={room.view ? room.view.members.length : null} onNavigate={navigateTab} />
       {dialogs}
     </div>
   );
