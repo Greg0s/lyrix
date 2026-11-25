@@ -138,6 +138,29 @@ describe("the tab bar", () => {
     await waitFor(() => expect(window.location.pathname).toBe("/"));
   });
 
+  // Umami's script cancels a click on a link carrying data-umami-event and
+  // opens its address itself: a whole page load on every tap of Archives or
+  // Plus, where it ran (the installed app on Android among them).
+  it("counts its tabs' clicks without Umami's attributes on any link, so Umami never reloads the page", async () => {
+    const umami = { track: vi.fn() };
+    Object.assign(window, { umami });
+    try {
+      await mountGame();
+      const untrackedLinks = () => expect(document.querySelectorAll("a[data-umami-event]")).toHaveLength(0);
+      untrackedLinks();
+      fireEvent.click(tabBar().getByRole("link", { name: "Archives" }));
+      await waitFor(() => expect(window.location.pathname).toBe("/archives"));
+      expect(umami.track).toHaveBeenCalledWith("archives-open", { from: "tabbar" });
+      untrackedLinks();
+      fireEvent.click(tabBar().getByRole("link", { name: "Plus" }));
+      await waitFor(() => expect(window.location.pathname).toBe("/comment-jouer"));
+      expect(umami.track).toHaveBeenCalledWith("help-open", { from: "tabbar" });
+      untrackedLinks();
+    } finally {
+      Reflect.deleteProperty(window, "umami");
+    }
+  });
+
   it("opens the multiplayer dialog from its room tab", async () => {
     await mountGame();
     fireEvent.click(tabBar().getByRole("button", { name: "Salon" }));

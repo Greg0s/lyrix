@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { EVENTS, SIGNALS, signal, track } from "../../src/analytics";
+import { countClick, EVENTS, SIGNALS, signal, track } from "../../src/analytics";
 import { vi } from "vitest";
 
 /** The clicks Umami counts (src/analytics.ts): attributes only, read by Umami's own script. */
@@ -30,6 +30,28 @@ describe("tracked clicks", () => {
       .map((file) => readFileSync(componentsDir + file, "utf8"))
       .join("\n");
     for (const key of Object.keys(EVENTS)) expect(source, key).toMatch(new RegExp(`EVENTS\\.${key}\\b`));
+  });
+});
+
+describe("a link's click, counted from the click itself", () => {
+  it("reaches Umami's tracker with the event's name and data", () => {
+    const umami = { track: vi.fn() };
+    countClick(EVENTS.openArchives, { from: "tabbar" }, { umami } as unknown as Window);
+    expect(umami.track).toHaveBeenCalledWith("archives-open", { from: "tabbar" });
+  });
+
+  it("does nothing without Umami, and never throws", () => {
+    expect(() => countClick(EVENTS.openHelp, {}, {} as Window)).not.toThrow();
+  });
+
+  it("is how every link counts: no component spreads track() onto an <a> or a RouteLink", () => {
+    for (const file of readdirSync(componentsDir).filter((name) => name.endsWith(".tsx"))) {
+      const source = readFileSync(componentsDir + file, "utf8");
+      // Each JSX element opening an <a> or a RouteLink, up to its first `>` not in braces.
+      for (const match of source.matchAll(/<(a|RouteLink)\b(?:[^>{]|\{(?:[^{}]|\{[^{}]*\})*\})*>/g)) {
+        expect(match[0], file).not.toMatch(/track\(/);
+      }
+    }
   });
 });
 

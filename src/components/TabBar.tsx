@@ -48,7 +48,7 @@ export const TabBar = memo(function TabBar({ route, roomPlayers, onOpenMultiplay
         className={tab(route.name === "archives")}
         aria-current={route.name === "archives" ? "page" : undefined}
         data-tour="archives"
-        {...track(EVENTS.openArchives, { from: "tabbar" })}
+        tracked={{ event: EVENTS.openArchives, data: { from: "tabbar" } }}
       >
         <span className="lyrix-tab-icon">
           <CalendarIcon />
@@ -76,7 +76,7 @@ export const TabBar = memo(function TabBar({ route, roomPlayers, onOpenMultiplay
         className={tab(route.name === "help")}
         aria-current={route.name === "help" ? "page" : undefined}
         data-tour="help"
-        {...track(EVENTS.openHelp, { from: "tabbar" })}
+        tracked={{ event: EVENTS.openHelp, data: { from: "tabbar" } }}
       >
         <span className="lyrix-tab-icon">
           <MoreIcon />
