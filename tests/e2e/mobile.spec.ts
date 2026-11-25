@@ -33,7 +33,10 @@ async function expectProgressClearOfLogo(page: Page): Promise<void> {
 
 /** Once the cards have risen in: their entrance moves them. */
 async function settle(page: Page): Promise<void> {
-  await page.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished)));
+  // A screen that slid out is cancelled once gone: its promise rejects, and it is just as done.
+  await page.evaluate(() =>
+    Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined)))
+  );
 }
 
 test("puts the song on the first screen, the side column out of the page", async ({ page }) => {
@@ -106,6 +109,8 @@ async function swipe(page: Page, from: { x: number; y: number }, to: { x: number
   }
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await cdp.detach();
+  // The screen slides out and the next one in, or springs back: a swipe starts once it is done.
+  await settle(page);
 }
 
 const swipeLeft = (page: Page) => swipe(page, { x: 320, y: 420 }, { x: 80, y: 430 });
@@ -142,6 +147,63 @@ test("moves between the tabs with a sideways swipe, in place", async ({ page }) 
   // Back returns to the tab swiped from.
   await page.goBack();
   await expect(page).toHaveURL(/\/archives$/);
+});
+
+test("moves the screen with the finger, and slides the next one in", async ({ page }) => {
+  await openRound(page);
+  await settle(page);
+  const screen = page.locator(".lyrix-app > main");
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 320, y: 420 }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 300, y: 421 }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 220, y: 422 }] });
+  // Chrome hands touch moves to the page frame by frame.
+  await expect
+    .poll(() => screen.evaluate((element) => new DOMMatrix(getComputedStyle(element).transform).m41))
+    .toBe(-100);
+  // Nothing wider than the screen while it moves.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  // The header and the tab bar stay put.
+  await expect(tabBar(page)).toHaveCSS("transform", "none");
+
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 120, y: 422 }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+  await expect(page).toHaveURL(/\/archives$/);
+  const entering = await page
+    .locator(".lyrix-app > main.lyrix-archives")
+    .evaluate((element) => element.getAnimations().length);
+  expect(entering).toBeGreaterThan(0);
+  await settle(page);
+  await expect(page.locator(".lyrix-app > main")).toHaveCSS("transform", "none");
+});
+
+test("springs the screen back from a swipe too short, and only follows a little past the first tab", async ({
+  page,
+}) => {
+  await openRound(page);
+  await settle(page);
+  await swipe(page, { x: 200, y: 420 }, { x: 160, y: 420 });
+  await swipe(page, { x: 80, y: 420 }, { x: 320, y: 420 });
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator(".lyrix-app > main")).toHaveCSS("transform", "none");
+  await expect(page.locator(".lyrix-app > main")).toHaveCSS("opacity", "1");
+});
+
+test.describe("under reduced motion", () => {
+  test.use({ reducedMotion: "reduce" });
+
+  test("changes tab on a swipe without moving the screen", async ({ page }) => {
+    await openRound(page);
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 320, y: 420 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 200, y: 421 }] });
+    await expect(page.locator(".lyrix-app > main")).toHaveCSS("transform", "none");
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 100, y: 421 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.detach();
+    await expect(page).toHaveURL(/\/archives$/);
+  });
 });
 
 test("leaves a scroll, a swipe from the screen's edge and the keyboard alone", async ({ page }) => {

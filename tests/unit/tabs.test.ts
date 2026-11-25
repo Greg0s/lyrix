@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readSwipe, startsScrolling, SWIPE_MAX_MS, SWIPE_MIN_DISTANCE } from "../../src/hooks/useSwipeTabs";
+import { commitsSwipe, SWIPE_MAX_MS, SWIPE_MIN_DISTANCE, touchAxis } from "../../src/hooks/useSwipeTabs";
 import { ARCHIVES, HELP, LEGAL, ROOM, TODAY, type Route } from "../../src/routes";
 import { swipedTab, tabRoute, TAB_ORDER } from "../../src/tabs";
 
@@ -41,27 +41,32 @@ describe("tabRoute", () => {
   });
 });
 
-describe("readSwipe", () => {
-  it("reads a quick, wide, flat move as a swipe", () => {
-    expect(readSwipe(-120, 10, 200)).toBe("left");
-    expect(readSwipe(120, -10, 200)).toBe("right");
+describe("commitsSwipe", () => {
+  it("goes over on a quick flick, or on a drag across a good part of the screen however slow", () => {
+    expect(commitsSwipe(-SWIPE_MIN_DISTANCE, 200, 390)).toBe(true);
+    expect(commitsSwipe(120, 200, 390)).toBe(true);
+    expect(commitsSwipe(-130, 3000, 390)).toBe(true);
   });
 
-  it("leaves a short, steep or slow move alone", () => {
-    expect(readSwipe(-(SWIPE_MIN_DISTANCE - 1), 0, 100)).toBeNull();
-    expect(readSwipe(-100, 60, 100)).toBeNull();
-    expect(readSwipe(-200, 0, SWIPE_MAX_MS + 1)).toBeNull();
+  it("springs back from a short move, or a slow one not far enough", () => {
+    expect(commitsSwipe(-(SWIPE_MIN_DISTANCE - 1), 100, 390)).toBe(false);
+    expect(commitsSwipe(-100, SWIPE_MAX_MS + 1, 390)).toBe(false);
   });
 });
 
-describe("startsScrolling", () => {
+describe("touchAxis", () => {
   it("is a scroll once a touch moved up or down further than sideways", () => {
-    expect(startsScrolling(2, 20)).toBe(true);
-    expect(startsScrolling(-5, -14)).toBe(true);
+    expect(touchAxis(2, 20)).toBe("scroll");
+    expect(touchAxis(-5, -14)).toBe("scroll");
   });
 
-  it("is not yet one for a jitter, nor for a sideways move", () => {
-    expect(startsScrolling(0, 6)).toBe(false);
-    expect(startsScrolling(40, 20)).toBe(false);
+  it("is a swipe once it moved sideways first", () => {
+    expect(touchAxis(14, 5)).toBe("swipe");
+    expect(touchAxis(-40, 20)).toBe("swipe");
+  });
+
+  it("is not known yet for a jitter", () => {
+    expect(touchAxis(0, 6)).toBeNull();
+    expect(touchAxis(8, 2)).toBeNull();
   });
 });

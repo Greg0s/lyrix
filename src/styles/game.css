@@ -3986,6 +3986,11 @@ a.lyrix-day-step:hover {
     overscroll-behavior-x: none;
   }
 
+  /* A screen following the finger, or sliding in, never widens the page (clip: the dock stays sticky). */
+  .lyrix-app {
+    overflow-x: clip;
+  }
+
   .lyrix-app {
     padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
   }
