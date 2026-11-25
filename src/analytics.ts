@@ -35,7 +35,14 @@ export type TrackedEvent = (typeof EVENTS)[keyof typeof EVENTS];
 /** Event data, as Umami reads it: one `data-umami-event-<key>` attribute per entry. Fixed labels only. */
 export type EventData = Record<string, string>;
 
-/** The attributes that make Umami count a click on an element, spread onto it. */
+/**
+ * The attributes that make Umami count a click on an element, spread onto it.
+ * Never onto a link (`<a>`, RouteLink): Umami's script cancels a click on a
+ * link carrying them and opens its address itself once the event is sent, a
+ * whole page load where the game changes screen in place, so every tap on
+ * the tab bar's Archives and Plus reloaded the game wherever Umami ran (the
+ * installed app among them). A link counts its click with `countClick`.
+ */
 export function track(event: TrackedEvent, data: EventData = {}): Record<string, string> {
   const attrs: Record<string, string> = { "data-umami-event": event };
   for (const [key, value] of Object.entries(data)) attrs[`data-umami-event-${key}`] = value;
@@ -60,12 +67,8 @@ interface UmamiTracker {
   track(event: string, data?: EventData): unknown;
 }
 
-/**
- * Has Umami count a signal, if its script is on the page (production only)
- * and allowed to (it heeds Do Not Track and the legal page's opt-out itself):
- * otherwise nothing happens.
- */
-export function signal(name: Signal, data?: EventData, win: Window = window): void {
+/** Hands an event to Umami's tracker, if its script is on the page; never throws. */
+function send(name: string, data: EventData | undefined, win: Window): void {
   const umami = (win as Window & { umami?: Partial<UmamiTracker> }).umami;
   if (typeof umami?.track !== "function") return;
   try {
@@ -73,4 +76,22 @@ export function signal(name: Signal, data?: EventData, win: Window = window): vo
   } catch {
     // Counting is never worth an error.
   }
+}
+
+/**
+ * Counts a click on a link (RouteLink's `tracked`), where `track()`'s
+ * attributes would have Umami reload the page: the same event and data, sent
+ * from the click itself. Same conditions as a signal.
+ */
+export function countClick(event: TrackedEvent, data: EventData = {}, win: Window = window): void {
+  send(event, data, win);
+}
+
+/**
+ * Has Umami count a signal, if its script is on the page (production only)
+ * and allowed to (it heeds Do Not Track and the legal page's opt-out itself):
+ * otherwise nothing happens.
+ */
+export function signal(name: Signal, data?: EventData, win: Window = window): void {
+  send(name, data, win);
 }
