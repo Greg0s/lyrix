@@ -1,10 +1,11 @@
 import type { Plugin } from "vite";
-import { ARCHIVES, LEGAL, routePath, routeTitle, type Route } from "../../src/routes";
+import { ARCHIVES, LEGAL, ROOM, routePath, routeTitle, type Route } from "../../src/routes";
 import { replaceOnce, setMeta, SITE } from "./htmlPage";
 
 /**
  * The pages a search engine should leave out of its results: the legal
- * notice (`/mentions-legales`) and the archives (`/archives`). Served by
+ * notice (`/mentions-legales`), the archives (`/archives`) and the room's
+ * page (`/jouer-a-plusieurs`). Served by
  * Pages' SPA fallback, both answered with index.html itself: the home page's
  * title, description, canonical link and text. Google took them for copies of
  * the home page, and picked the legal notice to stand for the whole group: a
@@ -36,6 +37,11 @@ export const UNLISTED_PAGES: readonly UnlistedPage[] = [
     route: ARCHIVES,
     description: "Les chansons des 30 derniers jours de Lyrix, à rejouer si tu en as manqué une.",
     lead: "Les chansons des 30 derniers jours, à rejouer si tu en as manqué une.",
+  },
+  {
+    route: ROOM,
+    description: "Crée un salon Lyrix ou rejoins celui d'un ami : vous cherchez la chanson du jour ensemble.",
+    lead: "Crée un salon ou rejoins celui d'un ami pour chercher la chanson du jour ensemble.",
   },
 ];
 

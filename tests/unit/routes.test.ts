@@ -1,6 +1,18 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ARCHIVES, HELP, HOME_TITLE, isPageRoute, LEGAL, parseRoute, routePath, routeTitle, TODAY } from "../../src/routes";
+import {
+  ARCHIVES,
+  HELP,
+  HOME_TITLE,
+  isPageRoute,
+  LEGAL,
+  parseRoute,
+  ROOM,
+  roundRoute,
+  routePath,
+  routeTitle,
+  TODAY,
+} from "../../src/routes";
 
 const NOW = new Date("2026-10-20T10:00:00Z");
 
@@ -16,6 +28,12 @@ describe("parseRoute", () => {
     expect(parseRoute("/comment-jouer", NOW)).toEqual(HELP);
     expect(parseRoute("/comment-jouer/", NOW)).toEqual(HELP);
     expect(parseRoute("/comment-jouerxyz", NOW)).toEqual(TODAY);
+  });
+
+  it("reads the room's page, apart from the invite links under /salon/", () => {
+    expect(parseRoute("/jouer-a-plusieurs", NOW)).toEqual(ROOM);
+    expect(parseRoute("/jouer-a-plusieurs/", NOW)).toEqual(ROOM);
+    expect(routePath(ROOM).startsWith("/salon")).toBe(false);
   });
 
   it("reads the legal notice's page", () => {
@@ -42,7 +60,7 @@ describe("parseRoute", () => {
 
 describe("routePath", () => {
   it("round-trips with parseRoute", () => {
-    for (const route of [TODAY, ARCHIVES, HELP, LEGAL, { name: "day" as const, day: "2026-10-15" }]) {
+    for (const route of [TODAY, ARCHIVES, HELP, ROOM, LEGAL, { name: "day" as const, day: "2026-10-15" }]) {
       expect(parseRoute(routePath(route), NOW)).toEqual(route);
     }
   });
@@ -53,6 +71,7 @@ describe("isPageRoute", () => {
     expect(isPageRoute(ARCHIVES)).toBe(true);
     expect(isPageRoute(HELP)).toBe(true);
     expect(isPageRoute(LEGAL)).toBe(true);
+    expect(isPageRoute(ROOM)).toBe(true);
     expect(isPageRoute(TODAY)).toBe(false);
     expect(isPageRoute({ name: "day", day: "2026-10-15" })).toBe(false);
   });
@@ -70,5 +89,14 @@ describe("routeTitle", () => {
     expect(routeTitle({ name: "day", day: "2026-10-01" })).toBe("Chanson du jeudi 1er octobre - Lyrix");
     expect(routeTitle(HELP)).toMatch(/Lyrix/);
     expect(routeTitle(LEGAL)).toMatch(/^Mentions légales.* - Lyrix$/);
+    expect(routeTitle(ROOM)).toBe("Jouer à plusieurs - Lyrix");
+  });
+});
+
+describe("roundRoute", () => {
+  it("is today's song for today or no day, else that day of the archives", () => {
+    expect(roundRoute(null, "2026-10-20")).toEqual(TODAY);
+    expect(roundRoute("2026-10-20", "2026-10-20")).toEqual(TODAY);
+    expect(roundRoute("2026-10-15", "2026-10-20")).toEqual({ name: "day", day: "2026-10-15" });
   });
 });

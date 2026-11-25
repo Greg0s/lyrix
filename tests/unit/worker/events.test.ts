@@ -42,6 +42,8 @@ describe("recording an event", () => {
     expect(columnOf("win", "song")).toBe("blob5");
     expect(columnOf("win", "tries")).toBe("double1");
     expect(columnOf("visit", "legal")).toBe("double6");
+    // Added after the others: the points already written keep theirs.
+    expect(columnOf("visit", "room")).toBe("double7");
     expect(() => columnOf("win", "nothing" as "mode")).toThrow(/no field "nothing"/);
   });
 
@@ -154,6 +156,7 @@ describe("POST /api/visit", () => {
         archives: 0,
         help: 0,
         legal: 1,
+        room: 0,
       },
     ]);
     expect(JSON.stringify(events.points)).not.toContain("iPhone");

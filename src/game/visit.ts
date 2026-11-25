@@ -7,8 +7,12 @@
  * CNIL's exemption for audience measurement asks it).
  */
 
-/** The screens a visit is counted on (src/routes.ts), by kind: a day of the archives is "day", whichever. */
-export const VIEW_PAGES = ["today", "day", "archives", "help", "legal"] as const;
+/**
+ * The screens a visit is counted on (src/routes.ts), by kind: a day of the
+ * archives is "day", whichever. In the order of the visit event's fields
+ * (worker/src/events.ts): a new one goes at the end.
+ */
+export const VIEW_PAGES = ["today", "day", "archives", "help", "legal", "room"] as const;
 export type ViewPage = (typeof VIEW_PAGES)[number];
 
 /** Where a visit can start: a screen, or an invite link (/salon/<code>, its code never sent). */
@@ -67,7 +71,7 @@ function isEntryPage(value: unknown): value is EntryPage {
 
 /** No view of any screen yet. */
 export function noViews(): Record<ViewPage, number> {
-  return { today: 0, day: 0, archives: 0, help: 0, legal: 0 };
+  return { today: 0, day: 0, archives: 0, help: 0, legal: 0, room: 0 };
 }
 
 /**

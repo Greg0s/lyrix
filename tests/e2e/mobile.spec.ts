@@ -95,6 +95,53 @@ test("moves between the screens with the tab bar", async ({ page }) => {
   await expect(input(page)).toBeVisible();
 });
 
+test("opens the room as a tab of its own, not a dialog, and plays its round from there", async ({ page }) => {
+  await openRound(page);
+  await tabBar(page).getByRole("link", { name: "Salon" }).click();
+  await expect(page).toHaveURL(/\/jouer-a-plusieurs$/);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1, name: "Jouer à plusieurs" })).toBeVisible();
+  await expect(tabBar(page).getByRole("link", { name: "Salon" })).toHaveAttribute("aria-current", "page");
+  await expect(progress(page)).toHaveCount(0);
+
+  // The keyboard up for the pseudo, the tab bar steps aside, as for a guess.
+  const main = page.getByRole("main");
+  await main.getByRole("tab", { name: "Créer un salon" }).click();
+  await main.getByLabel("Ton pseudo").tap();
+  await expect(tabBar(page)).toBeHidden();
+  await main.getByLabel("Ton pseudo").fill("Camille");
+  await main.getByRole("button", { name: "Créer le salon" }).click();
+
+  // Created, the page stays on the room, to share it.
+  await expect(main.getByRole("heading", { name: "Joueurs · 1" })).toBeVisible();
+  await expect(page).toHaveURL(/\/jouer-a-plusieurs$/);
+  await expect(tabBar(page).getByRole("link", { name: "Salon, 1 joueur" })).toBeVisible();
+
+  await main.getByRole("button", { name: "Chercher ensemble" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByPlaceholder("Propose un mot au groupe…")).toBeVisible();
+
+  // Reloaded, the address is the page's own.
+  await page.goto("/jouer-a-plusieurs");
+  await expect(page.getByRole("main").getByRole("button", { name: "Quitter le salon" })).toBeVisible();
+});
+
+test("links the legal notice from the « Plus » tab alone", async ({ page }) => {
+  const legal = page.getByRole("link", { name: "Mentions légales et confidentialité" });
+  await openRound(page);
+  await expect(legal).toBeHidden();
+  await tabBar(page).getByRole("link", { name: "Archives" }).click();
+  await expect(legal).toBeHidden();
+  await tabBar(page).getByRole("link", { name: "Salon" }).click();
+  await expect(legal).toBeHidden();
+
+  await tabBar(page).getByRole("link", { name: "Plus" }).click();
+  await legal.click();
+  await expect(page).toHaveURL(/\/mentions-legales$/);
+  // Under "Plus", where it was opened from.
+  await expect(tabBar(page).getByRole("link", { name: "Plus" })).toBeVisible();
+});
+
 test("picks the theme on the rules' page: light, dark, or the phone's own", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await openRound(page);
@@ -151,5 +198,7 @@ test.describe("from 880px", () => {
     await expect(page.locator(".lyrix-dock-shortcuts")).toBeHidden();
     await expect(page.locator(".lyrix-aside")).toBeVisible();
     await expect(page.getByRole("button", { name: "Archives" })).toBeVisible();
+    // The legal notice is linked from every screen there.
+    await expect(page.getByRole("link", { name: "Mentions légales et confidentialité" })).toBeVisible();
   });
 });

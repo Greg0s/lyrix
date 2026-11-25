@@ -29,7 +29,7 @@ describe("npm run stats", () => {
     const [daily] = statsQueries(7);
     // landed is double1; the screens are double2 to double6.
     expect(daily.sql).toContain("SUM(_sample_interval * double1) AS visits");
-    expect(daily.sql).toContain("(double2 + double3 + double4 + double5 + double6)");
+    expect(daily.sql).toContain("(double2 + double3 + double4 + double5 + double6 + double7)");
   });
 
   it("posts each query to the account's SQL API, and reads its rows", async () => {

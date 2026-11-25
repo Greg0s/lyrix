@@ -78,7 +78,7 @@ test("reports the visit to the site's own API on leaving: the screens seen and t
     medium: "",
     campaign: "lancement",
     display: "browser",
-    views: { today: 1, day: 0, archives: 1, help: 0, legal: 0 },
+    views: { today: 1, day: 0, archives: 1, help: 0, legal: 0, room: 0 },
   });
 });
 

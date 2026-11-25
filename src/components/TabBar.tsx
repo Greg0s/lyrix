@@ -1,7 +1,7 @@
 import { memo } from "react";
-import { EVENTS, track } from "../analytics";
+import { EVENTS } from "../analytics";
 import { playerCountLabel } from "../game/room";
-import { ARCHIVES, HELP, TODAY, type Route } from "../routes";
+import { ARCHIVES, HELP, ROOM, TODAY, type Route } from "../routes";
 import { CalendarIcon } from "./CalendarIcon";
 import { GroupIcon } from "./GroupIcon";
 import { MoreIcon } from "./MoreIcon";
@@ -13,18 +13,19 @@ interface TabBarProps {
   route: Route;
   /** How many players are connected to the player's room; null outside a room. */
   roomPlayers: number | null;
-  onOpenMultiplayer: () => void;
   onNavigate: (to: Route) => void;
 }
 
 /**
  * The bar of tabs along the bottom of a phone's screen, below 880px only
  * (game.css), in place of the header's buttons: the round, the archives, the
- * room, and "Plus": the rules' page, which holds the theme's card there. A tab is a link to its screen; the room's opens its dialog.
+ * room's page, and "Plus": the rules' page, which holds the theme's card
+ * there. Every tab is a link to its screen, the room's included: a tab, not
+ * the dialog the header's button opens from 880px (asked for by the developer).
  * Hidden while the guess input has the keyboard up. Memoized on stable
  * callbacks, so typing a guess never re-renders it.
  */
-export const TabBar = memo(function TabBar({ route, roomPlayers, onOpenMultiplayer, onNavigate }: TabBarProps) {
+export const TabBar = memo(function TabBar({ route, roomPlayers, onNavigate }: TabBarProps) {
   const onRound = route.name === "today" || route.name === "day";
   const inRoom = roomPlayers !== null;
   const tab = (current: boolean) => (current ? "lyrix-tab is-current" : "lyrix-tab");
@@ -55,12 +56,13 @@ export const TabBar = memo(function TabBar({ route, roomPlayers, onOpenMultiplay
         </span>
         <span className="lyrix-tab-label">Archives</span>
       </RouteLink>
-      <button
-        type="button"
-        className="lyrix-tab"
-        onClick={onOpenMultiplayer}
+      <RouteLink
+        to={ROOM}
+        onNavigate={onNavigate}
+        className={tab(route.name === "room")}
+        aria-current={route.name === "room" ? "page" : undefined}
         aria-label={inRoom ? `Salon, ${playerCountLabel(roomPlayers)}` : "Salon"}
-        {...track(EVENTS.openMultiplayer, { from: "tabbar" })}
+        tracked={{ event: EVENTS.openMultiplayer, data: { from: "tabbar" } }}
       >
         <span className="lyrix-tab-icon">
           <GroupIcon />
@@ -69,7 +71,7 @@ export const TabBar = memo(function TabBar({ route, roomPlayers, onOpenMultiplay
         <span className="lyrix-tab-label" aria-hidden="true">
           Salon
         </span>
-      </button>
+      </RouteLink>
       <RouteLink
         to={HELP}
         onNavigate={onNavigate}

@@ -39,7 +39,7 @@ describe("a visit report, as the Worker reads it", () => {
       source: "newsletter-octobre-script",
       medium: "x".repeat(40),
       display: "browser",
-      views: { today: MAX_VIEWS_PER_PAGE, day: 0, archives: 0, help: 2, legal: 0 },
+      views: { today: MAX_VIEWS_PER_PAGE, day: 0, archives: 0, help: 2, legal: 0, room: 0 },
     });
   });
 

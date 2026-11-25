@@ -504,6 +504,76 @@ describe("leaving the room", () => {
   });
 });
 
+describe("the room's page, the tab bar's « Salon »", () => {
+  function tabBar() {
+    return within(screen.getByRole("navigation", { name: "Navigation" }));
+  }
+
+  async function openPage(): Promise<HTMLElement> {
+    fireEvent.click(tabBar().getByRole("link", { name: /^Salon/ }));
+    await waitFor(() => expect(window.location.pathname).toBe("/jouer-a-plusieurs"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    return screen.getByRole("main");
+  }
+
+  // The page's address would outlive the test, and the next one would mount on it.
+  afterEach(() => {
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("creates a room and stays on it to share it; « Chercher ensemble » goes to the round", async () => {
+    answer(201, entry());
+    await mountGame();
+    const page = await openPage();
+
+    fireEvent.click(within(page).getByRole("tab", { name: "Créer un salon" }));
+    fireEvent.change(within(page).getByLabelText("Ton pseudo"), { target: { value: "Camille" } });
+    fireEvent.click(within(page).getByRole("button", { name: "Créer le salon" }));
+
+    await waitFor(() => expect(within(page).getByText("ABC234")).toBeTruthy());
+    expect(window.location.pathname).toBe("/jouer-a-plusieurs");
+    expect(within(page).getByRole("heading", { name: "Joueurs · 1" })).toBeTruthy();
+    expect(tabBar().getByRole("link", { name: "Salon, 1 joueur" })).toBeTruthy();
+
+    fireEvent.click(within(page).getByRole("button", { name: "Chercher ensemble" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/"));
+    latestSocket().receive(roundMessage());
+    await waitFor(() => expect(screen.getByPlaceholderText(PLACEHOLDER)).toBeTruthy());
+  });
+
+  it("joins a room and goes to its round, the dock saying whose room it is", async () => {
+    answer(201, entry(leo.id, [camille, leo]));
+    await mountGame();
+    const page = await openPage();
+
+    fireEvent.change(within(page).getByLabelText("Code du salon"), { target: { value: "ABC234" } });
+    fireEvent.change(within(page).getByLabelText("Ton pseudo"), { target: { value: "Léo" } });
+    fireEvent.click(within(page).getByRole("button", { name: "Rejoindre le salon" }));
+
+    await waitFor(() => expect(window.location.pathname).toBe("/"));
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://localhost:3000/api/rooms/ABC234/members");
+    latestSocket().receive(roundMessage());
+    await waitFor(() => expect(feedbackText()).toBe("Tu as rejoint le salon de Camille."));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("shows the room the player is in, and stays on the page once they leave it, on the forms", async () => {
+    answer(204);
+    seedRoom();
+    await mountGame();
+    latestSocket().open();
+    const page = await openPage();
+
+    expect(within(page).getByText("ABC234")).toBeTruthy();
+    fireEvent.click(within(page).getByRole("button", { name: "Quitter le salon" }));
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://localhost:3000/api/rooms/ABC234/leave");
+    expect(window.location.pathname).toBe("/jouer-a-plusieurs");
+    expect(within(page).getByRole("tab", { name: "Rejoindre" })).toBeTruthy();
+    expect(tabBar().getByRole("link", { name: "Salon" })).toBeTruthy();
+  });
+});
+
 describe("the multiplayer dialog", () => {
   function openDialog(): HTMLElement {
     fireEvent.click(screen.getByRole("button", { name: "Jouer à plusieurs" }));
