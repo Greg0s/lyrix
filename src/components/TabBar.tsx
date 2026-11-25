@@ -1,7 +1,8 @@
 import { memo } from "react";
 import { EVENTS } from "../analytics";
 import { playerCountLabel } from "../game/room";
-import { ARCHIVES, HELP, ROOM, TODAY, type Route } from "../routes";
+import { ARCHIVES, HELP, ROOM, type Route } from "../routes";
+import { tabRoute } from "../tabs";
 import { CalendarIcon } from "./CalendarIcon";
 import { GroupIcon } from "./GroupIcon";
 import { MoreIcon } from "./MoreIcon";
@@ -22,6 +23,7 @@ interface TabBarProps {
  * room's page, and "Plus": the rules' page, which holds the theme's card
  * there. Every tab is a link to its screen, the room's included: a tab, not
  * the dialog the header's button opens from 880px (asked for by the developer).
+ * A sideways swipe moves to the tab beside the current one (useSwipeTabs).
  * Hidden while the guess input has the keyboard up. Memoized on stable
  * callbacks, so typing a guess never re-renders it.
  */
@@ -33,7 +35,7 @@ export const TabBar = memo(function TabBar({ route, roomPlayers, onNavigate }: T
     <nav className="lyrix-tabbar" aria-label="Navigation">
       {/* On a day of the archives, "Jouer" is that day's round: the screen shown. */}
       <RouteLink
-        to={route.name === "day" ? route : TODAY}
+        to={tabRoute("play", route)}
         onNavigate={onNavigate}
         className={tab(onRound)}
         aria-current={onRound ? "page" : undefined}
