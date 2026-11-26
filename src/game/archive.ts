@@ -90,11 +90,14 @@ export function nextDayToFind(
 /**
  * A day a room played, as the archives show it to one member: the group's
  * progress, but never the title of a day the group found without them, unless
- * they asked for the answer - then it reads as it stood before the winning word.
+ * they found its winning word themselves since or asked for the answer: it
+ * reads as it stood before the winning word. The room says which days those
+ * are (RoomDaySummary.veiled): a member who completed the title, or found its
+ * winning word after, is sent the day in full.
  */
-export function groupEntry(summary: RoomDaySummary, you: string, revealed: boolean): ArchiveEntry {
+export function groupEntry(summary: RoomDaySummary, revealed: boolean): ArchiveEntry {
   const tries = summary.guesses;
-  if (summary.victory && summary.winner?.id !== you && !revealed) {
+  if (summary.victory && summary.veiled === true && !revealed) {
     const masked = summary.title.map((token) =>
       token.isWord ? { ...token, text: "_".repeat(token.text.length), revealed: false } : token
     );

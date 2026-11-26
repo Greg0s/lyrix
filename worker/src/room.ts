@@ -102,6 +102,8 @@ interface RoundRecord {
   hints?: RoomHint[];
   /** Once won: the members (by id) who asked to see the answer (POST /answer). */
   answered?: string[];
+  /** Once won: the members (by id) who found the winning word themselves after the group, on its veiled round. */
+  solvers?: string[];
 }
 
 interface SocketAttachment {
@@ -197,12 +199,18 @@ function winnerOf(round: RoundRecord): RoomMember | undefined {
 
 /**
  * Whether a member may be sent the answer to a round: before the win anyone,
- * after it only the member who completed the title and those who asked for
- * it. Anyone else is sent the round veiled (RoomRound.veiled).
+ * after it only the member who completed the title, those who found the
+ * winning word themselves since, and those who asked for it. Anyone else is
+ * sent the round veiled (RoomRound.veiled).
  */
 function knowsAnswer(round: RoundRecord, memberId: string | null): boolean {
   if (round.winningKey === undefined) return true;
-  return memberId !== null && (winnerOf(round)?.id === memberId || (round.answered ?? []).includes(memberId));
+  return (
+    memberId !== null &&
+    (winnerOf(round)?.id === memberId ||
+      (round.answered ?? []).includes(memberId) ||
+      (round.solvers ?? []).includes(memberId))
+  );
 }
 
 /** A won day's summary as a member who doesn't know its answer sees it: the title before the winning word, no artist. */
@@ -213,7 +221,7 @@ function veiledSummary(summary: RoomDaySummary): RoomDaySummary {
     summary.title.map((token) =>
       token.isWord && token.revealed ? { text: "_".repeat(token.text.length), isWord: true, revealed: false } : token
     );
-  const veiled: RoomDaySummary = { ...summary, title };
+  const veiled: RoomDaySummary = { ...summary, title, veiled: true };
   delete veiled.artist;
   return veiled;
 }
@@ -459,10 +467,7 @@ export class Room {
     // A word someone already proposed changes nothing: answered before any
     // work on it, the similarity lookup included.
     const proposed = round.guesses.find((guess) => sameWord(guess, songGuessKey(song, trimmed)));
-    if (proposed) {
-      const result: RoomGuessResult = { ...(await this.#roundOf(room, round, song, member.id)), guess: proposed, duplicate: true };
-      return json(result, 200);
-    }
+    if (proposed) return this.#proposedAgain(room, round, song, member, proposed, tab);
     if (round.guesses.length >= MAX_ROOM_GUESSES) {
       return json({ error: "the room has proposed as many words as a round takes" }, 403);
     }
@@ -472,10 +477,7 @@ export class Room {
     // the similarity table is awaited above, and another guess of the same
     // word could have landed meanwhile.
     const earlier = round.guesses.find((guess) => sameWord(guess, outcome.key));
-    if (earlier) {
-      const result: RoomGuessResult = { ...(await this.#roundOf(room, round, song, member.id)), guess: earlier, duplicate: true };
-      return json(result, 200);
-    }
+    if (earlier) return this.#proposedAgain(room, round, song, member, earlier, tab);
 
     const guess: RoomGuess = { ...outcome, display: trimmed, by: publicMember(member) };
     const wonBefore = isVictory(song, foundKeys(round));
@@ -502,11 +504,42 @@ export class Room {
   }
 
   /**
+   * A word someone in the room already proposed changes nothing, but for one
+   * member: one the round is veiled for (knowsAnswer), who just typed its
+   * winning word. They found the song themselves, so they know its answer from
+   * now on, and get the round in full, that guess as their own find: their
+   * win, celebrated like the winner's. Nobody else's round changes, so only
+   * the member's other tabs are sent it.
+   */
+  async #proposedAgain(
+    room: RoomRecord,
+    round: RoundRecord,
+    song: Song,
+    member: MemberRecord,
+    proposed: RoomGuess,
+    tab: unknown
+  ): Promise<Response> {
+    const solved = proposed.key === round.winningKey && !knowsAnswer(round, member.id);
+    if (solved) {
+      round.solvers = [...(round.solvers ?? []), member.id];
+      await this.ctx.storage.put(roundKey(roundDay(round)), round);
+    }
+    const current = await this.#roundOf(room, round, song, member.id);
+    if (solved) {
+      await this.#sendRound(room, round, song, {}, (ws) => attachedMemberId(ws) !== member.id || isTabOf(ws, member, tab));
+    }
+    const result: RoomGuessResult = { ...current, guess: proposed, duplicate: !solved };
+    return json(result, 200);
+  }
+
+  /**
    * Once the group has found the song, a member who didn't complete the title
-   * can keep looking on their own: this signs them a solo round holding
+   * used to keep looking on their own: this signs them a solo round holding
    * everything the group found except the winning word, plus whatever their
    * own solo round (`state`, verified here) had found. Refused before the
-   * group has won: until then, the room's own view is all there is.
+   * group has won: until then, the room's own view is all there is. Today's
+   * client keeps playing the room's round, veiled (see #proposedAgain); this
+   * stays for a tab still running an older build, until it reloads.
    */
   async #alone({ token, state, day }: Record<string, unknown>): Promise<Response> {
     const room = await this.#load();
@@ -559,7 +592,10 @@ export class Room {
     const { round, song } = loaded;
     const progress = hintProgress(round);
     if (!roundHints(song, progress, false)) return json({ error: "this song has no hints" }, 404);
-    if (isVictory(song, foundKeys(round))) return json({ error: "the round is already won" }, 409);
+    // Once won, a member the round is veiled for is still looking for its title: their hints still count.
+    if (isVictory(song, foundKeys(round)) && knowsAnswer(round, member.id)) {
+      return json({ error: "the round is already won" }, 409);
+    }
     if (progress.used.includes(hint)) return json(await this.#roundOf(room, round, song, member.id), 200);
     if (!canReveal(progress, hint)) return json({ error: "no hint is unlocked yet" }, 409);
 

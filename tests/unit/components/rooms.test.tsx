@@ -15,6 +15,7 @@ import {
   type RoomHint,
   type RoomMember,
   type RoomMessage,
+  type RoomRound,
   type RoomRoundMessage,
   type RoomSnapshot,
 } from "../../../src/game/room";
@@ -1211,19 +1212,42 @@ describe("when the group finds the song without the player (#30)", () => {
     roomGuess("refuge", leo, true),
     roomGuess("le", camille, true),
   ];
-  /** What the room signs for Camille: everything but « novembre ». */
-  const aloneRound = round("alone-state", ["le", "refuge", "de"]);
+
+  // The room doesn't send the answer to a player who didn't find it: a round
+  // without the winning word, naming who found it (RoomRound.veiled).
+  function veiled<T extends RoomRound>(message: T): T {
+    return { ...message, winner: leo, veiled: true };
+  }
+
+  function veiledMessage(guesses: RoomGuess[] = titleFound.slice(1), latest?: string): RoomRoundMessage {
+    return veiled(roundMessage(guesses, latest));
+  }
 
   function aloneCalls() {
     return fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/alone"));
   }
 
-  it("keeps the answer hidden and lets the player look on alone, from the group's progress", async () => {
-    answer(200, aloneRound);
+  function guessCalls() {
+    return fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/guess"));
+  }
+
+  function answerCalls() {
+    return fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/answer"));
+  }
+
+  function chips(): string[] {
+    const card = screen.getByRole("region", { name: "Mots du groupe" });
+    return [...card.querySelectorAll(".lyrix-chip")].map((chip) => chip.textContent ?? "").sort();
+  }
+
+  // Asked for by the developer: the group's round stays the one played, by
+  // everyone, the answer hidden from whoever didn't find it. The player used
+  // to be moved to a solo round of their own, out of the group's.
+  it("keeps the player on the group's round, the answer hidden", async () => {
     seedRoom(entry(camille.id, [camille, leo]));
     await mountGame(titleFound.slice(1));
 
-    latestSocket().receive(roundMessage(titleFound, "novembre", "novembre"));
+    latestSocket().receive(veiledMessage());
 
     expect(feedbackText()).toBe("Léo a trouvé la chanson !");
     const banner = screen.getByRole("region", { name: "Le groupe a trouvé" });
@@ -1231,50 +1255,85 @@ describe("when the group finds the song without the player (#30)", () => {
     expect(screen.queryByText(/Bravo/)).toBeNull();
     // Léo's win, not hers: nothing to celebrate yet.
     expect(confetti()).toBeNull();
+    expect(lyricsText()).toContain("refuge");
     expect(lyricsText()).not.toContain("novembre");
-    expect(screen.getByPlaceholderText("Propose un mot…")).toBeTruthy();
-    expect(screen.getByRole("region", { name: "Tes mots" })).toBeTruthy();
-
-    await waitFor(() => expect(lyricsText()).toContain("refuge"));
-    expect(aloneCalls()).toHaveLength(1);
-    expect(JSON.parse(String(aloneCalls()[0]?.[1]?.body))).toEqual({ token: "token-m1", state: "state-0", day: utcDay() });
-    expect(lyricsText()).not.toContain("novembre");
+    expect(screen.getByPlaceholderText("Propose un mot au groupe…")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Mots du groupe" })).toBeTruthy();
+    expect(aloneCalls()).toHaveLength(0);
   });
 
-  // The solo list was shown as it was before the room: empty, or the few
-  // words tried alone, under lyrics holding everything the group found.
-  it("lists what the group tried but the winning word among the player's own words", async () => {
-    answer(200, aloneRound);
+  it("lists every word the group proposed, misses included, but the winning one", async () => {
     seedRoom(entry(camille.id, [camille, leo]));
     await mountGame([roomGuess("guitare", leo, false), ...titleFound.slice(1)]);
 
-    latestSocket().receive(roundMessage([roomGuess("guitare", leo, false), ...titleFound], "novembre", "novembre"));
+    latestSocket().receive(veiledMessage([roomGuess("guitare", leo, false), ...titleFound.slice(1)]));
 
-    await waitFor(() => expect(lyricsText()).toContain("refuge"));
-    const card = screen.getByRole("region", { name: "Tes mots" });
-    const chips = [...card.querySelectorAll(".lyrix-chip")].map((chip) => chip.textContent).sort();
-    expect(chips).toEqual(["de", "guitare", "le", "refuge"]);
-    expect(document.querySelector('[data-stat="found"] .lyrix-stat-value')?.textContent).toBe("3");
+    await waitFor(() => expect(screen.getByRole("region", { name: "Le groupe a trouvé" })).toBeTruthy());
+    expect(chips()).toEqual(["de", "guitare", "le", "refuge"]);
   });
 
-  // Decided with the developer: a player still looking on their own when they
-  // leave keeps everything the group found but the winning word, which is
-  // what their solo round already holds; the room's own state would hand
-  // them the song.
-  it("never keeps the room's winning state for a player looking alone", async () => {
-    answer(200, aloneRound);
+  it("sends the player's guesses to the group, and tells them of the group's later finds", async () => {
+    seedRoom(entry(camille.id, [camille, leo]));
+    const input = await mountGame(titleFound.slice(1));
+    latestSocket().receive(veiledMessage());
+
+    answer(200, veiled(guessResult([roomGuess("piano", camille, false), ...titleFound.slice(1)])));
+    fireEvent.change(input, { target: { value: "piano" } });
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(chips()).toEqual(["de", "le", "piano", "refuge"]));
+    expect(guessCalls()).toHaveLength(1);
+    expect(sentBody(0)).toMatchObject({ token: "token-m1", word: "piano" });
+    expect(submitGuess).not.toHaveBeenCalled();
+
+    const later = [roomGuess("jardin", leo, true), roomGuess("piano", camille, false), ...titleFound.slice(1)];
+    latestSocket().receive(veiledMessage(later, "jardin"));
+
+    expect(feedbackText()).toBe("Léo a trouvé « jardin » !");
+    await waitFor(() => expect(lyricsText()).toContain("jardin"));
+    expect(lyricsText()).not.toContain("novembre");
+    expect(screen.getByRole("region", { name: "Le groupe a trouvé" })).toBeTruthy();
+  });
+
+  it("celebrates the player who finds the winning word on their own (#42)", async () => {
+    seedRoom(entry(camille.id, [camille, leo]));
+    const input = await mountGame(titleFound.slice(1));
+    latestSocket().receive(veiledMessage());
+
+    // The room answers with the round in full, Léo's guess as her find.
+    answer(200, { ...guessResult(titleFound), winningKey: "novembre", winner: leo });
+    fireEvent.change(input, { target: { value: "novembre" } });
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy());
+    expect(confetti()).toBeTruthy();
+    expect(feedbackText()).toBe("« novembre » trouvé !");
+    expect(lyricsText()).toContain("novembre");
+    expect(screen.queryByRole("region", { name: "Le groupe a trouvé" })).toBeNull();
+    expect(submitGuess).not.toHaveBeenCalled();
+    // Still the group's round: the next word goes to everyone.
+    expect(screen.getByPlaceholderText("Propose un mot au groupe…")).toBeTruthy();
+  });
+
+  // Decided with the developer: a player who leaves without the answer keeps
+  // everything the group found but the winning word. The state the room
+  // sends them is sealed without it; the room's own would hand them the song.
+  it("only ever keeps the round the room sent, without the winning word", async () => {
     seedRoom(entry(camille.id, [camille, leo]));
     await mountGame(titleFound.slice(1));
-    latestSocket().receive(roundMessage(titleFound, "novembre", "novembre"));
-    await waitFor(() => expect(lyricsText()).toContain("refuge"));
+    latestSocket().receive(veiledMessage([roomGuess("jardin", leo, true), ...titleFound.slice(1)]));
 
-    const kept = window.localStorage.getItem(`lyrix:group:${utcDay()}:ABC234`) ?? "";
-    expect(kept).not.toContain(`"room-${titleFound.length}"`);
+    flushSavedRound();
+    const kept = JSON.parse(window.localStorage.getItem(`lyrix:group:${utcDay()}:ABC234`) ?? "null") as {
+      state: string;
+      found: { key: string }[];
+    };
+    expect(kept.state).toBe(`room-${titleFound.length}`);
+    expect(kept.found.map((word) => word.key)).not.toContain("novembre");
   });
 
   it("does not celebrate a guess of the player's that crossed the teammate's winning one (#42)", async () => {
-    answer(200, { ...guessResult([roomGuess("guitare", camille, false), ...titleFound]), winningKey: "novembre" });
-    answer(200, aloneRound);
+    answer(200, veiled(guessResult([roomGuess("guitare", camille, false), ...titleFound.slice(1)])));
     seedRoom(entry(camille.id, [camille, leo]));
     const input = await mountGame(titleFound.slice(1));
 
@@ -1285,37 +1344,17 @@ describe("when the group finds the song without the player (#30)", () => {
     expect(confetti()).toBeNull();
   });
 
-  it("sends the player's guesses to their own round while they look alone", async () => {
-    answer(200, aloneRound);
-    submitGuess.mockResolvedValue({ ...round("won", ["le", "refuge", "de", "novembre"]), found: true, key: "novembre", score: 100, near: [] });
+  it("asks the room for the answer once shown it, and again after a reload", async () => {
     seedRoom(entry(camille.id, [camille, leo]));
     await mountGame(titleFound.slice(1));
-    latestSocket().receive(roundMessage(titleFound, "novembre", "novembre"));
-    await waitFor(() => expect(aloneCalls()).toHaveLength(1));
-    await waitFor(() => expect(lyricsText()).toContain("refuge"));
-    const input = screen.getByPlaceholderText("Propose un mot…");
+    latestSocket().receive(veiledMessage());
 
-    fireEvent.change(input, { target: { value: "novembre" } });
-    fireEvent.submit(input);
-
-    await waitFor(() => expect(screen.getByText("Bravo, tu l'as trouvée !")).toBeTruthy());
-    // Found on her own: a win of her own (#42).
-    expect(confetti()).toBeTruthy();
-    expect(submitGuess).toHaveBeenCalledWith("alone-state", "novembre");
-    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/guess"))).toBe(false);
-    expect(screen.queryByRole("region", { name: "Le groupe a trouvé" })).toBeNull();
-  });
-
-  it("shows the group's answer on request, and remembers it across a reload", async () => {
-    answer(200, aloneRound);
-    seedRoom(entry(camille.id, [camille, leo]));
-    await mountGame(titleFound.slice(1));
-    latestSocket().receive(roundMessage(titleFound, "novembre", "novembre"));
-    await waitFor(() => expect(aloneCalls()).toHaveLength(1));
-
+    answer(200, { ...roomRound(titleFound), winningKey: "novembre", winner: leo });
     fireEvent.click(screen.getByRole("button", { name: "Afficher la réponse" }));
 
-    expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy());
+    expect(answerCalls()).toHaveLength(1);
+    expect(JSON.parse(String(answerCalls()[0]?.[1]?.body))).toEqual({ token: "token-m1", day: utcDay() });
     expect(lyricsText()).toContain("novembre");
     expect(screen.queryByRole("region", { name: "Le groupe a trouvé" })).toBeNull();
     // An answer shown is not a win (#42).
@@ -1323,10 +1362,11 @@ describe("when the group finds the song without the player (#30)", () => {
 
     cleanup();
     FakeWebSocket.instances.length = 0;
+    answer(200, { ...roomRound(titleFound), winningKey: "novembre", winner: leo });
     render(<GameScreen />);
-    latestSocket().receive(roundMessage(titleFound, undefined, "novembre"));
+    latestSocket().receive(veiledMessage());
     await waitFor(() => expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy());
-    expect(aloneCalls()).toHaveLength(1);
+    expect(answerCalls()).toHaveLength(2);
     expect(confetti()).toBeNull();
   });
 
@@ -1336,117 +1376,22 @@ describe("when the group finds the song without the player (#30)", () => {
 
     expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy();
     expect(screen.queryByRole("region", { name: "Le groupe a trouvé" })).toBeNull();
-    expect(aloneCalls()).toHaveLength(0);
     // Won before this connection: shown, not celebrated again (#42).
     expect(confetti()).toBeNull();
   });
 
   it("offers the same choice to a player arriving after the group won", async () => {
-    answer(200, aloneRound);
     seedRoom(entry(camille.id, [camille, leo]));
     render(<GameScreen />);
 
-    latestSocket().receive(roundMessage(titleFound, undefined, "novembre"));
+    latestSocket().receive(veiledMessage());
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Afficher la réponse" })).toBeTruthy());
     expect(lyricsText()).not.toContain("novembre");
+    expect(screen.getByPlaceholderText("Propose un mot au groupe…")).toBeTruthy();
   });
 
-  // The room no longer sends the answer to a player who didn't find it: a
-  // round without the winning word, naming who found it.
-  function veiledMessage(guesses: RoomGuess[] = titleFound.slice(1)): RoomRoundMessage {
-    return { ...roundMessage(guesses), winner: leo, veiled: true };
-  }
-
-  function answerCalls() {
-    return fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/answer"));
-  }
-
-  it("hears of the group's win from a round that leaves the answer out", async () => {
-    answer(200, aloneRound);
-    seedRoom(entry(camille.id, [camille, leo]));
-    await mountGame(titleFound.slice(1));
-
-    latestSocket().receive(veiledMessage());
-
-    await waitFor(() => expect(screen.getByRole("region", { name: "Le groupe a trouvé" })).toBeTruthy());
-    expect(feedbackText()).toBe("Léo a trouvé la chanson !");
-    await waitFor(() => expect(aloneCalls()).toHaveLength(1));
-    expect(lyricsText()).not.toContain("novembre");
-  });
-
-  it("asks the room for the answer once shown it, and again after a reload", async () => {
-    answer(200, aloneRound);
-    seedRoom(entry(camille.id, [camille, leo]));
-    await mountGame(titleFound.slice(1));
-    latestSocket().receive(veiledMessage());
-    await waitFor(() => expect(aloneCalls()).toHaveLength(1));
-
-    answer(200, { ...roomRound(titleFound), winningKey: "novembre", winner: leo });
-    fireEvent.click(screen.getByRole("button", { name: "Afficher la réponse" }));
-
-    await waitFor(() => expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy());
-    expect(answerCalls()).toHaveLength(1);
-    expect(JSON.parse(String(answerCalls()[0]?.[1]?.body))).toEqual({ token: "token-m1", day: utcDay() });
-    expect(lyricsText()).toContain("novembre");
-
-    cleanup();
-    FakeWebSocket.instances.length = 0;
-    answer(200, { ...roomRound(titleFound), winningKey: "novembre", winner: leo });
-    render(<GameScreen />);
-    latestSocket().receive(veiledMessage());
-    await waitFor(() => expect(screen.getByText("Bravo, le groupe l'a trouvée !")).toBeTruthy());
-    expect(answerCalls()).toHaveLength(2);
-  });
-
-  // Greg's report: when a teammate found the song, "Tes mots" was rewritten,
-  // the words proposed in the room and missed gone from it.
-  it("keeps the room's misses among the player's words, its winning word aside", async () => {
-    answer(200, aloneRound);
-    seedRoom(entry(camille.id, [camille, leo]));
-    const before = [roomGuess("guitare", leo, false), roomGuess("piano", camille, false), ...titleFound.slice(1)];
-    await mountGame(before);
-
-    latestSocket().receive(roundMessage([titleFound[0] as RoomGuess, ...before], "novembre", "novembre"));
-
-    await waitFor(() => expect(lyricsText()).toContain("refuge"));
-    const card = screen.getByRole("region", { name: "Tes mots" });
-    const chips = [...card.querySelectorAll(".lyrix-chip")].map((chip) => chip.textContent).sort();
-    expect(chips).toEqual(["de", "guitare", "le", "piano", "refuge"]);
-    // Kept for 30 days with the round: never with a teammate's pseudo.
-    flushSavedRound();
-    expect(window.localStorage.getItem(`lyrix:day:${utcDay()}`)).not.toContain("Léo");
-    expect(window.localStorage.getItem(`lyrix:view:${utcDay()}`)).not.toContain("Léo");
-  });
-
-  it("sends nothing on the solo round while the group's progress is on its way to it", async () => {
-    let sign: (response: Response) => void = () => {};
-    fetchMock.mockReturnValueOnce(new Promise<Response>((resolve) => (sign = resolve)));
-    submitGuess.mockResolvedValue({ ...round("alone-state-2", ["le", "refuge", "de"]), found: false, key: "piano", score: 12, near: [] });
-    seedRoom(entry(camille.id, [camille, leo]));
-    const input = await mountGame(titleFound.slice(1));
-    latestSocket().receive(roundMessage(titleFound, "novembre", "novembre"));
-    await waitFor(() => expect(aloneCalls()).toHaveLength(1));
-
-    fireEvent.change(input, { target: { value: "piano" } });
-    fireEvent.submit(input);
-
-    // Sent on the round about to be replaced, its answer would have landed
-    // over the group's progress, in the lyrics and in "Tes mots".
-    expect(submitGuess).not.toHaveBeenCalled();
-    expect(document.querySelector(".lyrix-submit")?.getAttribute("aria-disabled")).toBe("true");
-
-    await act(async () => sign(new Response(JSON.stringify(aloneRound), { status: 200 })));
-    await waitFor(() => expect(lyricsText()).toContain("refuge"));
-    fireEvent.submit(input);
-
-    await waitFor(() => expect(submitGuess).toHaveBeenCalledWith("alone-state", "piano"));
-    const card = screen.getByRole("region", { name: "Tes mots" });
-    await waitFor(() => expect(card.querySelectorAll(".lyrix-chip")).toHaveLength(4));
-    expect(lyricsText()).toContain("refuge");
-  });
-
-  it("asks for nothing once the player has found the song on their own", async () => {
+  it("keeps a song the player found on their own as their win", async () => {
     saveRound(round("won", ["le", "refuge", "de", "novembre"]), [
       { key: "novembre", display: "novembre", found: true, score: 100, near: [] },
     ]);
@@ -1454,23 +1399,10 @@ describe("when the group finds the song without the player (#30)", () => {
     seedRoom(entry(camille.id, [camille, leo]));
     render(<GameScreen />);
 
-    latestSocket().receive(roundMessage(titleFound, undefined, "novembre"));
+    latestSocket().receive(veiledMessage());
 
     await waitFor(() => expect(screen.getByText("Bravo, tu l'as trouvée !")).toBeTruthy());
-    expect(aloneCalls()).toHaveLength(0);
-  });
-
-  it("stays quiet about the room's later finds while the player looks alone", async () => {
-    answer(200, aloneRound);
-    seedRoom(entry(camille.id, [camille, leo]));
-    await mountGame(titleFound.slice(1));
-    latestSocket().receive(roundMessage(titleFound, "novembre", "novembre"));
-    await waitFor(() => expect(aloneCalls()).toHaveLength(1));
-
-    latestSocket().receive(roundMessage([roomGuess("jardin", leo, true), ...titleFound], "jardin", "novembre"));
-
-    expect(feedbackText()).toBe("Léo a trouvé la chanson !");
-    expect(lyricsText()).not.toContain("jardin");
+    expect(screen.queryByRole("region", { name: "Le groupe a trouvé" })).toBeNull();
   });
 });
 
@@ -1604,11 +1536,15 @@ describe("the day the room plays", () => {
         ...(index === 0 ? [] : [{ text: " ", isWord: false, revealed: true }]),
         { text: found || text !== "novembre" ? text : "________", isWord: true, revealed: found || text !== "novembre" },
       ]);
+    const earlier = utcDay(new Date(Date.now() - 3 * DAY_MS));
     latestSocket().receive({
       ...roundMessage(),
       days: [
-        { day: ARCHIVED, title: title(true), percent: 60, victory: true, guesses: 7, artist: "Anaïs Verger", winner: leo, titleBeforeWin: title(false) },
+        // As the room sends a day won without her (veiledSummary): the title before the winning word, no artist.
+        { day: ARCHIVED, title: title(false), percent: 60, victory: true, guesses: 7, winner: leo, titleBeforeWin: title(false), veiled: true },
         { day: yesterday, title: title(true), percent: 70, victory: true, guesses: 5, artist: "Anaïs Verger", winner: camille },
+        // Won by Léo, its winning word found by her since: sent in full.
+        { day: earlier, title: title(true), percent: 80, victory: true, guesses: 9, artist: "Anaïs Verger", winner: leo, titleBeforeWin: title(false) },
       ],
     });
     await waitFor(() => expect(screen.getByPlaceholderText(PLACEHOLDER)).toBeTruthy());
@@ -1618,7 +1554,8 @@ describe("the day the room plays", () => {
 
     expect(screen.getByRole("link", { name: /: le salon l'a trouvée, à toi de finir, 60 % des paroles$/ })).toBeTruthy();
     expect(screen.getByRole("link", { name: /: Le refuge de novembre, Anaïs Verger, trouvée avec le salon en 5 essais$/ })).toBeTruthy();
-    expect(screen.getAllByText("Le refuge de novembre")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: /: Le refuge de novembre, Anaïs Verger, trouvée avec le salon en 9 essais$/ })).toBeTruthy();
+    expect(screen.getAllByText("Le refuge de novembre")).toHaveLength(2);
     window.history.replaceState(null, "", "/");
   });
 

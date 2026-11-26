@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isSongUnavailable, isTransientFailure } from "../api/base";
 import { fetchRound, resumeRound, revealHint as requestHint, submitGuess } from "../api/client";
-import { continueAlone, revealRoomAnswer, revealRoomHint, submitRoomGuess } from "../api/rooms";
+import { revealRoomAnswer, revealRoomHint, submitRoomGuess } from "../api/rooms";
 import { utcDay } from "../game/daily";
 import { applyReveal, isGuessDelta, revealedWords, withHints } from "../game/delta";
 import { availableHints, HINT_LABELS } from "../game/hints";
@@ -104,18 +104,13 @@ interface SharedRound extends RoomSession {
   winningKey: string | null;
   /** Once the group has found the song: who completed the title (RoomRound.winner). */
   winner: RoomMember | null;
-  /** The room sends this player its round without the answer, until they ask for it (RoomRound.veiled). */
+  /**
+   * The room sends this player its round without the answer (RoomRound.veiled),
+   * until they find the winning word themselves or ask for the answer.
+   */
   veiled: boolean;
   /** The player chose to see the answer the group found without them. Saved per room (roomStorage). */
   revealed: boolean;
-  /** The solo round to keep looking on was asked for (see useGame's effect): once per room session and day. */
-  aloneRequested: boolean;
-  /**
-   * That request is on its way: the solo round on screen is about to be
-   * replaced, so no guess or hint is sent on it meanwhile, whose answer would
-   * land over the group's progress or be dropped from it.
-   */
-  aloneLoading: boolean;
   /** Every day the room played, for the group's collection in the archives. */
   days: RoomDaySummary[];
   /** The hints the group revealed, with who picked each (RoomRound.hints). */
@@ -130,14 +125,14 @@ function groupWinner(shared: SharedRound): RoomMember | null {
 }
 
 /**
- * The group found the song, but not this player, who hasn't asked for the
- * answer: they keep looking on their own, on their solo round, and the room's
- * round (the answer in full) stays out of sight.
+ * The group found the song, but this player doesn't know its answer: they
+ * neither completed the title, nor found its winning word since, nor asked
+ * for it. They keep playing the room's round with everyone, the room sending
+ * it veiled (RoomRound.veiled): everything but the winning word. They used to
+ * be moved to their own solo round, out of the group's.
  */
-function lookingAlone(shared: SharedRound | null): boolean {
-  if (!shared || shared.revealed) return false;
-  const winner = groupWinner(shared);
-  return winner !== null && winner.id !== shared.you;
+function answerHidden(shared: SharedRound | null): boolean {
+  return shared !== null && shared.veiled && !shared.revealed && groupWinner(shared) !== null;
 }
 
 function triedWordFrom({ key, display, found, score, near, by }: RoomGuess): TriedWord {
@@ -170,7 +165,7 @@ function withRoomRound(shared: SharedRound, update: RoomRound): SharedRound {
     days: update.days ?? shared.days,
     hints: update.hints ?? [],
     ...(otherDay || shared.round === null
-      ? { revealed: isAnswerRevealed(shared.code, update.round.day), aloneRequested: false, aloneLoading: false }
+      ? { revealed: isAnswerRevealed(shared.code, update.round.day) }
       : {}),
   };
 }
@@ -315,36 +310,22 @@ function withRoomWords(own: readonly TriedWord[], room: readonly TriedWord[]): T
 }
 
 /**
- * What of the room's guesses joins the player's own list: every word anyone
- * proposed in the room, missed ones included (decided with the developer), but
- * `withheld` (the winning one, for a player looking alone). Only the found
- * words used to join it, so the misses vanished from "Tes mots" the moment
- * the group's list gave way to it.
- */
-function roomWordsKept(guesses: readonly TriedWord[], withheld: string | null = null): TriedWord[] {
-  return withheld === null ? [...guesses] : guesses.filter((word) => word.key !== withheld);
-}
-
-/**
- * A solo round is about to replace the one on screen (the group's progress
- * signed for a player looking alone, or a room left joining their own round):
- * nothing is sent on the one shown until it has.
+ * A solo round is about to replace the one on screen (a room left joining
+ * the player's own round): nothing is sent on the one shown until it has.
  */
 function syncing(state: GameState): boolean {
-  if (state.merging) return true;
-  const { shared } = state;
-  if (!shared || !lookingAlone(shared) || !onRoomDay(state) || wonAlone(state)) return false;
-  return !shared.aloneRequested || shared.aloneLoading;
+  return state.merging;
 }
 
 /**
- * The room's round is the one on screen on the room's day, unless the player
- * is looking alone, or already found that day's song on their own: their won
+ * The room's round is the one on screen on the room's day, the group's win
+ * included: one round for everyone all along (decided with the developer).
+ * Unless the player already found that day's song on their own: their won
  * round stays theirs, as the archives show it (decided with the developer),
  * and the room plays on without spoiling it for the others.
  */
 function roomShown(state: GameState): boolean {
-  return state.shared !== null && onRoomDay(state) && !lookingAlone(state.shared) && !wonAlone(state);
+  return state.shared !== null && onRoomDay(state) && !wonAlone(state);
 }
 
 /** The solo round on screen is the day's, and won. */
@@ -362,7 +343,7 @@ function onRoomDay(state: GameState): boolean {
   return roomDay === undefined ? state.day === null : (state.day ?? utcDay()) === roomDay;
 }
 
-/** The solo round is the one on screen: out of a room, looking alone in one, or on a day of the archives. */
+/** The solo round is the one on screen: out of a room, on a day won alone in one, or on a day of the archives. */
 function showsSoloRound(state: GameState): boolean {
   return !roomShown(state);
 }
@@ -592,7 +573,7 @@ export function useGame(day: string | null = null) {
 
   const submit = useCallback(async () => {
     const { inputValue, submitting, revealingHint } = state;
-    // Looking alone after the group won, or on a day of the archives: the player's guesses are their own.
+    // A day won alone, or a day of the archives: the player's guesses are their own.
     const shared = roomShown(state) ? state.shared : null;
     const round = shared ? shared.round : state.round;
     const triedWords = shared ? shared.triedWords : state.triedWords;
@@ -782,8 +763,6 @@ export function useGame(day: string | null = null) {
         winner: null,
         veiled: false,
         revealed: false,
-        aloneRequested: false,
-        aloneLoading: false,
         days: [],
         hints: [],
       };
@@ -803,9 +782,8 @@ export function useGame(day: string | null = null) {
       // A veiled round never names the winning guess: the win is a winner appearing.
       const veiledWin = message.veiled === true && message.winner !== undefined && current.winner === null;
       const winning = veiledWin || (latest !== undefined && latest.key === message.winningKey);
-      // Looking alone, the room's later finds would give words away: only the win itself is news.
       // On another day than the room's, its round isn't the one played: none of it is.
-      const quiet = !onRoomDay({ ...prev, shared }) || (lookingAlone(current) && !winning);
+      const quiet = !onRoomDay({ ...prev, shared });
       const seq = (prev.notice?.seq ?? 0) + 1;
       // A teammate revealed a hint: the player hears what it says.
       const hintBy = message.latestHint ? message.hints?.find((hint) => hint.id === message.latestHint)?.by : undefined;
@@ -825,7 +803,7 @@ export function useGame(day: string | null = null) {
     });
   }, []);
 
-  /** Shows the room's round, the answer included, to a player who was looking alone. */
+  /** Shows the room's round, the answer included, to a player the room was veiling it for. */
   const revealAnswer = useCallback(() => {
     setState((prev) => {
       if (!prev.shared?.round) return prev;
@@ -860,54 +838,13 @@ export function useGame(day: string | null = null) {
       });
   }, [answerCode, answerToken, answerRound]);
 
-  // The group won without this player: their solo round becomes the group's
-  // progress but the winning word, plus their own finds (signed by the room,
-  // never merged here). Asked once per room session, once the solo round has
-  // loaded, so its own progress goes along. Without it, the solo round as is.
-  const alone = lookingAlone(state.shared);
-  // The solo round of the room's day only: the one the room's song is played on.
-  // Not while a guess is on its way, whose answer would land over the round
-  // signed; nor once the player has found the song on their own: their won
-  // round is complete as it is.
-  const aloneSession =
-    alone && state.shared && !state.shared.aloneRequested && !state.loading && !state.submitting && onRoomDay(state) &&
-    !wonAlone(state)
-      ? state.shared
-      : null;
-  const soloState = state.round?.state;
-  useEffect(() => {
-    if (!aloneSession?.round) return;
-    const { code, token } = aloneSession;
-    const { day: roomDay } = aloneSession.round;
-    // What the round the room signs holds of the group's, listed with the
-    // player's own words: as of now, so no later find of the room's gets in.
-    // The room's guesses go along, missed ones included.
-    const roomWords = roomWordsKept(aloneSession.triedWords, aloneSession.winningKey);
-    const done = (prev: GameState): GameState =>
-      prev.shared?.code === code ? { ...prev, shared: { ...prev.shared, aloneLoading: false } } : prev;
-    setState((prev) =>
-      prev.shared ? { ...prev, shared: { ...prev.shared, aloneRequested: true, aloneLoading: true } } : prev
-    );
-    continueAlone(code, token, soloState, roomDay)
-      .then((round) => {
-        setState((prev) => {
-          if (prev.shared?.code !== code || (prev.day ?? utcDay()) !== round.day) return done(prev);
-          const triedWords = withRoomWords(prev.triedWords, roomWords);
-          saveRoundSoon(round, triedWords);
-          return done({ ...prev, round, triedWords, error: null });
-        });
-      })
-      // The solo round as it was: the player looks on from their own progress.
-      .catch(() => setState(done));
-  }, [aloneSession, soloState]);
-
   // While in a room, what it has found is kept aside, to join the player's own
-  // round once out of it (see GroupSnapshot) - unless the player is looking
-  // alone, whose solo round already holds the group's progress but the
-  // winning word: keeping the room's state would hand them that word.
+  // round once out of it (see GroupSnapshot). For a player the answer is
+  // hidden from, that is the veiled round the room sends them: its state is
+  // sealed without the winning word, so leaving never hands it to them.
   const sharedNow = state.shared;
   useEffect(() => {
-    if (!sharedNow?.round || lookingAlone(sharedNow)) return;
+    if (!sharedNow?.round) return;
     saveGroupSnapshotSoon({
       day: sharedNow.round.day ?? utcDay(),
       code: sharedNow.code,
@@ -1001,8 +938,8 @@ export function useGame(day: string | null = null) {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  // In a room, its round takes today's solo one's place, unless the player is
-  // looking alone; the solo round is kept as it was, for then and for when
+  // In a room, its round takes the solo one's place on the room's day, unless
+  // the player won that day alone; the solo round is kept as it was, for when
   // the player leaves. A day of the archives is always the player's own.
   const shared = roomShown(state) ? state.shared : null;
   const winner = state.shared ? groupWinner(state.shared) : null;
@@ -1015,8 +952,8 @@ export function useGame(day: string | null = null) {
     inRoom: state.shared !== null,
     /** True while the room's round is the one shown and played. */
     playingRoom: shared !== null,
-    /** Who found the song for the group, while this player is looking alone; null otherwise. */
-    aloneAfter: alone && onRoomDay(state) ? winner : null,
+    /** Who found the song for the group, while its answer is hidden from this player; null otherwise. */
+    aloneAfter: answerHidden(state.shared) && onRoomDay(state) ? winner : null,
     /** The day the player's room plays, once it has said so; null out of a room. */
     roomDay: state.shared?.round?.day ?? null,
     /** Whether the player asked for the answer the group found on the room's day. */

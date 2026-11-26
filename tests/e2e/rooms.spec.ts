@@ -380,10 +380,12 @@ test.describe("when a teammate completes the title", () => {
     return { host, guest, winning };
   }
 
-  test("the others keep looking alone, the winning word still hidden, and can win on their own", async ({
+  // Asked for by the developer: one round for everyone all along, the answer
+  // hidden from whoever didn't find it. They used to be moved to a solo round.
+  test("the others keep playing the group's round, the winning word still hidden, and can find it on their own", async ({
     browser,
   }) => {
-    const { guest, winning } = await wonByHost(browser);
+    const { host, guest, winning } = await wonByHost(browser);
 
     await expect(feedback(guest)).toHaveText("Camille a trouvé la chanson !");
     await expect(guest.getByRole("region", { name: "Le groupe a trouvé" })).toBeVisible();
@@ -392,13 +394,28 @@ test.describe("when a teammate completes the title", () => {
     // Camille's win, not Léo's. Read once: a burst would have come with the banner.
     expect(await guest.locator(".lyrix-confetti").count()).toBe(0);
 
-    const input = guest.getByPlaceholder("Propose un mot…");
-    await input.fill(winning);
-    await input.press("Enter");
+    // Still the group's round: a word found by either reaches both.
+    await guess(guest, lyricsWord);
+    await expect(feedback(host)).toHaveText(`Léo a trouvé « ${lyricsWord} » !`);
+    await expect(host.locator(".token-word-found", { hasText: lyricsWord }).first()).toBeVisible();
+    await expect(guest.getByRole("region", { name: "Le groupe a trouvé" })).toBeVisible();
 
-    await expect(guest.getByText("Bravo, tu l'as trouvée")).toBeVisible();
+    await guess(guest, winning);
+
+    await expect(guest.getByText("Bravo, le groupe l'a trouvée")).toBeVisible();
     await expect(guest.getByRole("region", { name: "Le groupe a trouvé" })).toHaveCount(0);
     await expect(guest.locator(".lyrix-confetti")).toHaveCount(1);
+    await expect(guest.getByPlaceholder("Propose un mot au groupe…")).toBeVisible();
+  });
+
+  test("whoever found the title keeps uncovering the lyrics with the group", async ({ browser }) => {
+    const { host, guest } = await wonByHost(browser);
+
+    await guess(host, lyricsWord);
+
+    await expect(feedback(host)).toHaveText(`« ${lyricsWord} » trouvé !`);
+    await expect(feedback(guest)).toHaveText(`Camille a trouvé « ${lyricsWord} » !`);
+    await expect(guest.locator(".token-word-found", { hasText: lyricsWord }).first()).toBeVisible();
   });
 
   test("the others can see the answer at once, and still do after a reload", async ({ browser }) => {

@@ -124,22 +124,24 @@ describe("the group's collection", () => {
     titleBeforeWin: [word("Le", true), space, word("Sud", false)],
   };
 
-  it("shows a day the group won to the member who completed it, as found", () => {
-    expect(groupEntry(won, "m2", false)).toMatchObject({ victory: true, artist: "Nino Ferrer", tries: 9, byGroup: true });
+  it("shows a day the group won to a member the room sent it in full, as found", () => {
+    expect(groupEntry(won, false)).toMatchObject({ victory: true, artist: "Nino Ferrer", tries: 9, byGroup: true });
   });
 
-  it("never shows its title to a member still looking on their own", () => {
-    const entry = groupEntry(won, "m1", false);
+  it("never shows its title when the room sent it veiled", () => {
+    const veiled: RoomDaySummary = { ...won, veiled: true };
+    delete veiled.artist;
+    const entry = groupEntry(veiled, false);
     expect(entry).toMatchObject({ victory: false, groupFound: true, percent: 40 });
     expect(entry.artist).toBeUndefined();
     expect(entry.title.map((token) => token.text).join("")).toBe("Le ___");
-    const without: RoomDaySummary = { ...won };
+    const without: RoomDaySummary = { ...veiled };
     delete without.titleBeforeWin;
-    expect(groupEntry(without, "m1", false).title.every((token) => !token.isWord || /^_+$/.test(token.text))).toBe(true);
+    expect(groupEntry(without, false).title.every((token) => !token.isWord || /^_+$/.test(token.text))).toBe(true);
   });
 
   it("shows it once the member asked for the answer", () => {
-    expect(groupEntry(won, "m1", true).victory).toBe(true);
+    expect(groupEntry({ ...won, veiled: true }, true).victory).toBe(true);
   });
 
   it("keeps a day the player found, and the group's progress where it is further along", () => {
