@@ -1,6 +1,5 @@
 import {
   generateTabId,
-  isRoundView,
   parseRoomEntry,
   parseRoomGuessResult,
   parseRoomRoundAnswer,
@@ -8,7 +7,7 @@ import {
   type RoomGuessResult,
   type RoomRound,
 } from "../game/room";
-import type { HintId, RoundView } from "../game/types";
+import type { HintId } from "../game/types";
 import { apiUrl, GUESS_TIMEOUT_MS, ROOM_ENTRY_TIMEOUT_MS, withTimeout } from "./base";
 
 /** This page's tab, as its room tells its connections apart (see generateTabId). */
@@ -114,27 +113,6 @@ export function revealRoomHint(code: string, token: string, hint: HintId, day?: 
     if (!round) throw new Error(`revealing the hint failed with status ${response.status}`);
     return round;
   });
-}
-
-/**
- * Once the room has found the song, a solo round for a member who didn't
- * complete the title: the group's finds but the winning word, merged with the
- * player's own solo `state` when there is one. Throws when it couldn't be had.
- */
-export async function continueAlone(
-  code: string,
-  token: string,
-  state: string | undefined,
-  day?: string
-): Promise<RoundView> {
-  const response = await fetch(apiUrl(`/api/rooms/${encodeURIComponent(code)}/alone`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, state, day }),
-  });
-  const body: unknown = await response.json().catch(() => null);
-  if (!response.ok || !isRoundView(body)) throw new Error(`continuing alone failed with status ${response.status}`);
-  return body;
 }
 
 /**

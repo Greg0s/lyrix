@@ -12,9 +12,9 @@ interface GroupFoundBannerProps {
 
 /**
  * Shown to a room member when the group found the song without them (#30).
- * The answer stays hidden: they keep looking on their own solo round, which
- * starts from everything the group found but the winning word, until they
- * find it or choose to see it.
+ * The answer stays hidden: they keep playing the room's round with everyone,
+ * every word but the winning one in sight, until they find it or choose to
+ * see it.
  */
 export const GroupFoundBanner = memo(function GroupFoundBanner({ winner, you, onReveal }: GroupFoundBannerProps) {
   return (
@@ -22,8 +22,8 @@ export const GroupFoundBanner = memo(function GroupFoundBanner({ winner, you, on
       <p className="lyrix-group-found-text" role="status">
         <span className="lyrix-player-dot" style={playerStyle(winner, you)} aria-hidden="true" />
         <span>
-          <strong>{memberName(winner, you)} a trouvé la chanson pour le groupe&nbsp;!</strong> Continue à chercher de
-          ton côté&nbsp;: le mot gagnant est encore caché pour toi.
+          <strong>{memberName(winner, you)} a trouvé la chanson pour le groupe&nbsp;!</strong> Le mot gagnant est
+          encore caché pour toi&nbsp;: continue à chercher avec le groupe.
         </span>
       </p>
       <button type="button" className="lyrix-button is-accent" onClick={onReveal} {...track(EVENTS.revealGroupAnswer)}>

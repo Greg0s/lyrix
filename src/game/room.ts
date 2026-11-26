@@ -136,15 +136,16 @@ export interface RoomRound {
   hints?: RoomHint[];
   /**
    * Once the group has found the song: the key of the guess that completed the
-   * title. Its player found it; everyone else is offered the answer or to keep
-   * looking on their own (POST /api/rooms/:code/alone).
+   * title. Its player found it; everyone else keeps playing the same round,
+   * veiled, until they find that word too or ask for the answer.
    */
   winningKey?: string;
   /** Once the group has found the song: who completed the title. Sent to every member, veiled or not. */
   winner?: RoomMember;
   /**
-   * Sent instead of the answer to a member who neither completed the title
-   * nor asked for the answer (POST /api/rooms/:code/answer): the round as it
+   * Sent instead of the answer to a member who neither completed the title,
+   * nor found its winning word since, nor asked for the answer (POST
+   * /api/rooms/:code/answer): the round as it
    * stood but for the winning word, which is left out of `guesses`, `round`
    * and `winningKey`, and the days it won shown as before their winning word.
    * The answer used to reach every member and was only hidden on screen.
@@ -166,7 +167,7 @@ export interface RoomRoundMessage extends RoomRound {
 /**
  * What the room found on one day it played, for the group's collection in the
  * archives. The title is the room's: spelled out once won, which a member
- * still looking on their own must not be shown (`titleBeforeWin` is theirs).
+ * who doesn't know its answer must not be shown (`titleBeforeWin` is theirs).
  */
 export interface RoomDaySummary {
   day: string;
@@ -181,8 +182,13 @@ export interface RoomDaySummary {
   artist?: string;
   /** Once won: who completed the title. */
   winner?: RoomMember;
-  /** Once won: the title as it stood just before the winning word, what a member looking alone may see. */
+  /** Once won: the title as it stood just before the winning word, what a member who doesn't know the answer may see. */
   titleBeforeWin?: DisplayToken[];
+  /**
+   * Sent to a member who doesn't know this day's answer (see RoomRound.veiled):
+   * its title is the one before the winning word, and no artist.
+   */
+  veiled?: true;
 }
 
 /** What POST /api/rooms/:code/guess answers. */
@@ -451,6 +457,7 @@ export function parseRoomDaySummary(value: unknown): RoomDaySummary | null {
     ...(typeof value.artist === "string" ? { artist: value.artist } : {}),
     ...(winner ? { winner } : {}),
     ...(isDisplayTokens(value.titleBeforeWin) ? { titleBeforeWin: tokensOnly(value.titleBeforeWin) } : {}),
+    ...(value.veiled === true ? { veiled: true as const } : {}),
   };
 }
 

@@ -282,7 +282,7 @@ export function GameScreen() {
     for (const summary of roomDays) {
       // The room's day: the answer may have just been shown, before storage is read again.
       const revealed = (summary.day === roomDay && roomRevealed) || isAnswerRevealed(roomCode, summary.day);
-      days[summary.day] = groupEntry(summary, member, revealed);
+      days[summary.day] = groupEntry(summary, revealed);
     }
     return days;
   }, [roomDays, roomCode, member, roomDay, roomRevealed]);
