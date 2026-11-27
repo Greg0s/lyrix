@@ -36,6 +36,7 @@ import {
   NO_HINT_PROGRESS,
   parseGuessWord,
   roundHints,
+  unknownWordBody,
   type RoundEnv,
 } from "./round";
 import { recordEvent, roundKind } from "./events";
@@ -472,6 +473,8 @@ export class Room {
       return json({ error: "the room has proposed as many words as a round takes" }, 403);
     }
     const outcome = await evaluateGuess(this.env, song, foundKeys(round), trimmed);
+    // A word the game doesn't know is nobody's try: not kept, not sent to the room.
+    if (outcome === null) return json(unknownWordBody(song, trimmed), 422);
 
     // Checked again now, with nothing awaited between here and the write below:
     // the similarity table is awaited above, and another guess of the same

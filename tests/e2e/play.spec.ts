@@ -84,10 +84,25 @@ test("shows feedback for a guess that is not in the lyrics", async ({ page }) =>
   await page.goto("/");
   const input = page.getByPlaceholder("Propose un mot…");
 
-  await input.fill("xylophoneinexistant");
+  await input.fill("xylophone");
   await input.press("Enter");
 
   await expect(page.getByText("n’y est pas")).toBeVisible();
+});
+
+test("refuses a word the game doesn't know, without counting it as a try", async ({ page }) => {
+  await page.goto("/");
+  const input = page.getByPlaceholder("Propose un mot…");
+
+  await input.fill("azertyuiop");
+  await input.press("Enter");
+  await expect(page.getByText("Je ne connais pas le mot « azertyuiop ».")).toBeVisible();
+  await expect(page.locator('[data-stat="tried"]')).toHaveText("0 essai");
+
+  await input.fill("xylophone");
+  await input.press("Enter");
+  await expect(page.locator('[data-stat="tried"]')).toHaveText("1 essai");
+  await expect(page.locator(".lyrix-chip", { hasText: "azertyuiop" })).toHaveCount(0);
 });
 
 // Regression test: under StrictMode (the dev server these specs run on), the
@@ -102,9 +117,9 @@ test("asks for today's round once, keeping a word typed as soon as the dock show
   await page.goto("/");
   const input = page.getByPlaceholder("Propose un mot…");
 
-  await input.fill("xylophoneinexistant");
+  await input.fill("xylophone");
   await page.waitForLoadState("networkidle");
-  await expect(input).toHaveValue("xylophoneinexistant");
+  await expect(input).toHaveValue("xylophone");
   expect(roundRequests).toHaveLength(1);
 });
 
@@ -112,7 +127,7 @@ test("agrees in number between found and tried counts in the progress card", asy
   await page.goto("/");
   const input = page.getByPlaceholder("Propose un mot…");
 
-  await input.fill("xylophoneinexistant");
+  await input.fill("xylophone");
   await input.press("Enter");
 
   // Regression test: the stats text used to always say "trouvés"/"essayés"
@@ -120,7 +135,7 @@ test("agrees in number between found and tried counts in the progress card", asy
   await expect(page.locator('[data-stat="found"]')).toHaveText("0 mot trouvé");
   await expect(page.locator('[data-stat="tried"]')).toHaveText("1 essai");
 
-  await input.fill("xylophoneautre");
+  await input.fill("trombone");
   await input.press("Enter");
   await expect(page.locator('[data-stat="tried"]')).toHaveText("2 essais");
 });
@@ -317,13 +332,13 @@ test("keeps the guess input focused after submitting, whether by Enter or by cli
   await page.goto("/");
   const input = page.getByPlaceholder("Propose un mot…");
 
-  await input.fill("xylophoneinexistant");
+  await input.fill("xylophone");
   await input.press("Enter");
   await expect(input).toBeFocused();
 
   // Regression test: clicking "Valider" moved focus to the button, leaving
   // the player to reclick the input before typing their next guess.
-  await input.fill("xylophoneautre");
+  await input.fill("trombone");
   await page.getByRole("button", { name: "Valider" }).click();
   await expect(input).toBeFocused();
 });
@@ -354,11 +369,11 @@ test("never blurs the guess input while a guess is submitted, by Enter or by cli
   await input.focus();
   const blurs = await countInputBlurs(page);
 
-  await input.fill("xylophoneinexistant");
+  await input.fill("xylophone");
   await input.press("Enter");
   await expect(page.locator('[data-stat="tried"]')).toHaveText("1 essai");
 
-  await input.fill("xylophoneautre");
+  await input.fill("trombone");
   await page.getByRole("button", { name: "Valider" }).click();
   await expect(page.locator('[data-stat="tried"]')).toHaveText("2 essais");
 
@@ -376,7 +391,7 @@ test.describe("on a touch screen", () => {
     await input.tap();
     const blurs = await countInputBlurs(page);
 
-    await input.fill("xylophoneinexistant");
+    await input.fill("xylophone");
     await page.getByRole("button", { name: "Valider" }).tap();
     await expect(page.locator('[data-stat="tried"]')).toHaveText("1 essai");
 

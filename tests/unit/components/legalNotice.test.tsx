@@ -51,6 +51,14 @@ describe("the legal notice's credits", () => {
       "https://creativecommons.org/licenses/by/3.0/deed.fr"
     );
   });
+
+  it("credits the word list the game knows its words from, and its licence (MIT)", () => {
+    render(<LegalNotice onClose={() => {}} contact={null} />);
+    expect(text()).toContain("de Zeke Sikelianos et Titus Wormer, diffusée sous licence MIT");
+    expect(screen.getByRole("link", { name: "an-array-of-french-words" }).getAttribute("href")).toBe(
+      "https://github.com/words/an-array-of-french-words"
+    );
+  });
 });
 
 describe("the audience measurement's opt-out", () => {

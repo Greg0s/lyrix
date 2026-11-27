@@ -7,6 +7,7 @@ import { CELEBRATION_MS } from "../../../src/components/confetti";
 import { utcDay } from "../../../src/game/daily";
 import type { GuessDelta, GuessResult, RoundView } from "../../../src/game/types";
 import { flushSavedRound, saveRound } from "../../../src/roundStorage";
+import { UnknownWordError } from "../../../src/api/base";
 
 /**
  * What the player feels between keystrokes.
@@ -910,6 +911,28 @@ describe("feedback on a guess", () => {
     // The other copy of the animation, so the second miss shakes too.
     expect(row.className).toMatch(/is-shake-/);
     expect(row.className).not.toBe(firstShake);
+  });
+
+  it("says so when the Worker doesn't know the word, and counts it as no try", async () => {
+    submitGuess.mockRejectedValueOnce(new UnknownWordError("azerty"));
+    submitGuess.mockResolvedValueOnce({ ...round("state-1"), found: false, key: "vent", score: 12, near: [] });
+
+    const input = await mountGame();
+    fireEvent.change(input, { target: { value: "Azerty" } });
+    fireEvent.submit(input);
+
+    await waitFor(() => expect(screen.getByText("Je ne connais pas le mot « Azerty ».")).toBeTruthy());
+    expect((input as HTMLInputElement).value).toBe("");
+    expect((input.parentElement as HTMLElement).className).toMatch(/is-shake-/);
+    expect(document.querySelector('[data-stat="tried"]')?.textContent).toBe("0 essai");
+
+    // The next word goes from the round as it was; the unknown one isn't among the words tried.
+    fireEvent.change(input, { target: { value: "vent" } });
+    fireEvent.submit(input);
+    await waitFor(() => expect(screen.getByText("« vent » n’y est pas.")).toBeTruthy());
+    expect(submitGuess).toHaveBeenLastCalledWith("state-0", "vent");
+    expect(document.querySelector('[data-stat="tried"]')?.textContent).toBe("1 essai");
+    expect(screen.queryByText("Azerty")).toBeNull();
   });
 
   it("takes a word as already tried once found with an elision, and asks the Worker about an elided word not yet sent", async () => {

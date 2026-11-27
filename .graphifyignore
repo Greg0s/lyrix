@@ -1,2 +1,4 @@
 # The graphify skill's own docs describe the tool, not Lyrix.
 .claude/skills/
+# Generated: the Worker's word list, one string of ~325,000 words (npm run lexicon:build).
+worker/src/lexiconWords.ts

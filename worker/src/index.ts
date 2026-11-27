@@ -18,6 +18,7 @@ import {
   parseGuessWord,
   roundHints,
   sealRound,
+  unknownWordBody,
   type RoundEnv,
 } from "./round";
 import { roomRoutes, type RoomsEnv } from "./roomRoutes";
@@ -194,6 +195,8 @@ app.post("/api/guess", async (c) => {
   }
 
   const outcome = await evaluateGuess(c.env, song, new Set(payload.foundKeys), trimmed);
+  // A word the game doesn't know changes nothing: no try counted, no state moved on.
+  if (outcome === null) return c.json(unknownWordBody(song, trimmed), 422);
   const foundKeys = outcome.found ? [...payload.foundKeys, outcome.key] : payload.foundKeys;
   const { day } = payload;
   // Every new word answered counts towards the next hint, found or not; the

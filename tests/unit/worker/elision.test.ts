@@ -50,6 +50,7 @@ describe("a guess typed with an elision", () => {
   it("reveals the elision in front of its word, every occurrence of the word, and no other elision", async () => {
     const outcome = await evaluateGuess(env, song, new Set(), "j'aime");
     expect(outcome).toMatchObject({ key: "j'aime", found: true });
+    if (!outcome) throw new Error("a word of the song is always known");
 
     const view = await buildRoundView(song, [outcome.key], env, DAY);
     // Title "J'aime la pluie"; "j" of "J'ai" and "t" of "t'aime" stay hidden.
@@ -64,6 +65,7 @@ describe("a guess typed with an elision", () => {
   it("reveals the same in a delta as in a full view, and counts it the same", async () => {
     const before = await buildRoundView(song, ["aime"], env, DAY);
     const outcome = await evaluateGuess(env, song, new Set(["aime"]), "j'aime");
+    if (!outcome) throw new Error("a word of the song is always known");
     const delta = await buildGuessDelta(song, ["aime", outcome.key], outcome, env, DAY);
     const after = await buildRoundView(song, ["aime", outcome.key], env, DAY);
 

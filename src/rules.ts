@@ -48,9 +48,14 @@ export const FAQ: readonly Question[] = [
       "Parce qu'il est proche du mot caché à cet endroit (score de 40 ou plus). Il y reste jusqu'à ce qu'un mot plus proche prenne sa place, ou que le mot caché soit trouvé. Si la barre est loin dans les paroles, le message sous le champ te prévient qu'il est proche d'un mot caché.",
   },
   {
+    question: "Pourquoi mon mot est-il refusé ?",
+    answer:
+      "Le jeu ne le connaît pas : une faute de frappe, un mot inventé, plusieurs mots d'un coup. Il ne compte pas comme un essai et n'apparaît pas dans « Tes mots » : corrige-le et réessaie. Un mot des paroles est toujours accepté, même rare ou en anglais.",
+  },
+  {
     question: "Pourquoi mon mot n'a-t-il pas de score ?",
     answer:
-      "Le modèle ne le connaît pas : un mot très rare, une faute de frappe, une forme que le modèle n'a jamais vue. Essaie un synonyme plus courant.",
+      "Le modèle de proximité ne le connaît pas : un mot très rare, ou une forme qu'il n'a jamais vue. Essaie un synonyme plus courant.",
   },
   {
     question: "Et les nombres ?",
