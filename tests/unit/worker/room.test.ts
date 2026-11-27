@@ -32,6 +32,7 @@ import { resetSimilarityMemo } from "../../../worker/src/similarity";
 import { getSongById, resetSongMemo } from "../../../worker/src/songs";
 import { sealState, openState } from "../../../worker/src/state";
 import { titleLeaks } from "./titleLeak";
+import { KNOWN_MISSES } from "./knownMisses";
 
 /**
  * Rooms, end to end under plain Node: the Worker's routes in front of real
@@ -624,6 +625,23 @@ describe("the room's round (#30)", () => {
       ["guitare", "Camille"],
       ["refuge", "Léo"],
     ]);
+  });
+
+  it("refuses a word the game doesn't know: nobody's try, kept for nobody, sent to nobody", async () => {
+    const host = await createRoom("Camille");
+    const hostSocket = await connect(host);
+    const guest = await joinRoom(host.room.code, "Léo");
+    await guessIn(host, "guitare");
+    const heardBefore = hostSocket.sent.length;
+
+    const response = await post(`/api/rooms/${host.room.code}/guess`, { token: guest.token, word: "Gitarre" });
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "Je ne connais pas le mot « Gitarre ».", code: "unknown-word", key: "gitarre" });
+    expect(hostSocket.sent).toHaveLength(heardBefore);
+    const next = await guessIn(guest, "violon");
+    expect(next.guesses.map((guess) => guess.key)).toEqual(["violon", "guitare"]);
+    expect(next.round.hints?.tried).toBe(2);
   });
 
   it("says so, and changes nothing, when someone in the room already proposed the word", async () => {
@@ -1442,7 +1460,7 @@ describe("a room's hints", () => {
 
   /** `count` guesses nobody would find, from `entry`: every one counts towards the group's next hint. */
   async function missIn(entry: RoomEntry, count: number, from = 0): Promise<void> {
-    for (let index = from; index < from + count; index += 1) await guessIn(entry, `essai${index}`);
+    for (let index = from; index < from + count; index += 1) await guessIn(entry, KNOWN_MISSES[index]);
   }
 
   it("unlock on the group's guesses, whoever made them", async () => {
@@ -1452,7 +1470,7 @@ describe("a room's hints", () => {
     await missIn(guest, 24, 25);
     expect((await revealIn(guest, "era")).status).toBe(409);
 
-    const last = await guessIn(host, "essai49");
+    const last = await guessIn(host, KNOWN_MISSES[49]);
     expect(last.round.hints).toEqual({ tried: 50, used: [], values: {} });
     expect((await revealIn(guest, "era")).status).toBe(200);
   });

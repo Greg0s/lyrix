@@ -73,6 +73,17 @@ export class ApiError extends Error {
 }
 
 /**
+ * The Worker doesn't know the word guessed (src/game/unknownWord.ts): nothing
+ * was counted or kept, and the player is told so like any other outcome.
+ */
+export class UnknownWordError extends ApiError {
+  constructor(readonly key: string) {
+    super("unknown word", 422);
+    this.name = "UnknownWordError";
+  }
+}
+
+/**
  * The Worker couldn't get the round's song right now (LRCLIB, see
  * worker/src/songs.ts): a 503, which says nothing about what was asked
  * either, and passes once LRCLIB answers again.

@@ -102,6 +102,11 @@ export function LegalNotice({ onClose, contact = CONTACT_EMAIL }: LegalNoticePro
             <a href="https://fauconnier.github.io/#data">frWac2Vec</a> de Jean-Philippe Fauconnier, diffusé sous licence{" "}
             <a href="https://creativecommons.org/licenses/by/3.0/deed.fr">Creative Commons Attribution 3.0</a>.
           </p>
+          <p>
+            Les mots que le jeu connaît viennent de la liste{" "}
+            <a href="https://github.com/words/an-array-of-french-words">an-array-of-french-words</a> de Zeke Sikelianos et
+            Titus Wormer, diffusée sous licence MIT.
+          </p>
         </section>
 
         <section aria-labelledby="lyrix-legal-privacy">

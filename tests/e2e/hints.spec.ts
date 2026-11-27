@@ -1,19 +1,16 @@
 import { expect, test, type Page } from "@playwright/test";
+import { KNOWN_MISSES } from "../unit/worker/knownMisses";
 
 /**
  * Hints (src/game/hints.ts), on whatever song the day plays: unlocked at 50
  * guesses, revealed only when picked, kept across a reload. The words guessed
- * are nobody's lyrics, so the round is never won on the way.
+ * are words the game knows and nobody's lyrics, so the round is never won
+ * on the way.
  */
-
-const NONSENSE = Array.from(
-  { length: 50 },
-  (_, index) => `zq${String.fromCharCode(97 + Math.floor(index / 26), 97 + (index % 26))}xw`
-);
 
 async function guessNonsense(page: Page, count: number): Promise<void> {
   const input = page.getByPlaceholder("Propose un mot…");
-  for (const word of NONSENSE.slice(0, count)) {
+  for (const word of KNOWN_MISSES.slice(0, count)) {
     await input.fill(word);
     await input.press("Enter");
     await expect(input).toHaveValue("");

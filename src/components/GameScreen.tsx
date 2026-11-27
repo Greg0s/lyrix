@@ -3,6 +3,7 @@ import { daysToFind, groupEntry, nextDayToFind, type ArchiveEntry } from "../gam
 import { revealedPercent } from "../game/progress";
 import { parseInvitePath } from "../game/room";
 import { closestGuessBySlot, createNearPlacer } from "../game/slots";
+import { unknownWordMessage } from "../game/unknownWord";
 import { watchKeyboardDismiss } from "../hooks/keyboardDismiss";
 import { trackStickyHeight } from "../hooks/stickyFit";
 import { SONG_UNAVAILABLE_MESSAGE, useGame, type Feedback } from "../hooks/useGame";
@@ -43,8 +44,9 @@ import { TitleGuess } from "./TitleGuess";
 import { TourInvite } from "./TourInvite";
 import { TriedWords } from "./TriedWords";
 
-function feedbackMessage({ word, found, duplicate, nearCount }: Feedback): string {
+function feedbackMessage({ word, found, duplicate, unknown, nearCount }: Feedback): string {
   if (duplicate) return `« ${word} » a déjà été proposé.`;
+  if (unknown) return unknownWordMessage(word);
   if (found) return `« ${word} » trouvé !`;
   if (nearCount === 0) return `« ${word} » n’y est pas.`;
   // A close word can land far down the lyrics, out of sight: say so, or the hint goes unnoticed.

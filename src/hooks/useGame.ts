@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isSongUnavailable, isTransientFailure } from "../api/base";
+import { isSongUnavailable, isTransientFailure, UnknownWordError } from "../api/base";
 import { fetchRound, resumeRound, revealHint as requestHint, submitGuess } from "../api/client";
 import { revealRoomAnswer, revealRoomHint, submitRoomGuess } from "../api/rooms";
 import { utcDay } from "../game/daily";
@@ -50,6 +50,8 @@ export interface Feedback {
   found: boolean;
   /** True when the word had already been tried: nothing was sent, the player is just told so. */
   duplicate: boolean;
+  /** True when the Worker doesn't know the word (src/game/unknownWord.ts): nothing was counted or kept. */
+  unknown?: boolean;
   /** How many hidden words the guess is close to, so a hint shown far down the lyrics doesn't go unnoticed. */
   nearCount: number;
   /** Bumped on every new feedback, so the same message twice in a row still replays its animation. */
@@ -692,6 +694,17 @@ export function useGame(day: string | null = null) {
         celebration: won && showsSoloRound(prev) ? prev.celebration + 1 : prev.celebration,
       }));
     } catch (error) {
+      if (error instanceof UnknownWordError) {
+        // No word at all: not a try, so the round and the words tried stay as they were.
+        setState((prev) => ({
+          ...prev,
+          inputValue: prev.inputValue === inputValue ? "" : prev.inputValue,
+          submitting: false,
+          notice: null,
+          feedback: { word: raw, key: error.key, found: false, duplicate: false, unknown: true, nearCount: 0, seq: nextSeq(prev.feedback) },
+        }));
+        return;
+      }
       setState((prev) => ({
         ...prev,
         submitting: false,

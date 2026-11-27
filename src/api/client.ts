@@ -1,5 +1,6 @@
 import type { GuessAnswer, HintAnswer, HintId, RoundView } from "../game/types";
-import { API_BASE, ApiError, apiUrl, GUESS_TIMEOUT_MS, ROUND_LOAD_TIMEOUT_MS, withTimeout } from "./base";
+import { isUnknownWordAnswer } from "../game/unknownWord";
+import { API_BASE, ApiError, apiUrl, GUESS_TIMEOUT_MS, ROUND_LOAD_TIMEOUT_MS, UnknownWordError, withTimeout } from "./base";
 
 interface ErrorBody {
   error: string;
@@ -12,6 +13,7 @@ function isErrorBody(value: unknown): value is ErrorBody {
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null);
+    if (isUnknownWordAnswer(body)) throw new UnknownWordError(body.key);
     throw new ApiError(isErrorBody(body) ? body.error : `request failed with status ${response.status}`, response.status);
   }
   return (await response.json()) as T;
@@ -68,7 +70,8 @@ export function revealHint(state: string, hint: HintId): Promise<HintAnswer> {
 /**
  * Asks for what the guess changed (a GuessDelta, see src/game/delta.ts); a full
  * view comes back instead on a win, or from a Worker deployed before deltas.
- * Throws when the guess couldn't be checked, a network that never answers
+ * Throws an UnknownWordError for a word the Worker doesn't know, and when the
+ * guess couldn't be checked, a network that never answers
  * included (GUESS_TIMEOUT_MS).
  */
 export function submitGuess(state: string, word: string): Promise<GuessAnswer> {

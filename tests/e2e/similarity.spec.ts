@@ -18,7 +18,7 @@ import { titleWords } from "./titleWords";
 const CLOSE_WORD = "clavecin"; // sample score 71 -> "hot"
 const LONG_CLOSE_WORD = "violoncelle"; // sample score 64, and longer than most words it lands on
 const DISTANT_WORD = "chlorophylle"; // sample score 4 -> "cold"
-const UNKNOWN_WORD = "zzzinconnu"; // absent from the table -> no score at all
+const UNSCORED_WORD = "trombone"; // a word, but absent from the table -> no score at all
 
 /**
  * The tried-word chip of exactly this word: its text, then its score if it has
@@ -54,7 +54,7 @@ test("colours and ranks tried words by how close they are to the song", async ({
   await page.goto("/");
   const input = page.getByPlaceholder("Propose un mot…");
 
-  for (const word of [DISTANT_WORD, UNKNOWN_WORD, CLOSE_WORD]) {
+  for (const word of [DISTANT_WORD, UNSCORED_WORD, CLOSE_WORD]) {
     await input.fill(word);
     await input.press("Enter");
     await expect(page.locator(".lyrix-chip", { hasText: word })).toBeVisible();
@@ -64,7 +64,7 @@ test("colours and ranks tried words by how close they are to the song", async ({
   await expect(chips).toHaveCount(3);
 
   // None of the three is in the lyrics: what separates them is only the score.
-  for (const word of [CLOSE_WORD, DISTANT_WORD, UNKNOWN_WORD]) {
+  for (const word of [CLOSE_WORD, DISTANT_WORD, UNSCORED_WORD]) {
     await expect(page.locator(".lyrix-chip", { hasText: word })).toHaveClass(
       /is-missed/,
     );
@@ -79,13 +79,13 @@ test("colours and ranks tried words by how close they are to the song", async ({
 
   // A word the model doesn't know shows no score rather than a misleading zero.
   await expect(
-    page.locator(".lyrix-chip", { hasText: UNKNOWN_WORD }),
+    page.locator(".lyrix-chip", { hasText: UNSCORED_WORD }),
   ).toHaveClass(/tier-unknown/);
 
   // Highest score first, unscored last - not the order they were typed in.
   await expect(chips.nth(0)).toContainText(CLOSE_WORD);
   await expect(chips.nth(1)).toContainText(DISTANT_WORD);
-  await expect(chips.nth(2)).toContainText(UNKNOWN_WORD);
+  await expect(chips.nth(2)).toContainText(UNSCORED_WORD);
 
   await expect(
     page.getByText("Plus le score est élevé", { exact: false }),
@@ -263,12 +263,12 @@ test("shows a close word in place of the hidden words it is close to", async ({
   await expect(
     page.getByText(`« ${DISTANT_WORD} » n’y est pas.`, { exact: true }),
   ).toBeVisible();
-  await guess(page, UNKNOWN_WORD);
+  await guess(page, UNSCORED_WORD);
   await expect(
     page.locator(".token-word-near", { hasText: DISTANT_WORD }),
   ).toHaveCount(0);
   await expect(
-    page.locator(".token-word-near", { hasText: UNKNOWN_WORD }),
+    page.locator(".token-word-near", { hasText: UNSCORED_WORD }),
   ).toHaveCount(0);
   await expect(placed.first()).toBeVisible();
 });

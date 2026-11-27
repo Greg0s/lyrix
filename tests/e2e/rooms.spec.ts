@@ -3,6 +3,7 @@ import type { RoundView } from "../../src/game/types";
 import { FEMALE_SINGERS, MALE_SINGERS } from "../../worker/src/singerNames";
 import { TOUR_SEEN } from "../../playwright.config";
 import { lyricsOnlyWord, titleWords as titleWordsOf } from "./titleWords";
+import { KNOWN_MISSES } from "../unit/worker/knownMisses";
 
 /**
  * Rooms ("salons", issue #29), for real: a Durable Object per room in the
@@ -299,10 +300,14 @@ test("plays the day's round together: every find and every miss reaches the whol
   const hostWords = host.getByRole("region", { name: "Mots du groupe" });
   await expect(hostWords.locator(".lyrix-chip", { hasText: lyricsWord }).locator(".lyrix-player-dot")).toHaveCount(1);
 
-  await guess(host, "zzqxw");
-  await expect(feedback(guest)).toHaveText("Camille a proposé « zzqxw », sans succès.");
-  await guess(guest, "ZZQXW");
-  await expect(feedback(guest)).toHaveText("« ZZQXW » a déjà été proposé.");
+  await guess(host, "trombone");
+  await expect(feedback(guest)).toHaveText("Camille a proposé « trombone », sans succès.");
+  await guess(guest, "TROMBONE");
+  await expect(feedback(guest)).toHaveText("« TROMBONE » a déjà été proposé.");
+  // A word the game doesn't know is nobody's try: told to who typed it, sent to nobody else.
+  await guess(guest, "trombonne");
+  await expect(feedback(guest)).toHaveText("Je ne connais pas le mot « trombonne ».");
+  await expect(feedback(host)).toHaveText("« trombone » n’y est pas.");
 
   for (const word of titleWords) await guess(host, word);
 
@@ -325,9 +330,9 @@ test("shares the room's hints: unlocked on the group's guesses, revealed for eve
   await expect(feedback(host)).toHaveText("Léo a rejoint le salon.");
 
   // Nobody's lyrics: twenty-five each, fifty for the group.
-  for (const letter of "abcdefghijklmnopqrstuvwxy") {
-    await guess(host, `zq${letter}xw`);
-    await guess(guest, `zq${letter}yv`);
+  for (let index = 0; index < 50; index += 2) {
+    await guess(host, KNOWN_MISSES[index]);
+    await guess(guest, KNOWN_MISSES[index + 1]);
   }
   const hostHints = host.getByRole("region", { name: "Indices" });
   await expect(hostHints.getByText("1 à choisir")).toBeVisible();

@@ -230,7 +230,7 @@ describe("the song's identity", () => {
   it("is in no response before victory, state included", async () => {
     const round = await getRound();
     const song = await playedSong(round);
-    const miss = await guess(round.state, "xylophoneinexistant");
+    const miss = await guess(round.state, "xylophone");
     const hit = await guess(miss.body.state, "ligne");
     expect(hit.body.found).toBe(true);
     expect(hit.body.victory).toBe(false);
@@ -249,7 +249,7 @@ describe("the song's identity", () => {
     if (!song) throw new Error("the stand-in can't be opened");
     expect(song.id).toBe("le-refuge-de-novembre");
 
-    const miss = await guess(round.state, "xylophoneinexistant", dev);
+    const miss = await guess(round.state, "xylophone", dev);
     const sent = [round, miss.body].map((body) => JSON.stringify(body)).join("\n");
     expect(titleLeaks(sent, song)).toEqual([]);
   });
@@ -290,7 +290,7 @@ describe("GET /api/round?day=", () => {
   it("keeps the round on its day through a guess", async () => {
     at("2026-10-20T10:00:00Z");
     const round = (await (await roundOf("2026-10-15")).json()) as RoundView;
-    const { status, body } = await guess(round.state, "xylophoneinexistant");
+    const { status, body } = await guess(round.state, "xylophone");
     expect(status).toBe(200);
     expect(body.day).toBe("2026-10-15");
   });
@@ -324,7 +324,7 @@ describe("GET /api/round?day=", () => {
     at("2026-10-20T10:00:00Z");
     const round = (await (await roundOf("2026-10-15")).json()) as RoundView;
     const song = await playedSong(round);
-    const miss = await guess(round.state, "xylophoneinexistant");
+    const miss = await guess(round.state, "xylophone");
     const sent = [round, miss.body].map((body) => JSON.stringify(body)).join("\n");
     expect(titleLeaks(sent, song)).toEqual([]);
   });
@@ -341,7 +341,7 @@ describe("GET /api/round?day=", () => {
     const resolved = fetched.mock.calls.length;
     expect(resolved).toBe(ARCHIVE_DAYS);
 
-    for (const round of rounds) expect((await guess(round.state, "xylophoneinexistant")).status).toBe(200);
+    for (const round of rounds) expect((await guess(round.state, "xylophone")).status).toBe(200);
     expect(fetched.mock.calls.length).toBe(resolved);
   });
 
@@ -351,7 +351,7 @@ describe("GET /api/round?day=", () => {
     at("2026-10-20T10:00:00Z");
     const song = await playedSong(await getRound());
     const dayless = await sealState({ songId: song.id, foundKeys: [] } as unknown as StatePayload, env.STATE_SECRET);
-    expect((await guess(dayless, "xylophoneinexistant")).status).toBe(400);
+    expect((await guess(dayless, "xylophone")).status).toBe(400);
   });
 });
 
@@ -482,9 +482,49 @@ describe("POST /api/guess", () => {
 
   it("does not reveal anything for a word that is not in the song", async () => {
     const round = await getRound();
-    const { body } = await guess(round.state, "xylophoneinexistant");
+    const { body } = await guess(round.state, "xylophone");
     expect(body.found).toBe(false);
     expect(allTokens(body).filter((t) => t.isWord).every((t) => !t.revealed)).toBe(true);
+  });
+
+  it("refuses a word the game doesn't know, counting nothing and keeping nothing", async () => {
+    const round = await getRound();
+    const missed = await guess(round.state, "xylophone");
+    const { status, body } = await guess(missed.body.state, "Azertyuiop");
+    expect(status).toBe(422);
+    expect(body).toEqual({ error: "Je ne connais pas le mot « Azertyuiop ».", code: "unknown-word", key: "azertyuiop" });
+    // The next word goes on from the state before it, as if it had never been typed.
+    const next = await guess(missed.body.state, "betterave");
+    expect((await openState(next.body.state, env.STATE_SECRET))?.tried).toBe(2);
+  });
+
+  it("knows every word of the song, whatever the dictionary says", async () => {
+    mockLrclibFetch(`${FIXTURE_LYRICS}\nZorglub et Zorglub encore`);
+    const round = await getRound();
+    const { status, body } = await guess(round.state, "zorglub");
+    expect(status).toBe(200);
+    expect(body.found).toBe(true);
+    expect((await guess(round.state, "zorglubs")).status).toBe(422);
+  });
+
+  it("knows a word the song's similarity table scores, and refuses nothing while the table can't be read", async () => {
+    const round = await getRound();
+    const scoring = { ...env, SIMILARITY: similarityKv({ scores: { pikachu: 31 } }) };
+    expect((await guess(round.state, "pikachu", scoring)).body.score).toBe(31);
+    resetSimilarityMemo();
+    const failing: SimilarityKv = {
+      get: async () => {
+        throw new Error("KV is down");
+      },
+    };
+    expect((await guess(round.state, "pikachu", { ...env, SIMILARITY: failing })).status).toBe(200);
+  });
+
+  it("knows a number, and an elided word by the word itself", async () => {
+    const round = await getRound();
+    expect((await guess(round.state, "1987")).status).toBe(200);
+    expect((await guess(round.state, "qu’importe")).status).toBe(200);
+    expect((await guess(round.state, "l'azertyuiop")).status).toBe(422);
   });
 
   it("declares victory and reveals the artist once every title word is found", async () => {
@@ -532,8 +572,8 @@ describe("POST /api/guess", () => {
 describe("POST /api/guess — proximity score", () => {
   it("scores a missed word from the song's precomputed table", async () => {
     const round = await getRound();
-    const scoring = { ...env, SIMILARITY: similarityKv({ scores: { xylophoneinexistant: 37 } }) };
-    const { body } = await guess(round.state, "xylophoneinexistant", scoring);
+    const scoring = { ...env, SIMILARITY: similarityKv({ scores: { xylophone: 37 } }) };
+    const { body } = await guess(round.state, "xylophone", scoring);
     expect(body.found).toBe(false);
     expect(body.score).toBe(37);
   });
@@ -566,8 +606,8 @@ describe("POST /api/guess — proximity score", () => {
     );
     const scoring = { ...env, SIMILARITY: { get } };
 
-    const first = await guess(round.state, "xylophoneinexistant", scoring);
-    await guess(first.body.state, "betteraveimaginaire", scoring);
+    const first = await guess(round.state, "xylophone", scoring);
+    await guess(first.body.state, "betterave", scoring);
 
     expect(get).toHaveBeenCalledTimes(1);
   });
@@ -576,20 +616,20 @@ describe("POST /api/guess — proximity score", () => {
     const round = await getRound();
     const scoring = {
       ...env,
-      SIMILARITY: similarityKv({ scores: { xylophoneinexistant: 12 }, songId: await songIdOf(round) }),
+      SIMILARITY: similarityKv({ scores: { xylophone: 12 }, songId: await songIdOf(round) }),
     };
-    expect((await guess(round.state, "xylophoneinexistant", scoring)).body.score).toBe(12);
+    expect((await guess(round.state, "xylophone", scoring)).body.score).toBe(12);
   });
 
   it("returns a null score for a word outside the reference vocabulary", async () => {
     const round = await getRound();
     const scoring = { ...env, SIMILARITY: similarityKv({ scores: { autrechose: 80 } }) };
-    expect((await guess(round.state, "xylophoneinexistant", scoring)).body.score).toBeNull();
+    expect((await guess(round.state, "xylophone", scoring)).body.score).toBeNull();
   });
 
   it("keeps working with no similarity namespace bound at all", async () => {
     const round = await getRound();
-    const { status, body } = await guess(round.state, "xylophoneinexistant");
+    const { status, body } = await guess(round.state, "xylophone");
     expect(status).toBe(200);
     expect(body.found).toBe(false);
     expect(body.score).toBeNull();
@@ -603,11 +643,11 @@ describe("POST /api/guess — proximity score", () => {
     const scoring = {
       ...env,
       SIMILARITY: similarityKv({
-        scores: { xylophoneinexistant: 64 },
-        near: { xylophoneinexistant: { couplet: 64, ligne: 52 } },
+        scores: { xylophone: 64 },
+        near: { xylophone: { couplet: 64, ligne: 52 } },
       }),
     };
-    const { body } = await guess(round.state, "xylophoneinexistant", scoring);
+    const { body } = await guess(round.state, "xylophone", scoring);
 
     // The response may only ever grow by numbers: a score, and positions with
     // a score each. No neighbour word, no vector, no table excerpt. Hints
@@ -652,12 +692,12 @@ describe("POST /api/guess — close words", () => {
     const scoring = {
       ...env,
       SIMILARITY: similarityKv({
-        scores: { xylophoneinexistant: 64 },
-        near: { xylophoneinexistant: { couplet: 64, refrain: 41 } },
+        scores: { xylophone: 64 },
+        near: { xylophone: { couplet: 64, refrain: 41 } },
       }),
     };
 
-    const { body } = await guess(round.state, "xylophoneinexistant", scoring);
+    const { body } = await guess(round.state, "xylophone", scoring);
 
     const expected = words.flatMap((word, position) =>
       word === "couplet" ? [{ position, score: 64 }] : word === "refrain" ? [{ position, score: 41 }] : []
@@ -671,13 +711,13 @@ describe("POST /api/guess — close words", () => {
     const round = await getRound();
     const scoring = {
       ...env,
-      SIMILARITY: similarityKv({ scores: { xylophoneinexistant: 64 }, near: { xylophoneinexistant: { couplet: 64 } } }),
+      SIMILARITY: similarityKv({ scores: { xylophone: 64 }, near: { xylophone: { couplet: 64 } } }),
     };
 
     const first = await guess(round.state, "couplet", scoring);
     expect(first.body.found).toBe(true);
 
-    const { body } = await guess(first.body.state, "xylophoneinexistant", scoring);
+    const { body } = await guess(first.body.state, "xylophone", scoring);
     expect(body.score).toBe(64);
     expect(body.near).toEqual([]);
   });
@@ -695,11 +735,11 @@ describe("POST /api/guess — close words", () => {
     const scoring = {
       ...env,
       SIMILARITY: similarityKv({
-        scores: { xylophoneinexistant: 20 },
-        near: { xylophoneinexistant: { couplet: NEAR_SCORE - 1 } },
+        scores: { xylophone: 20 },
+        near: { xylophone: { couplet: NEAR_SCORE - 1 } },
       }),
     };
-    const { body } = await guess(round.state, "xylophoneinexistant", scoring);
+    const { body } = await guess(round.state, "xylophone", scoring);
     expect(body.score).toBe(20);
     expect(body.near).toEqual([]);
   });
@@ -747,7 +787,7 @@ describe("DEV_REVEAL_LYRICS", () => {
     const round = await getRound();
     expect(allTokens(round).every((t) => t.devHint === undefined)).toBe(true);
 
-    const { body } = await guess(round.state, "xylophoneinexistant");
+    const { body } = await guess(round.state, "xylophone");
     expect(allTokens(body).every((t) => t.devHint === undefined)).toBe(true);
   });
 
@@ -798,7 +838,7 @@ describe("reveal all lyrics (post-victory checkbox)", () => {
     const round = await getRound();
     expect(allTokens(round).every((t) => t.revealHint === undefined)).toBe(true);
 
-    const { body } = await guess(round.state, "xylophoneinexistant");
+    const { body } = await guess(round.state, "xylophone");
     expect(body.victory).toBe(false);
     expect(allTokens(body).every((t) => t.revealHint === undefined)).toBe(true);
   });

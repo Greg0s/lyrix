@@ -13,8 +13,10 @@ import { baseKey } from "../../src/game/normalize";
 import { MAX_PROXIMITY_SCORE } from "../../src/game/similarity";
 import { wordPositions } from "../../src/game/slots";
 import type { GuessDelta, HintId, NearSlot, RevealedSlot, RoundHints, RoundView, Song } from "../../src/game/types";
+import { UNKNOWN_WORD, unknownWordMessage, type UnknownWordAnswer } from "../../src/game/unknownWord";
 import type { EventsEnv } from "./events";
-import { proximityHint, type SimilarityEnv } from "./similarity";
+import { isKnownWord } from "./lexicon";
+import { hintFromTable, readSimilarityTable, type SimilarityEnv } from "./similarity";
 import { coverToken, hasCoverLookup } from "./covers";
 import { hintValues, songYear } from "./songFacts";
 import type { SongsEnv } from "./songs";
@@ -197,19 +199,30 @@ export async function buildGuessDelta(
   };
 }
 
-/** Checks one (already trimmed) guess against the song, given the words found before it. */
+/**
+ * Checks one (already trimmed) guess against the song, given the words found
+ * before it. Null for a word the game doesn't know (lexicon.ts): refused,
+ * never counted as a try nor kept, wherever it was typed.
+ */
 export async function evaluateGuess(
   env: RoundEnv,
   song: Song,
   foundKeys: ReadonlySet<string>,
   word: string
-): Promise<GuessOutcome> {
+): Promise<GuessOutcome | null> {
   const key = songGuessKey(song, word);
   const found = songWordKeys(song).has(baseKey(key));
   // A found word is its own closest match and reveals itself, so it needs no
   // table lookup. A missed one gets its score plus the positions of the hidden
   // words it is close to - never those words themselves, and never a vector.
   if (found) return { key, found, score: MAX_PROXIMITY_SCORE, near: [] };
-  const hint = await proximityHint(env, song, key, foundKeys);
+  const table = await readSimilarityTable(env, song);
+  if (!isKnownWord(baseKey(key), table)) return null;
+  const hint = hintFromTable(table ?? null, song, key, foundKeys);
   return { key, found, score: hint.score, near: hint.near };
+}
+
+/** What the Worker answers a word it doesn't know with: 422, the player's message, and the guess's key. */
+export function unknownWordBody(song: Song, word: string): UnknownWordAnswer {
+  return { error: unknownWordMessage(word), code: UNKNOWN_WORD, key: songGuessKey(song, word) };
 }

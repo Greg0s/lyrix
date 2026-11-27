@@ -183,7 +183,7 @@ const memoized = new Map<string, MemoizedTable>();
  * the most expensive step there is - all for the same result. They now wait
  * for the first one's.
  */
-const reading = new Map<string, Promise<SimilarityTable | null>>();
+const reading = new Map<string, Promise<SimilarityTable | null | undefined>>();
 
 /** Drops the isolate's parsed tables, and what it has already said about them. For tests; production relies on the TTLs above. */
 export function resetSimilarityMemo(): void {
@@ -260,8 +260,12 @@ async function readTable(env: SimilarityEnv, song: Song): Promise<SimilarityTabl
   return null;
 }
 
-/** Never throws: a KV hiccup or a malformed table degrades to "no score", never to a failed guess. */
-export async function loadSimilarityTable(env: SimilarityEnv, song: Song): Promise<SimilarityTable | null> {
+/**
+ * The song's table: null when there is none (unbound, never uploaded,
+ * unreadable), undefined when KV didn't answer just now - nothing is
+ * remembered then, and the next guess asks again. Never throws.
+ */
+export async function readSimilarityTable(env: SimilarityEnv, song: Song): Promise<SimilarityTable | null | undefined> {
   const now = Date.now();
   const hit = memoizedFor(env, song, now);
   if (hit) return hit.table;
@@ -274,7 +278,7 @@ export async function loadSimilarityTable(env: SimilarityEnv, song: Song): Promi
 
   // readTable never throws, so neither does this.
   const read = readTable(env, song).then((table) => {
-    if (table === READ_FAILED) return null;
+    if (table === READ_FAILED) return undefined;
     remember({
       bound,
       sample,
@@ -287,6 +291,11 @@ export async function loadSimilarityTable(env: SimilarityEnv, song: Song): Promi
   const shared = read.finally(() => reading.delete(readingKey));
   reading.set(readingKey, shared);
   return shared;
+}
+
+/** Never throws: a KV hiccup or a malformed table degrades to "no score", never to a failed guess. */
+export async function loadSimilarityTable(env: SimilarityEnv, song: Song): Promise<SimilarityTable | null> {
+  return (await readSimilarityTable(env, song)) ?? null;
 }
 
 /** `null` for a word the table doesn't cover, so the UI can tell "far away" from "unknown word". */
@@ -365,6 +374,19 @@ export function numberHint(song: Song, key: string, foundKeys: ReadonlySet<strin
   return { score, near: near.sort((a, b) => a.position - b.position) };
 }
 
+/** The hint for a missed guess, from the song's table (null: none, so no hint of any kind). */
+export function hintFromTable(
+  table: SimilarityTable | null,
+  song: Song,
+  key: string,
+  foundKeys: ReadonlySet<string>
+): ProximityHint {
+  // No table, no hint of any kind, numbers included: the feature is simply off.
+  if (!table) return { score: null, near: [] };
+  if (isNumberWord(key)) return numberHint(song, key, foundKeys);
+  return { score: scoreFromTable(table, key), near: nearSlotsFromTable(table, key, song, foundKeys) };
+}
+
 /** One KV read per guess, for both halves of the hint. */
 export async function proximityHint(
   env: SimilarityEnv,
@@ -372,9 +394,5 @@ export async function proximityHint(
   key: string,
   foundKeys: ReadonlySet<string>
 ): Promise<ProximityHint> {
-  const table = await loadSimilarityTable(env, song);
-  // No table, no hint of any kind, numbers included: the feature is simply off.
-  if (!table) return { score: null, near: [] };
-  if (isNumberWord(key)) return numberHint(song, key, foundKeys);
-  return { score: scoreFromTable(table, key), near: nearSlotsFromTable(table, key, song, foundKeys) };
+  return hintFromTable(await loadSimilarityTable(env, song), song, key, foundKeys);
 }

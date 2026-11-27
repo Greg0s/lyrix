@@ -8,7 +8,8 @@ import {
   type RoomRound,
 } from "../game/room";
 import type { HintId } from "../game/types";
-import { apiUrl, GUESS_TIMEOUT_MS, ROOM_ENTRY_TIMEOUT_MS, withTimeout } from "./base";
+import { isUnknownWordAnswer } from "../game/unknownWord";
+import { apiUrl, GUESS_TIMEOUT_MS, ROOM_ENTRY_TIMEOUT_MS, UnknownWordError, withTimeout } from "./base";
 
 /** This page's tab, as its room tells its connections apart (see generateTabId). */
 const TAB_ID = generateTabId();
@@ -73,8 +74,8 @@ export function roomSocketUrl(code: string, token: string): string {
 }
 
 /**
- * A guess for the whole room (issue #30). Throws, like submitGuess, when it
- * couldn't be checked, in time included: the dock says so and the player can
+ * A guess for the whole room (issue #30). Throws, like submitGuess, an
+ * UnknownWordError for a word the Worker doesn't know, and when it couldn't be checked, in time included: the dock says so and the player can
  * try again.
  */
 export function submitRoomGuess(code: string, token: string, word: string, day?: string): Promise<RoomGuessResult> {
@@ -88,6 +89,7 @@ export function submitRoomGuess(code: string, token: string, word: string, day?:
       signal,
     });
     const body: unknown = await response.json().catch(() => null);
+    if (!response.ok && isUnknownWordAnswer(body)) throw new UnknownWordError(body.key);
     const result = response.ok ? parseRoomGuessResult(body) : null;
     if (!result) throw new Error(`room guess failed with status ${response.status}`);
     return result;
