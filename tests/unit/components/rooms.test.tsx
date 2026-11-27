@@ -22,6 +22,7 @@ import {
 import { utcDay } from "../../../src/game/daily";
 import type { RoundHints, RoundView } from "../../../src/game/types";
 import { flushSavedRound, saveRound } from "../../../src/roundStorage";
+import { settleHistory } from "./settleHistory";
 
 /**
  * Rooms (issue #29) as the player meets them: the dialog, the Salon card, the
@@ -212,9 +213,10 @@ afterEach(async () => {
   flushSavedRound();
   vi.useRealTimers();
   vi.unstubAllGlobals();
-  // A dialog unmounted takes its history entry back off (useBackCloses): Back
-  // a task later, which must land in this test, not move the next one's screen.
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  // A dialog closed or unmounted takes its history entry back off
+  // (useBackCloses): Back lands two tasks later, which must be in this test,
+  // not in the next one, whose screen it would move.
+  await settleHistory();
 });
 
 describe("a room saved by an earlier visit", () => {
